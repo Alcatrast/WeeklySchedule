@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             x:Class="WeeklySchedule.Views.SettingsPage"
+             x:Name="SettingsPageRoot"
+             x:DataType="vm:SettingsViewModel"
+             Title="Настройки">
+    <ContentPage.Resources>
+        <Style x:Key="IconButtonStyle" TargetType="Border">
+            <Setter Property="HeightRequest" Value="40" />
+            <Setter Property="WidthRequest" Value="40" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalOptions" Value="Center" />
+            <Setter Property="VerticalOptions" Value="Center" />
+        </Style>
+    </ContentPage.Resources>
+    <ScrollView>
+        <VerticalStackLayout Spacing="25" Padding="20" VerticalOptions="Start">
+            <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>
+            <Label Text="Уведомления" FontSize="18" FontAttributes="Bold"/>
+            <Button Text="Разрешить уведомления" 
+                    IsVisible="{Binding IsNotPermissionGranted}" 
+                    Command="{Binding RequestPermissionCommand}"
+                    BackgroundColor="{StaticResource Primary}" TextColor="White"
+                    CornerRadius="8" HeightRequest="45"/>
+
+            <HorizontalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="8" VerticalOptions="Center">
+                <Path Data="{StaticResource IconDoneOutline}" 
+                      Fill="{StaticResource Success}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                <Label Text="Разрешение предоставлено" 
+                       TextColor="{StaticResource Success}" FontAttributes="Bold" FontSize="16" VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+
+            <VerticalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="15">
+                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                    <Label Text="Уведомлять при начале пары" FontSize="16" VerticalOptions="Center"/>
+                    <Switch Grid.Column="1" IsToggled="{Binding NotifyAtStart}" VerticalOptions="Center"/>
+                </Grid>
+                <Label Text="Уведомлять до начала (минут)" FontSize="16" FontAttributes="Bold"/>
+                <CollectionView ItemsSource="{Binding ReminderItems}" HeightRequest="200">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NotificationReminderViewModel">
+                            <Grid ColumnDefinitions="Auto, *, Auto" Padding="0,5" ColumnSpacing="10">
+                                <Switch IsToggled="{Binding IsActive}" VerticalOptions="Center"/>
+                                <Entry Grid.Column="1" Text="{Binding Minutes}" Keyboard="Numeric" FontSize="16" VerticalOptions="Center"/>
+                                <Border Grid.Column="2" Style="{StaticResource IconButtonStyle}" BackgroundColor="{StaticResource Danger}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding BindingContext.DeleteReminderCommand, Source={x:Reference SettingsPageRoot}}" CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <Path Data="{StaticResource IconRemove}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+                <Border HeightRequest="40" WidthRequest="40" StrokeShape="RoundRectangle 20" StrokeThickness="1" Stroke="{StaticResource Primary}" BackgroundColor="Transparent" HorizontalOptions="Start" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding AddReminderCommand}" />
+                    </Border.GestureRecognizers>
+                    <Path Data="{StaticResource IconAddCircle}" Fill="{StaticResource Primary}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" />
+                </Border>
+            </VerticalStackLayout>
+
+            <!-- === ОБЩИЕ НАСТРОЙКИ === -->
+            <Label Text="Тема приложения" FontSize="16" FontAttributes="Bold"/>
+            <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" FontSize="16"/>
+            <Label Text="Длительность пары по умолчанию (мин)" FontSize="16" FontAttributes="Bold"/>
+            <Entry Keyboard="Numeric" Text="{Binding DefaultDuration}" FontSize="16"/>
+            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ToggleOpenLastCommand}" />
+                </Grid.GestureRecognizers>
+                <Label Text="Открытие последнего таймлайна" FontSize="16" FontAttributes="Bold" VerticalOptions="Center"/>
+                <Switch Grid.Column="1" IsToggled="{Binding OpenLast}" VerticalOptions="Center" />
+            </Grid>
+            <VerticalStackLayout x:Name="StartupPickerLayout" Spacing="10">
+                <Label Text="Стартовый таймлайн" FontSize="16" FontAttributes="Bold"/>
+                <Picker ItemsSource="{Binding StartupTimelines}" SelectedItem="{Binding SelectedStartupTimeline}" FontSize="16" ItemDisplayBinding="{Binding Name}"/>
+            </VerticalStackLayout>
+            <Label Text="Язык интерфейса" FontSize="16" FontAttributes="Bold"/>
+            <Picker ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage}" FontSize="16"/>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

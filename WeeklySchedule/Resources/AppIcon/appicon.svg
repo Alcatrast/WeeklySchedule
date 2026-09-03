@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+	<defs>
+		<!-- Градиент фона: циан → синий → фиолетовый -->
+		<linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+			<stop offset="0%" style="stop-color:#00B4D8;stop-opacity:1" />
+			<stop offset="50%" style="stop-color:#4361EE;stop-opacity:1" />
+			<stop offset="100%" style="stop-color:#9D4EDD;stop-opacity:1" />
+		</linearGradient>
+
+		<!-- Тень только для самой иконки (squircle), чтобы она была объемной -->
+		<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+			<feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+			<feOffset dx="0" dy="8" result="offsetblur"/>
+			<feComponentTransfer>
+				<feFuncA type="linear" slope="0.3"/>
+			</feComponentTransfer>
+			<feMerge>
+				<feMergeNode/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+	</defs>
+
+	<!-- Squircle форма (основа иконки) -->
+	<path d="M 128 0 
+           L 384 0 
+           Q 512 0 512 128 
+           L 512 384 
+           Q 512 512 384 512 
+           L 128 512 
+           Q 0 512 0 384 
+           L 0 128 
+           Q 0 0 128 0 Z"
+		  fill="url(#bgGradient)"
+		  filter="url(#shadow)"/>
+
+	<!-- Сетка календаря (уменьшено количество линий: 4x4 вместо 6x6) -->
+	<g stroke="white" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.95">
+		<!-- Вертикальные линии (4 вместо 6) -->
+		<path d="M 170 170 L 170 350"/>
+		<path d="M 230 170 L 230 350"/>
+		<path d="M 290 170 L 290 350"/>
+		<path d="M 350 170 L 350 350"/>
+
+		<!-- Горизонтальные линии (4 вместо 6) -->
+		<path d="M 170 170 L 350 170"/>
+		<path d="M 170 230 L 350 230"/>
+		<path d="M 170 290 L 350 290"/>
+		<path d="M 170 350 L 350 350"/>
+
+		<!-- Скругления углов сетки -->
+		<path d="M 170 170 Q 170 185 185 185 L 335 185" stroke-width="12"/>
+		<path d="M 170 170 Q 185 170 185 185 L 185 335" stroke-width="12"/>
+	</g>
+
+	<!-- Звезда: увеличенная, симметричная, белая, без обводки -->
+	<path d="M 340 105 
+           L 352 145 
+           L 395 145 
+           L 360 170 
+           L 374 212 
+           L 340 187 
+           L 306 212 
+           L 320 170 
+           L 285 145 
+           L 328 145 Z"
+		  fill="white"
+		  stroke="none" />
+</svg>

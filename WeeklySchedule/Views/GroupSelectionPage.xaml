@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             x:Class="WeeklySchedule.Views.GroupSelectionPage"
+             x:DataType="vm:GroupSelectionViewModel"
+             Title="Выберите группу:">
+    <Grid>
+        <ScrollView x:Name="MainScroll">
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Categories}" Spacing="8" Padding="20">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Border StrokeShape="RoundRectangle 10" 
+                                StrokeThickness="1" 
+                                Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" 
+                                Padding="10">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCategoryTapped" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout>
+                                <HorizontalStackLayout Spacing="8" VerticalOptions="Center" InputTransparent="True">
+                                    <Path WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsExpanded}" Value="True">
+                                                <Setter Property="Data" Value="{StaticResource IconChevronUp}" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Path" Binding="{Binding IsExpanded}" Value="False">
+                                                <Setter Property="Data" Value="{StaticResource IconChevronRight}" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+                                    <Label Text="{Binding Prefix}" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <FlexLayout BindableLayout.ItemsSource="{Binding Groups}"
+                                            Wrap="Wrap" Direction="Row" JustifyContent="Start" AlignItems="Center"
+                                            IsVisible="{Binding IsExpanded}" Margin="0,5,0,0">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border StrokeShape="RoundRectangle 20"
+                                                    BackgroundColor="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                                                    Margin="4" Padding="12,6" HeightRequest="40" IsEnabled="{Binding IsEnabled}">
+                                                <Border.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnGroupTapped" />
+                                                </Border.GestureRecognizers>
+                                                <Label Text="{Binding Suffix}" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" InputTransparent="True" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid IsVisible="{Binding IsLoadingGroups}" BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" Opacity="0.95">
+            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="15">
+                <ActivityIndicator IsRunning="True" Color="{StaticResource Primary}" WidthRequest="50" HeightRequest="50" />
+                <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center">
+                    <Label.FormattedText>
+                        <FormattedString>
+                            <Span Text="Чтение файла и поиск групп..." />
+                            <Span Text="&#x0a;" />
+                            <Span Text="Пожалуйста, подождите" />
+                        </FormattedString>
+                    </Label.FormattedText>
+                </Label>
+            </VerticalStackLayout>
+        </Grid>
+
+        <Grid IsVisible="{Binding IsProcessing}" BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}" Opacity="0.95">
+            <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="15">
+                <ActivityIndicator IsRunning="True" Color="{StaticResource Primary}" WidthRequest="50" HeightRequest="50" />
+                <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center">
+                    <Label.FormattedText>
+                        <FormattedString>
+                            <Span Text="Идет импорт расписания..." />
+                            <Span Text="&#x0a;" />
+                            <Span Text="Пожалуйста, подождите" />
+                        </FormattedString>
+                    </Label.FormattedText>
+                </Label>
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
+</ContentPage>

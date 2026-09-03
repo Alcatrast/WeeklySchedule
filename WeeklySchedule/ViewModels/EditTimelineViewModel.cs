@@ -1,0 +1,159 @@
+﻿using System.Windows.Input;
+using WeeklySchedule.Data.Repositories;
+using WeeklySchedule.Models;
+using WeeklySchedule.Services;
+
+namespace WeeklySchedule.ViewModels;
+
+public partial class EditTimelineViewModel : BaseViewModel
+{
+    private readonly ITimelineRepository _repository;
+    private readonly ISettingsService _settingsService;
+    private readonly INotificationService _notificationService;
+    private readonly IFilePickerService _filePickerService;
+    private readonly INavigationService _navigationService;
+    private readonly Timeline _timeline;
+    private readonly bool _isEditMode;
+
+    public string ImportSectionTitle => _isEditMode ? "Дополнить импортом" : "Импорт";
+
+    private bool _isImporting;
+    public bool IsImporting
+    {
+        get => _isImporting;
+        set => SetProperty(ref _isImporting, value);
+    }
+
+    public ICommand SelectExcelFileCommand { get; }
+    public ICommand ToggleIsStartupCommand { get; }
+    public string Title => _isEditMode ? "Редактирование таймлайна" : "Новый таймлайн";
+    public bool IsEditMode => _isEditMode;
+
+    private string _name;
+    public string Name { get => _name; set => SetProperty(ref _name, value); }
+
+    private bool _isStartupTimeline;
+    public bool IsStartupTimeline { get => _isStartupTimeline; set => SetProperty(ref _isStartupTimeline, value); }
+
+    private bool _notificationsEnabled;
+    public bool NotificationsEnabled
+    {
+        get => _notificationsEnabled;
+        set
+        {
+            if (SetProperty(ref _notificationsEnabled, value))
+                _timeline.NotificationsEnabled = value;
+        }
+    }
+
+    private bool _showPermissionWarning;
+    public bool ShowPermissionWarning
+    {
+        get => _showPermissionWarning;
+        set => SetProperty(ref _showPermissionWarning, value);
+    }
+
+    public ICommand SaveCommand { get; }
+    public ICommand DeleteCommand { get; }
+    public ICommand CancelCommand { get; }
+    public ICommand ToggleNotificationsCommand { get; }
+
+    public EditTimelineViewModel(
+        ITimelineRepository repository,
+        ISettingsService settingsService,
+        INotificationService notificationService,
+        IFilePickerService filePickerService,
+        INavigationService navigationService,
+        Timeline? timeline)
+    {
+        _repository = repository;
+        _settingsService = settingsService;
+        _notificationService = notificationService;
+        _filePickerService = filePickerService;
+        _navigationService = navigationService;
+
+        _isEditMode = timeline != null;
+        _timeline = timeline ?? new Timeline();
+        _name = _timeline.Name;
+
+        ToggleIsStartupCommand = new Command(() => IsStartupTimeline = !IsStartupTimeline);
+        _isStartupTimeline = _settingsService.StartupTimelineId == _timeline.Id;
+
+        SaveCommand = new Command(async () => await SaveAsync());
+        DeleteCommand = new Command(async () => await DeleteAsync());
+        CancelCommand = new Command(async () => await _navigationService.PopModalAsync());
+
+        _notificationsEnabled = _timeline.NotificationsEnabled;
+        ToggleNotificationsCommand = new Command(() => NotificationsEnabled = !NotificationsEnabled);
+        SelectExcelFileCommand = new Command(async () => await HandleImportAsync());
+    }
+
+    public async Task CheckPermissionsAsync()
+    {
+        var granted = await _notificationService.CheckAllPermissionsAsync();
+        ShowPermissionWarning = !granted;
+    }
+
+    private async Task HandleImportAsync()
+    {
+        if (IsImporting) return;
+        IsImporting = true;
+        try
+        {
+            var file = await _filePickerService.PickExcelFileAsync();
+            if (file == null) return;
+
+            // Передаем управление в View, так как создание страниц с DI лучше делать там
+            // Или можно использовать IPageFactory. Для простоты вызываем событие.
+            ImportRequested?.Invoke(file.FullPath);
+        }
+        finally
+        {
+            IsImporting = false;
+        }
+    }
+
+    public event Action<string>? ImportRequested;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            if (Application.Current?.Windows[0]?.Page is Page page)
+                await page.DisplayAlertAsync("Ошибка", "Введите название таймлайна", "ОК");
+            return;
+        }
+
+        _timeline.Name = Name.Trim();
+        if (_isEditMode) await _repository.UpdateAsync(_timeline);
+        else await _repository.AddAsync(_timeline);
+
+        if (IsStartupTimeline)
+        {
+            _settingsService.StartupTimelineId = _timeline.Id;
+            _settingsService.OpenLastTimeline = false;
+        }
+        else if (_settingsService.StartupTimelineId == _timeline.Id)
+        {
+            _settingsService.StartupTimelineId = Guid.Empty;
+        }
+
+        await _navigationService.PopModalAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        bool confirm = false;
+        if (Application.Current?.Windows[0]?.Page is Page page)
+            confirm = await page.DisplayAlertAsync("Подтверждение", "Удалить этот таймлайн?", "Да", "Отмена");
+
+        if (confirm)
+        {
+            if (_settingsService.StartupTimelineId == _timeline.Id)
+                _settingsService.StartupTimelineId = Guid.Empty;
+
+            await _repository.DeleteAsync(_timeline.Id);
+            await _navigationService.PopModalAsync();
+        }
+    }
+}

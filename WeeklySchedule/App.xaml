@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:WeeklySchedule"
+             xmlns:converters="clr-namespace:WeeklySchedule.Converters"
+             x:Class="WeeklySchedule.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Icons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <converters:LessonTypeToColorConverter x:Key="LessonTypeToColorConverter" />
+            <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
+            <converters:SeparatorTypeToHeightConverter x:Key="SepToHeight" />
+            <converters:SeparatorTypeToColorConverter x:Key="SepToColor" />
+            <converters:ScheduleItemTemplateSelector x:Key="ItemSelector" />
+            <converters:TimelineHighlightConverter x:Key="TimelineHighlightConverter" />
+            <converters:TimelineStrokeConverter x:Key="TimelineStrokeConverter" />
+            <converters:IsEqualConverter x:Key="IsEqualConverter" />
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

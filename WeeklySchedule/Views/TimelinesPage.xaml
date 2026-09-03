@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             xmlns:models="clr-namespace:WeeklySchedule.Models"
+             x:Class="WeeklySchedule.Views.TimelinesPage"
+             x:Name="TimelinesPageRoot"
+             x:DataType="vm:TimelinesViewModel"
+             Title="Таймлайны">
+    <Grid RowDefinitions="Auto, *">
+        <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Padding="15, 10" ColumnSpacing="10">
+            <Label Text="Открывать последний выбранный" 
+                   FontSize="16" 
+                   FontAttributes="Bold" 
+                   VerticalOptions="Center"/>
+            <Switch Grid.Column="1" 
+                    IsToggled="{Binding OpenLastTimeline}" 
+                    VerticalOptions="Center" />
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <ScrollView.GestureRecognizers>
+                <TapGestureRecognizer NumberOfTapsRequired="2" Command="{Binding CreateTimelineCommand}" />
+            </ScrollView.GestureRecognizers>
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Timelines}" Spacing="10" Padding="15">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="models:Timeline">
+                        <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2">
+                            <Border.BackgroundColor>
+                                <MultiBinding Converter="{StaticResource TimelineHighlightConverter}">
+                                    <Binding Path="Id" />
+                                    <Binding Path="BindingContext.HighlightedTimelineId" Source="{x:Reference TimelinesPageRoot}" />
+                                </MultiBinding>
+                            </Border.BackgroundColor>
+                            <Border.Stroke>
+                                <MultiBinding Converter="{StaticResource TimelineStrokeConverter}">
+                                    <Binding Path="Id" />
+                                    <Binding Path="BindingContext.HighlightedTimelineId" Source="{x:Reference TimelinesPageRoot}" />
+                                </MultiBinding>
+                            </Border.Stroke>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer NumberOfTapsRequired="2" 
+                                  Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}" 
+                                  CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+
+                            <Grid ColumnDefinitions="Auto, *">
+                                <!-- Контейнер для иконок -->
+                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4">
+                                    <Path Data="{StaticResource IconStar}" 
+                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
+                                        <Path.Triggers>
+                                            <DataTrigger TargetType="Path" Value="False">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{StaticResource IsEqualConverter}">
+                                                        <Binding Path="Id" />
+                                                        <Binding Path="BindingContext.HighlightedTimelineId" Source="{x:Reference TimelinesPageRoot}" />
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="IsVisible" Value="False" />
+                                            </DataTrigger>
+                                        </Path.Triggers>
+                                    </Path>
+
+                                    <Path Data="{StaticResource IconNotifications}" 
+                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                      IsVisible="{Binding NotificationsEnabled}" />
+                                </HorizontalStackLayout>
+
+                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

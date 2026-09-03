@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             xmlns:views="clr-namespace:WeeklySchedule.Views"
+             x:Class="WeeklySchedule.MainPage"
+             x:DataType="vm:MainViewModel"
+                          Title="{Binding CurrentTimelineName}">
+
+    <Grid RowDefinitions="Auto, *" RowSpacing="10" Padding="10, 0, 10, 10">
+        <Label Grid.Row="0"
+           Text="{Binding SelectedDayVM.DayTitle}"
+           FontSize="20"
+           FontAttributes="Bold"
+           HorizontalOptions="Center"
+           VerticalOptions="Center"
+           Margin="0,10,0,0">
+            <Label.GestureRecognizers>
+                <TapGestureRecognizer NumberOfTapsRequired="2" Tapped="OnHeaderDoubleTapped" />
+            </Label.GestureRecognizers>
+        </Label>
+
+        <CarouselView Grid.Row="1"
+                      ItemsSource="{Binding Days}"
+                      CurrentItem="{Binding SelectedDayVM, Mode=TwoWay}"
+                      Loop="True"
+                      IsSwipeEnabled="True"
+                      HorizontalScrollBarVisibility="Never"
+                      VerticalScrollBarVisibility="Never">
+            <CarouselView.ItemTemplate>
+                <DataTemplate x:DataType="vm:DayViewModel">
+                    <views:DayView />
+                </DataTemplate>
+            </CarouselView.ItemTemplate>
+        </CarouselView>
+    </Grid>
+</ContentPage>

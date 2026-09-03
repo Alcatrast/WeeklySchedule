@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WeeklySchedule.Views.EditLessonPage"
+             x:Name="ThisPage">
+    <ScrollView>
+        <VerticalStackLayout Spacing="20" Padding="20, 10, 20, 150" VerticalOptions="Start">
+            <Label x:Name="PageTitle" Text="Редактирование пары" 
+                   FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" />
+
+            <Label Text="Название пары" FontSize="14" FontAttributes="Bold"/>
+            <Entry x:Name="EntryName" Placeholder="Например: Математический анализ" FontSize="16" />
+
+            <Label Text="Описание / Аудитория" FontSize="14" FontAttributes="Bold"/>
+            <Editor x:Name="EditorDesc" Placeholder="Например: Ауд. 305, Корпус 1" FontSize="16" AutoSize="TextChanges" MinimumHeightRequest="80" />
+
+            <Label Text="Тип занятия" FontSize="14" FontAttributes="Bold"/>
+            <Picker x:Name="PickerType" FontSize="16" Title="Выберите тип">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>Лекция</x:String>
+                        <x:String>Семинар</x:String>
+                        <x:String>Практика</x:String>
+                        <x:String>Лабораторная</x:String>
+                    </x:Array>
+                </Picker.ItemsSource>
+            </Picker>
+
+            <Label Text="День недели" FontSize="14" FontAttributes="Bold"/>
+            <Picker x:Name="PickerDay" FontSize="16" Title="Выберите день недели">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>Понедельник</x:String>
+                        <x:String>Вторник</x:String>
+                        <x:String>Среда</x:String>
+                        <x:String>Четверг</x:String>
+                        <x:String>Пятница</x:String>
+                        <x:String>Суббота</x:String>
+                        <x:String>Воскресенье</x:String>
+                    </x:Array>
+                </Picker.ItemsSource>
+            </Picker>
+
+            <Label Text="Таймлайн" FontSize="14" FontAttributes="Bold"/>
+            <Picker x:Name="PickerTimeline" FontSize="16" Title="Выберите таймлайн" />
+            <Label Text="Время проведения" FontSize="14" FontAttributes="Bold"/>
+            <Grid ColumnDefinitions="*, *, *" ColumnSpacing="10">
+                <VerticalStackLayout Grid.Column="0">
+                    <Label Text="Начало" FontSize="12" Opacity="0.8"/>
+                    <TimePicker x:Name="TimePickerStart" Format="HH:mm" FontSize="16" 
+                                Time="{Binding StartTime, Source={x:Reference ThisPage}}" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1">
+                    <Label Text="Конец" FontSize="12" Opacity="0.8"/>
+                    <TimePicker x:Name="TimePickerEnd" Format="HH:mm" FontSize="16" 
+                                Time="{Binding EndTime, Source={x:Reference ThisPage}}" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="2">
+                    <Label Text="Длит. (мин)" FontSize="12" Opacity="0.8"/>
+                    <Entry x:Name="EntryDuration" Keyboard="Numeric" FontSize="16" 
+                           Text="{Binding DurationText, Source={x:Reference ThisPage}}" 
+                           TextChanged="OnDurationTextChanged" Placeholder="0"/>
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- Кнопка Удалить -->
+            <Border x:Name="BorderDelete" BackgroundColor="#D32F2F" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill" IsVisible="False" Margin="0,10,0,0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnDeleteClicked" />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                    <Path Data="{StaticResource IconDeleteForever}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                    <Label Text="Удалить пару" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+
+            <!-- Кнопка Сохранить -->
+            <Border x:Name="BorderSave" BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSaveClicked" />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                    <Path Data="{StaticResource IconSave}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                    <Label Text="Сохранить" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+
+            <!-- Кнопка Отмена -->
+            <Border x:Name="BorderCancel" BackgroundColor="Transparent" StrokeShape="RoundRectangle 12" StrokeThickness="1" Stroke="{StaticResource Gray500}" HeightRequest="50" HorizontalOptions="Fill">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCancelClicked" />
+                </Border.GestureRecognizers>
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                    <Path Data="{StaticResource IconCancel}" Fill="{StaticResource Gray500}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                    <Label Text="Отмена" TextColor="{StaticResource Gray500}" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
