@@ -20,8 +20,6 @@ public partial class DayViewModel : BaseViewModel
 
     public TimelineLayout Layout { get; private set; } = new();
     public event Action? LayoutUpdated;
-    public event Action<DateTime>? TimeStatusUpdated;
-
     public event Action? ScrollToCurrentRequested;
     public ICommand EditLessonCommand { get; }
 
@@ -67,10 +65,5 @@ public partial class DayViewModel : BaseViewModel
     {
         Layout = TimelineLayoutBuilder.Build(Date, allLessons, now);
         LayoutUpdated?.Invoke();
-    }
-
-    public void UpdateTimeStatus(DateTime now)
-    {
-        TimeStatusUpdated?.Invoke(now);
     }
 }

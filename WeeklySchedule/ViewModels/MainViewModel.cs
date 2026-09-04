@@ -73,12 +73,15 @@ public partial class MainViewModel : BaseViewModel
         _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
         _scheduler.OnTimeMarkerReached += (now) =>
         {
-            var todayVM = Days.FirstOrDefault(d => d.Date == TimeContext.Now.Date);
-            todayVM?.UpdateTimeStatus(now);
+            // Пара началась или закончилась: пересобираем сегодняшний день, иначе
+            // подсветка текущей пары остается такой, какой была на прошлом пересчете
+            var todayVM = Days.FirstOrDefault(d => d.Date == now.Date);
+            todayVM?.UpdateLayout(now, _allLessons);
         };
         _scheduler.OnDayChanged += () =>
         {
             _scheduler.RebuildQueue();
+            RollDaysWindow();
             UpdateAllTitles();
             UpdateAllDays();
         };
@@ -151,6 +154,30 @@ public partial class MainViewModel : BaseViewModel
         SelectedDayVM = Days[0];
     }
 
+    /// <summary>
+    /// Сдвигает окно из 7 дней после смены суток: выбрасывает прошедшие дни
+    /// и достраивает недостающие в конец, сохраняя объекты оставшихся дней.
+    /// </summary>
+    private void RollDaysWindow()
+    {
+        var today = TimeContext.Now.Date;
+
+        while (Days.Count > 0 && Days[0].Date < today) Days.RemoveAt(0);
+
+        // Приложение пролежало в фоне неделю и больше — окно проще собрать заново
+        if (Days.Count == 0)
+        {
+            InitializeDays();
+            return;
+        }
+
+        while (Days.Count < 7) Days.Add(new DayViewModel(Days[^1].Date.AddDays(1)));
+
+        // Выбранным мог быть день, который только что выпал из окна
+        if (SelectedDayVM == null || !Days.Contains(SelectedDayVM))
+            SelectedDayVM = Days[0];
+    }
+
     public async Task InitializeDataAsync()
     {
         // ИСПРАВЛЕНО: Вызов сидера и логики старта внутри асинхронного метода
@@ -162,6 +189,11 @@ public partial class MainViewModel : BaseViewModel
         CurrentTimelineName = activeTimeline?.Name ?? "Расписание";
         _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
         _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
+
+        // Приложение могло пролежать в фоне через полночь: тогда таймер был остановлен
+        // и OnDayChanged не придет — окно дней надо сдвинуть здесь
+        RollDaysWindow();
+        UpdateAllTitles();
         UpdateAllDays();
         await ScheduleAllNotificationsAsync();
     }
