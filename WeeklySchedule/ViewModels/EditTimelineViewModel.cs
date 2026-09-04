@@ -103,9 +103,13 @@ public partial class EditTimelineViewModel : BaseViewModel
             var file = await _filePickerService.PickExcelFileAsync();
             if (file == null) return;
 
+            // Импорт должен попасть именно в редактируемый таймлайн, поэтому отдаем
+            // сам объект: в режиме создания он еще не сохранен в репозитории
+            _timeline.Name = (Name ?? string.Empty).Trim();
+
             // Передаем управление в View, так как создание страниц с DI лучше делать там
             // Или можно использовать IPageFactory. Для простоты вызываем событие.
-            ImportRequested?.Invoke(file.FullPath);
+            ImportRequested?.Invoke(file.FullPath, _timeline, _isEditMode);
         }
         finally
         {
@@ -113,7 +117,10 @@ public partial class EditTimelineViewModel : BaseViewModel
         }
     }
 
-    public event Action<string>? ImportRequested;
+    /// <summary>
+    /// filePath, редактируемый таймлайн, признак того что таймлайн уже есть в репозитории.
+    /// </summary>
+    public event Action<string, Timeline, bool>? ImportRequested;
 
     private async Task SaveAsync()
     {

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Extentions;
+using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 
@@ -11,7 +12,8 @@ namespace WeeklySchedule.ViewModels;
 public partial class GroupSelectionViewModel : BaseViewModel
 {
     private readonly string _filePath;
-    private readonly bool _isEditMode;
+    // Таймлайн уже сохранен в репозитории (режим "дополнить импортом")
+    private readonly bool _timelineExists;
     private readonly Timeline _timeline;
     private readonly ILessonRepository _lessonRepo;
     private readonly ITimelineRepository _timelineRepo;
@@ -39,7 +41,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
     public GroupSelectionViewModel(
         string filePath,
-        bool isEditMode,
+        bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
@@ -47,7 +49,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         IServiceProvider serviceProvider)
     {
         _filePath = filePath;
-        _isEditMode = isEditMode;
+        _timelineExists = timelineExists;
         _timeline = timeline;
         _lessonRepo = lessonRepo;
         _timelineRepo = timelineRepo;
@@ -135,9 +137,11 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 return parser.ParseGroupSchedule(_filePath, group.FullGroupName);
             });
 
-            if (!_isEditMode)
+            if (!_timelineExists)
             {
-                _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
+                // Имя, введенное пользователем, приоритетнее автоматического
+                if (string.IsNullOrWhiteSpace(_timeline.Name))
+                    _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
                 await _timelineRepo.AddAsync(_timeline);
             }
 
@@ -146,6 +150,8 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 lesson.TimelineId = _timeline.Id;
                 await _lessonRepo.AddAsync(lesson);
             }
+
+            AppEvents.NotifyDataChanged();
 
             var mainPage = Application.Current?.MainPage;
             if (mainPage != null)

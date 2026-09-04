@@ -30,6 +30,18 @@ public class FileLessonRepository : ILessonRepository
         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
     }
 
+    // Удаляет файлы пары во всех таймлайнах, кроме keepPath. Вызывать под _lock
+    private void DeleteCopiesExcept(Guid lessonId, string keepPath)
+    {
+        if (!Directory.Exists(_baseDirectoryPath)) return;
+        foreach (var timelineDir in Directory.GetDirectories(_baseDirectoryPath))
+        {
+            var path = Path.Combine(timelineDir, "Lessons", $"{lessonId}.json");
+            if (string.Equals(path, keepPath, StringComparison.OrdinalIgnoreCase)) continue;
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     public async Task<IEnumerable<Lesson>> GetAllAsync()
     {
         var lessons = new List<Lesson>();
@@ -108,10 +120,13 @@ public class FileLessonRepository : ILessonRepository
         {
             lock (_lock)
             {
-                // Упрощено: просто перезаписываем. Если TimelineId изменился, старую удалим при следующем GetAll
                 EnsureDirectoryExists(lesson.TimelineId);
                 var newPath = GetFilePath(lesson.TimelineId, lesson.Id);
                 File.WriteAllText(newPath, JsonSerializer.Serialize(lesson, _jsonOptions));
+
+                // Пару могли перенести в другой таймлайн: файл в старой папке
+                // остался бы и читался как дубликат в GetAllAsync
+                DeleteCopiesExcept(lesson.Id, newPath);
             }
         });
     }

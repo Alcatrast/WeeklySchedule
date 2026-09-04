@@ -252,7 +252,8 @@ public partial class EditLessonPage : ContentPage
             }
 
             _lesson.Name = EntryName.Text.Trim();
-            _lesson.Description = EditorDesc.Text.Trim();
+            // Editor.Text равен null, пока пользователь ничего не ввел
+            _lesson.Description = EditorDesc.Text?.Trim() ?? string.Empty;
             _lesson.Type = GetLessonTypeFromRussianName(PickerType.SelectedItem?.ToString() ?? "Лекция");
             _lesson.Day = GetDayFromRussianName(PickerDay.SelectedItem?.ToString() ?? "Понедельник");
             _lesson.StartTime = StartTime;

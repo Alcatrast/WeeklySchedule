@@ -131,9 +131,10 @@ public class ExcelMIPTScheduleParser
             string rawText = _formatter.FormatCellValue(cell).Trim();
             if (string.IsNullOrWhiteSpace(rawText)) continue;
 
+            // null означает "не пара" (зеленая заливка) — такие ячейки пропускаем.
+            // Нераспознанные цвета метод сам отдает как LessonType.Lab.
             var lessonType = DetermineLessonTypeByColor(cell);
-            if (lessonType == null)
-                lessonType = LessonType.Lab;
+            if (lessonType == null) continue;
 
             var (name, description) = ParseLessonText(cell, rawText);
             if (string.IsNullOrWhiteSpace(name)) continue;

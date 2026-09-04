@@ -59,15 +59,13 @@ public partial class EditTimelinePage : ContentPage
         }
     }
 
-    private async void OnImportRequested(string filePath)
+    private async void OnImportRequested(string filePath, Timeline timeline, bool timelineExists)
     {
-        if (_vm == null) return;
         var services = Application.Current!.Handler!.MauiContext!.Services;
         var groupPage = new GroupSelectionPage(
             filePath,
-            _vm.IsEditMode,
-            // Нужно получить текущий таймлайн. Если его нет, создаем временный
-            new Timeline(),
+            timelineExists,
+            timeline,
             services.GetRequiredService<ILessonRepository>(),
             services.GetRequiredService<ITimelineRepository>(),
             services.GetRequiredService<INavigationService>(),

@@ -9,7 +9,7 @@ public partial class GroupSelectionPage : ContentPage
 {
     public GroupSelectionPage(
         string filePath,
-        bool isEditMode,
+        bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
@@ -17,7 +17,7 @@ public partial class GroupSelectionPage : ContentPage
         IServiceProvider serviceProvider)
     {
         InitializeComponent();
-        BindingContext = new GroupSelectionViewModel(filePath, isEditMode, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider);
+        BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider);
     }
 
     protected override async void OnAppearing()
