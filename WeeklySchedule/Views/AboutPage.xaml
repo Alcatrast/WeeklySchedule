@@ -5,7 +5,9 @@
              Title="О приложении">
     <VerticalStackLayout Spacing="20" Padding="30" VerticalOptions="Center" HorizontalOptions="Center">
         <Label Text="Weekly" FontSize="32" FontAttributes="Bold" HorizontalOptions="Center" />
-        <Label Text="Версия 1.0" FontSize="16" TextColor="Gray" HorizontalOptions="Center" />
+        <!-- Текст ставится в код-биханде из версии сборки: зашитый здесь номер
+             расходился с ApplicationDisplayVersion из csproj -->
+        <Label x:Name="VersionLabel" FontSize="16" TextColor="Gray" HorizontalOptions="Center" />
         <Label Text="Приложение для управления расписанием." FontSize="16" HorizontalTextAlignment="Center" />
         <Label Text="Разработано для вашей мамы." FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" />
     </VerticalStackLayout>
