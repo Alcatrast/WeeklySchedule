@@ -50,6 +50,12 @@
 		<!-- === 2. NPOI: чтение xls/xlsx при импорте расписания === -->
 		<PackageReference Include="NPOI" Version="2.8.0" />
 
+		<!-- Прямой ссылки на SkiaSharp в коде нет, но на нее ссылается NPOI.OOXML.
+		     Без явной ссылки линковщик выбрасывает сборку из Release-сборки,
+		     и AOT падает на "Could not load file or assembly 'SkiaSharp'".
+		     Версия должна совпадать с той, что приезжает транзитивно из NPOI -->
+		<PackageReference Include="SkiaSharp" Version="3.119.2" />
+
 		<PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
 	</ItemGroup>
 
