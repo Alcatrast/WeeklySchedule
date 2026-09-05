@@ -272,10 +272,7 @@ public partial class DayView : ContentView
                 preselectedDay: vm.DayOfWeek,
                 activeTimelineId: scheduleService.ActiveTimelineId); // Передаем ID
 
-            if (Shell.Current != null)
-            {
-                await Shell.Current.Navigation.PushModalAsync(editPage);
-            }
+            await EditLessonPage.OpenModalAsync(editPage);
         }
     }
 }

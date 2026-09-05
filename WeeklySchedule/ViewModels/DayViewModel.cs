@@ -35,8 +35,7 @@ public partial class DayViewModel : BaseViewModel
         if (lesson == null) return;
 
         var editPage = new EditLessonPage(lesson);
-        var navPage = new NavigationPage(editPage);
-        if (Shell.Current != null) await Shell.Current.Navigation.PushModalAsync(navPage);
+        await EditLessonPage.OpenModalAsync(editPage, wrapInNavigationPage: true);
     }
 
     public void RequestScroll() => ScrollToCurrentRequested?.Invoke();

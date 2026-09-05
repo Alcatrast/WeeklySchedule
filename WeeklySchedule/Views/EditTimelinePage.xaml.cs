@@ -9,7 +9,6 @@ namespace WeeklySchedule.Views;
 
 public partial class EditTimelinePage : ContentPage
 {
-    public static bool IsOpen { get; private set; } = false;
     private EditTimelineViewModel? _vm;
 
     // Конструктор для DI
@@ -21,7 +20,6 @@ public partial class EditTimelinePage : ContentPage
         INavigationService navigationService)
     {
         InitializeComponent();
-        IsOpen = true;
 
         _vm = new EditTimelineViewModel(repository, settingsService, notificationService, filePickerService, navigationService, null);
         BindingContext = _vm;
@@ -92,7 +90,6 @@ public partial class EditTimelinePage : ContentPage
             _vm.PropertyChanged -= Vm_PropertyChanged;
             _vm.ImportRequested -= OnImportRequested;
         }
-        IsOpen = false;
     }
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)

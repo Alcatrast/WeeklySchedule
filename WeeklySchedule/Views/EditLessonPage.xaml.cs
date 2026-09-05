@@ -8,7 +8,37 @@ namespace WeeklySchedule.Views;
 
 public partial class EditLessonPage : ContentPage
 {
-    public static bool IsOpen { get; private set; } = false;
+    private static bool _isOpen;
+
+    /// <summary>
+    /// Открыт ли редактор пары. Обработчики двойного тапа сверяются с флагом,
+    /// чтобы второй тап не открыл вторую копию страницы.
+    /// </summary>
+    public static bool IsOpen => _isOpen;
+
+    /// <summary>
+    /// Показывает страницу как модальную. Флаг ставится здесь, а не в конструкторе:
+    /// страницу можно создать и не показать (нет Shell, упал PushModalAsync), тогда
+    /// OnDisappearing не придет, флаг залипнет в true и редактор перестанет
+    /// открываться до перезапуска приложения.
+    /// </summary>
+    public static async Task OpenModalAsync(EditLessonPage page, bool wrapInNavigationPage = false)
+    {
+        var navigation = Shell.Current?.Navigation;
+        if (navigation == null || _isOpen) return;
+
+        _isOpen = true;
+        try
+        {
+            await navigation.PushModalAsync(wrapInNavigationPage ? new NavigationPage(page) : page);
+        }
+        catch
+        {
+            _isOpen = false;
+            throw;
+        }
+    }
+
     private bool _isProcessing = false;
     private readonly Lesson _lesson;
     private readonly bool _isEditMode;
@@ -82,7 +112,6 @@ public partial class EditLessonPage : ContentPage
     public EditLessonPage(Lesson? lesson = null, DayOfWeek? preselectedDay = null, TimeSpan? preselectedTime = null, Guid? activeTimelineId = null)
     {
         InitializeComponent();
-        IsOpen = true;
         BindingContext = this;
         _isEditMode = lesson != null;
         _lesson = lesson ?? new Lesson { Day = preselectedDay ?? DayOfWeek.Monday };
@@ -153,7 +182,7 @@ public partial class EditLessonPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        IsOpen = false;
+        _isOpen = false;
         _isProcessing = false;
     }
 

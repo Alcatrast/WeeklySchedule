@@ -30,6 +30,12 @@ public partial class MainViewModel : BaseViewModel
     }
 
     private List<Lesson> _allLessons = [];
+
+    // Один проход инициализации за раз: OnAppearing может прийти повторно,
+    // не дождавшись предыдущего
+    private readonly SemaphoreSlim _initGate = new(1, 1);
+    private bool _startupCompleted;
+
     public ObservableCollection<DayViewModel> Days { get; } = [];
 
     private DayViewModel? _selectedDayVM;
@@ -94,8 +100,8 @@ public partial class MainViewModel : BaseViewModel
         };
 
         InitializeDays();
-        // ИСПРАВЛЕНО: Запуск асинхронной инициализации
-        _ = InitializeDataAsync();
+        // Загрузку данных запускает MainPage.OnAppearing. Раньше она стартовала
+        // еще и отсюда, и два прохода шли параллельно
     }
 
     private void OnSettingsChanged() => _ = ScheduleAllNotificationsAsync();
@@ -178,24 +184,48 @@ public partial class MainViewModel : BaseViewModel
             SelectedDayVM = Days[0];
     }
 
+    /// <summary>
+    /// Вызывается при каждом появлении MainPage, в том числе при возврате с модалки.
+    /// Разовая часть — демо-данные и выбор стартового таймлайна; остальное нужно
+    /// повторять, потому что таймер останавливается в OnDisappearing, а активный
+    /// таймлайн мог быть удален на другой странице.
+    /// </summary>
     public async Task InitializeDataAsync()
     {
-        // ИСПРАВЛЕНО: Вызов сидера и логики старта внутри асинхронного метода
-        await _seeder.SeedAsync(_repository, _timelineRepository, _scheduleService);
-        await ApplyStartupTimelineLogicAsync();
-        await EnsureDefaultTimelineExistsAsync();
+        // Метод запускался и из конструктора, и из OnAppearing. На первом запуске
+        // два прохода видели пустое хранилище и оба сеяли демо-данные: получалось
+        // шесть таймлайнов и шестьдесят пар вместо трех и тридцати
+        await _initGate.WaitAsync();
+        try
+        {
+            if (!_startupCompleted)
+            {
+                await _seeder.SeedAsync(_repository, _timelineRepository, _scheduleService);
 
-        var activeTimeline = await _timelineRepository.GetByIdAsync(_scheduleService.ActiveTimelineId);
-        CurrentTimelineName = activeTimeline?.Name ?? "Расписание";
-        _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
-        _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
+                // Только на старте: иначе возврат с модалки перебивал бы таймлайн,
+                // который пользователь выбрал руками
+                await ApplyStartupTimelineLogicAsync();
+                _startupCompleted = true;
+            }
 
-        // Приложение могло пролежать в фоне через полночь: тогда таймер был остановлен
-        // и OnDayChanged не придет — окно дней надо сдвинуть здесь
-        RollDaysWindow();
-        UpdateAllTitles();
-        UpdateAllDays();
-        await ScheduleAllNotificationsAsync();
+            await EnsureDefaultTimelineExistsAsync();
+
+            var activeTimeline = await _timelineRepository.GetByIdAsync(_scheduleService.ActiveTimelineId);
+            CurrentTimelineName = activeTimeline?.Name ?? "Расписание";
+            _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
+            _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
+
+            // Приложение могло пролежать в фоне через полночь: тогда таймер был остановлен
+            // и OnDayChanged не придет — окно дней надо сдвинуть здесь
+            RollDaysWindow();
+            UpdateAllTitles();
+            UpdateAllDays();
+            await ScheduleAllNotificationsAsync();
+        }
+        finally
+        {
+            _initGate.Release();
+        }
     }
 
     private async Task ApplyStartupTimelineLogicAsync()

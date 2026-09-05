@@ -23,10 +23,7 @@ public partial class MainPage : ContentPage
                 lesson: null,
                 preselectedDay: _viewModel.SelectedDayVM.DayOfWeek,
                 activeTimelineId: _viewModel.ActiveTimelineId);
-            if (Shell.Current != null)
-            {
-                await Shell.Current.Navigation.PushModalAsync(editPage);
-            }
+            await EditLessonPage.OpenModalAsync(editPage);
         }
     }
 
