@@ -4,6 +4,7 @@ using global::Android.OS;
 using global::AndroidX.Core.App;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using Application = global::Android.App.Application;
 
 namespace WeeklySchedule.Platforms.Android.Services;
@@ -161,11 +162,9 @@ public class NotificationService : INotificationService
 
     public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime triggerTime, int minutesBefore)
     {
-        var actualTriggerTime = triggerTime.AddMinutes(-minutesBefore);
-        if (actualTriggerTime <= DateTime.Now) return;
-
         int notificationId = BuildNotificationId(lessonId, minutesBefore);
-        long triggerMillis = new DateTimeOffset(actualTriggerTime).ToUnixTimeMilliseconds();
+        long triggerMillis = WeeklyOccurrence.Next(triggerTime.DayOfWeek, triggerTime.TimeOfDay,
+            minutesBefore, DateTimeOffset.Now, TimeZoneInfo.Local).ToUnixTimeMilliseconds();
 
         var alarm = new ScheduledAlarm
         {
@@ -175,7 +174,9 @@ public class NotificationService : INotificationService
             Title = title,
             Body = body,
             TriggerAtMillis = triggerMillis,
-            MinutesBefore = minutesBefore
+            MinutesBefore = minutesBefore,
+            LessonDay = triggerTime.DayOfWeek,
+            LessonStartTime = triggerTime.TimeOfDay
         };
 
         if (!SetAlarm(Context, alarm)) return;

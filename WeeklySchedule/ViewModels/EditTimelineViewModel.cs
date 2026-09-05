@@ -2,6 +2,8 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
+using WeeklySchedule.Messaging;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -14,6 +16,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     private readonly INavigationService _navigationService;
     private readonly Timeline _timeline;
     private readonly bool _isEditMode;
+    private bool _isProcessing;
 
     public string ImportSectionTitle => _isEditMode ? "Дополнить импортом" : "Импорт";
 
@@ -79,14 +82,29 @@ public partial class EditTimelineViewModel : BaseViewModel
         ToggleIsStartupCommand = new Command(() => IsStartupTimeline = !IsStartupTimeline);
         _isStartupTimeline = _settingsService.StartupTimelineId == _timeline.Id;
 
-        SaveCommand = new Command(async () => await SaveAsync());
-        DeleteCommand = new Command(async () => await DeleteAsync());
-        CancelCommand = new Command(async () => await _navigationService.PopModalAsync());
+        SaveCommand = new Command(() => RunOperation(SaveAsync));
+        DeleteCommand = new Command(() => RunOperation(DeleteAsync));
+        CancelCommand = new Command(() => RunOperation(_navigationService.PopModalAsync));
 
         _notificationsEnabled = _timeline.NotificationsEnabled;
         ToggleNotificationsCommand = new Command(() => NotificationsEnabled = !NotificationsEnabled);
-        SelectExcelFileCommand = new Command(async () => await HandleImportAsync());
+        SelectExcelFileCommand = new Command(() => RunOperation(HandleImportAsync));
     }
+
+    private void RunOperation(Func<Task> operation) => SafeFireAndForget.Run(async () =>
+    {
+        if (_isProcessing) return;
+        _isProcessing = true;
+        try { await operation(); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex);
+            var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+            if (page != null)
+                await page.DisplayAlertAsync("Ошибка", "Не удалось завершить операцию. Проверьте доступ к файлам и повторите попытку.", "ОК");
+        }
+        finally { _isProcessing = false; }
+    });
 
     public async Task CheckPermissionsAsync()
     {
@@ -126,7 +144,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     {
         if (string.IsNullOrWhiteSpace(Name))
         {
-            if (Application.Current?.Windows[0]?.Page is Page page)
+            if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
                 await page.DisplayAlertAsync("Ошибка", "Введите название таймлайна", "ОК");
             return;
         }
@@ -135,6 +153,14 @@ public partial class EditTimelineViewModel : BaseViewModel
         if (_isEditMode) await _repository.UpdateAsync(_timeline);
         else await _repository.AddAsync(_timeline);
 
+        ApplyStartupSelection();
+        AppEvents.NotifyDataChanged();
+        await _navigationService.PopModalAsync();
+    }
+
+    // Вызывается также после успешного импорта: тот закрывает редактор без SaveAsync.
+    public void ApplyStartupSelection()
+    {
         if (IsStartupTimeline)
         {
             _settingsService.StartupTimelineId = _timeline.Id;
@@ -145,13 +171,12 @@ public partial class EditTimelineViewModel : BaseViewModel
             _settingsService.StartupTimelineId = Guid.Empty;
         }
 
-        await _navigationService.PopModalAsync();
     }
 
     private async Task DeleteAsync()
     {
         bool confirm = false;
-        if (Application.Current?.Windows[0]?.Page is Page page)
+        if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
             confirm = await page.DisplayAlertAsync("Подтверждение", "Удалить этот таймлайн?", "Да", "Отмена");
 
         if (confirm)
@@ -160,6 +185,7 @@ public partial class EditTimelineViewModel : BaseViewModel
                 _settingsService.StartupTimelineId = Guid.Empty;
 
             await _repository.DeleteAsync(_timeline.Id);
+            AppEvents.NotifyDataChanged();
             await _navigationService.PopModalAsync();
         }
     }

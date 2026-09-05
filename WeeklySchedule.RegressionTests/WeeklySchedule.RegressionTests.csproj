@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <!-- Реальные исходники логики, без MAUI runtime и сторонних тестовых пакетов. -->
+  <ItemGroup>
+    <Compile Include="../WeeklySchedule/Utilities/AtomicFile.cs" Link="Source/AtomicFile.cs" />
+    <Compile Include="../WeeklySchedule/Utilities/WeeklyOccurrence.cs" Link="Source/WeeklyOccurrence.cs" />
+    <Compile Include="../WeeklySchedule/Utilities/LessonTimeRange.cs" Link="Source/LessonTimeRange.cs" />
+    <Compile Include="../WeeklySchedule/Utilities/SafeFireAndForget.cs" Link="Source/SafeFireAndForget.cs" />
+    <Compile Include="../WeeklySchedule/Data/Repositories/*.cs" Link="Source/Repositories/%(Filename)%(Extension)" />
+    <Compile Include="../WeeklySchedule/Models/Lesson.cs" Link="Source/Lesson.cs" />
+    <Compile Include="../WeeklySchedule/Models/LessonType.cs" Link="Source/LessonType.cs" />
+    <Compile Include="../WeeklySchedule/Models/Timeline.cs" Link="Source/Timeline.cs" />
+    <Compile Include="../WeeklySchedule/Models/NotificationReminder.cs" Link="Source/NotificationReminder.cs" />
+    <Compile Include="../WeeklySchedule/Services/IActiveScheduleService.cs" Link="Source/IActiveScheduleService.cs" />
+    <Compile Include="../WeeklySchedule/Services/ISettingsService.cs" Link="Source/ISettingsService.cs" />
+    <Compile Include="../WeeklySchedule/Services/INotificationService.cs" Link="Source/INotificationService.cs" />
+    <Compile Include="../WeeklySchedule/Services/IFilePickerService.cs" Link="Source/IFilePickerService.cs" />
+    <Compile Include="../WeeklySchedule/Services/INavigationService.cs" Link="Source/INavigationService.cs" />
+    <Compile Include="../WeeklySchedule/Messaging/AppEvents.cs" Link="Source/AppEvents.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/EditTimelineViewModel.cs" Link="Source/EditTimelineViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/BaseViewModel.cs" Link="Source/BaseViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/TimelinesViewModel.cs" Link="Source/TimelinesViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/FlyoutViewModel.cs" Link="Source/FlyoutViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/MainViewModel.cs" Link="Source/MainViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/SettingsViewModel.cs" Link="Source/SettingsViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/DayViewModel.cs" Link="Source/DayViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/DayViewSubscription.cs" Link="Source/DayViewSubscription.cs" />
+    <Compile Include="../WeeklySchedule/Core/*.cs" Link="Source/Core/%(Filename)%(Extension)" />
+    <Compile Include="../WeeklySchedule/Models/TimelineLayout.cs" Link="Source/TimelineLayout.cs" />
+    <Compile Include="../WeeklySchedule/Models/SeparatorType.cs" Link="Source/SeparatorType.cs" />
+    <Compile Include="../WeeklySchedule/Data/IDataSeeder.cs" Link="Source/IDataSeeder.cs" />
+    <Compile Include="../WeeklySchedule/Utilities/TimeContext.cs" Link="Source/TimeContext.cs" />
+    <Compile Include="../WeeklySchedule/Services/INotificationNavigationService.cs" Link="Source/INotificationNavigationService.cs" />
+  </ItemGroup>
+</Project>

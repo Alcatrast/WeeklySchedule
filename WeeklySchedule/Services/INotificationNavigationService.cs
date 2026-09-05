@@ -3,6 +3,7 @@
 public interface INotificationNavigationService
 {
     Guid? PendingTimelineId { get; }
+    event Action? NavigationRequested;
     void SetPendingNavigation(Guid timelineId);
     void ClearPendingNavigation();
 }
@@ -10,10 +11,12 @@ public interface INotificationNavigationService
 public class NotificationNavigationService : INotificationNavigationService
 {
     public Guid? PendingTimelineId { get; private set; }
+    public event Action? NavigationRequested;
 
     public void SetPendingNavigation(Guid timelineId)
     {
         PendingTimelineId = timelineId;
+        NavigationRequested?.Invoke();
     }
 
     public void ClearPendingNavigation()

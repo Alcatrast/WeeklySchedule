@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Data.Repositories;
 
@@ -109,7 +110,7 @@ public class FileLessonRepository : ILessonRepository
             lock (_lock)
             {
                 EnsureDirectoryExists(lesson.TimelineId);
-                File.WriteAllText(GetFilePath(lesson.TimelineId, lesson.Id), JsonSerializer.Serialize(lesson, _jsonOptions));
+                AtomicFile.WriteAllText(GetFilePath(lesson.TimelineId, lesson.Id), JsonSerializer.Serialize(lesson, _jsonOptions));
             }
         });
     }
@@ -122,7 +123,7 @@ public class FileLessonRepository : ILessonRepository
             {
                 EnsureDirectoryExists(lesson.TimelineId);
                 var newPath = GetFilePath(lesson.TimelineId, lesson.Id);
-                File.WriteAllText(newPath, JsonSerializer.Serialize(lesson, _jsonOptions));
+                AtomicFile.WriteAllText(newPath, JsonSerializer.Serialize(lesson, _jsonOptions));
 
                 // Пару могли перенести в другой таймлайн: файл в старой папке
                 // остался бы и читался как дубликат в GetAllAsync

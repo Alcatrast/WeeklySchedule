@@ -20,7 +20,7 @@ public partial class SettingsPage : ContentPage
             vm.PropertyChanged += Vm_PropertyChanged;
             SafeFireAndForget.Run(async () =>
             {
-                await vm.CheckAllPermissionsAsync();
+                await vm.RefreshAsync();
                 UpdatePickerVisibility(vm.IsStartupPickerVisible, false);
             });
         }

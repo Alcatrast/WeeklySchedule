@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Data.Repositories;
 
@@ -19,52 +20,44 @@ public class FileTimelineRepository : ITimelineRepository
         _filePath = Path.Combine(FileSystem.AppDataDirectory, "timelines.json");
         _baseDirectoryPath = Path.Combine(FileSystem.AppDataDirectory, "Timelines");
 
-        if (!File.Exists(_filePath)) File.WriteAllText(_filePath, "[]");
     }
 
-    // null означает "файл есть, но прочитать его не удалось". Отличать этот случай
-    // от пустого списка обязательно: иначе любая запись поверх стирает данные,
-    // которые не смогли прочитать из-за временной ошибки ввода-вывода
-    private List<Timeline>? TryLoadAll()
+    // Ошибки доступа/чтения нельзя выдавать за пустой каталог.
+    private List<Timeline> LoadAll()
     {
         try
         {
             var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<Timeline>>(json, _jsonOptions) ?? [];
+            return JsonSerializer.Deserialize<List<Timeline>>(json, _jsonOptions)
+                ?? throw new JsonException("Каталог расписаний содержит null вместо списка.");
         }
-        catch { return null; }
+        catch (FileNotFoundException) { return []; }
+        catch (DirectoryNotFoundException) { return []; }
     }
-
-    private List<Timeline> LoadAll() => TryLoadAll() ?? [];
 
     // Список для операции, которая потом вызовет SaveAll. Нечитаемый файл сначала
     // уводим в резервную копию, чтобы данные можно было достать руками
     private List<Timeline> LoadAllForWrite()
     {
-        var list = TryLoadAll();
-        if (list != null) return list;
-
         try
         {
-            if (File.Exists(_filePath))
-            {
-                var backup = Path.Combine(
-                    FileSystem.AppDataDirectory,
-                    $"timelines.corrupted-{DateTime.Now:yyyyMMdd-HHmmss}.json");
-                File.Move(_filePath, backup, overwrite: true);
-            }
+            return LoadAll();
         }
-        catch { }
-
-        return [];
+        catch (JsonException)
+        {
+            var backup = Path.Combine(FileSystem.AppDataDirectory,
+                $"timelines.corrupted-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.json");
+            // Ошибка копирования прерывает операцию. Оригинал остается на месте
+            // также и при последующем сбое записи нового каталога.
+            File.Copy(_filePath, backup, overwrite: false);
+            return [];
+        }
     }
 
     private void SaveAll(List<Timeline> timelines)
     {
         // Пишем через временный файл: обрыв записи не оставит обрезанный timelines.json
-        var tempPath = _filePath + ".tmp";
-        File.WriteAllText(tempPath, JsonSerializer.Serialize(timelines, _jsonOptions));
-        File.Move(tempPath, _filePath, overwrite: true);
+        AtomicFile.WriteAllText(_filePath, JsonSerializer.Serialize(timelines, _jsonOptions));
     }
 
     public async Task<IEnumerable<Timeline>> GetAllAsync()
@@ -84,6 +77,7 @@ public class FileTimelineRepository : ITimelineRepository
             lock (_lock)
             {
                 var list = LoadAllForWrite();
+                if (list.Any(t => t.Id == timeline.Id)) return;
                 list.Add(timeline);
                 SaveAll(list);
                 Directory.CreateDirectory(Path.Combine(_baseDirectoryPath, timeline.Id.ToString()));

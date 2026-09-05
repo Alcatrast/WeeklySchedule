@@ -42,6 +42,8 @@ public partial class EditTimelinePage : ContentPage
     {
         if (_vm != null)
         {
+            _vm.ImportRequested -= OnImportRequested;
+            _vm.PropertyChanged -= Vm_PropertyChanged;
             // Пересоздаем VM с нужным таймлайном, так как он был null в конструкторе
             // В реальном проекте лучше использовать фабрику или передавать timeline в конструктор
             // Но для сохранения структуры оставим так
@@ -70,7 +72,8 @@ public partial class EditTimelinePage : ContentPage
                 services.GetRequiredService<ILessonRepository>(),
                 services.GetRequiredService<ITimelineRepository>(),
                 services.GetRequiredService<INavigationService>(),
-                services);
+                services,
+                _vm!.ApplyStartupSelection);
 
             await Shell.Current!.Navigation.PushModalAsync(groupPage);
         });
@@ -81,6 +84,7 @@ public partial class EditTimelinePage : ContentPage
         base.OnAppearing();
         if (BindingContext is EditTimelineViewModel vm)
         {
+            vm.PropertyChanged -= Vm_PropertyChanged;
             vm.PropertyChanged += Vm_PropertyChanged;
             SafeFireAndForget.Run(vm.CheckPermissionsAsync);
         }
@@ -92,7 +96,8 @@ public partial class EditTimelinePage : ContentPage
         if (_vm != null)
         {
             _vm.PropertyChanged -= Vm_PropertyChanged;
-            _vm.ImportRequested -= OnImportRequested;
+            // Подписка живет столько же, сколько страница и ее VM. Временный
+            // уход в выбор файла/группы не должен отключать следующий импорт.
         }
     }
 

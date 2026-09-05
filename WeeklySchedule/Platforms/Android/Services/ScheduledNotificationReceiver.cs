@@ -14,6 +14,12 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
 {
     public override void OnReceive(Context? context, Intent? intent)
     {
+        try { Receive(context, intent); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] {ex}"); }
+    }
+
+    private static void Receive(Context? context, Intent? intent)
+    {
         if (context == null || intent == null) return;
 
         var title = intent.GetStringExtra("Title") ?? "Пара";
@@ -23,6 +29,9 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         var notificationId = intent.GetIntExtra("NotificationId", 0);
         var minutesBefore = intent.GetIntExtra("MinutesBefore", 0);
         var triggerAtMillis = intent.GetLongExtra("TriggerAtMillis", 0);
+        var alarm = ScheduledAlarmStore.Load().FirstOrDefault(a => a.NotificationId == notificationId);
+        // Уже отмененная или замененная доставка не должна воскресить будильник.
+        if (alarm == null || alarm.TriggerAtMillis != triggerAtMillis) return;
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] Сработал! ID: {notificationId}, Title: {title}");
 #endif
@@ -30,16 +39,7 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         // Расписание недельное, а AlarmManager умеет только разовые точные будильники:
         // повтор ставим сами, здесь. Раньше повтора не было вообще, и без запуска
         // приложения уведомления заканчивались через неделю
-        RescheduleNextWeek(context, new ScheduledAlarm
-        {
-            NotificationId = notificationId,
-            TimelineId = timelineId,
-            LessonId = lessonId,
-            Title = title,
-            Body = body,
-            TriggerAtMillis = triggerAtMillis,
-            MinutesBefore = minutesBefore
-        });
+        RescheduleNextWeek(context, alarm);
 
         // Intent для открытия приложения при клике на уведомление
         var appIntent = new Intent(context, typeof(MainActivity));
@@ -94,14 +94,9 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
     {
         // Приложение могло не запускаться несколько недель — отматываем вперед,
         // пока время не окажется в будущем
-        var next = alarm.TriggerAtMillis;
-        var nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        const long weekMillis = 7L * 24 * 60 * 60 * 1000;
-
-        if (next <= 0) next = nowMillis;
-        while (next <= nowMillis) next += weekMillis;
-
-        alarm.TriggerAtMillis = next;
+        var now = DateTimeOffset.UtcNow;
+        var previous = DateTimeOffset.FromUnixTimeMilliseconds(alarm.TriggerAtMillis);
+        if (!alarm.MoveToNextOccurrence(now > previous ? now : previous, TimeZoneInfo.Local)) return;
         if (!NotificationService.SetAlarm(context, alarm)) return;
 
         var alarms = ScheduledAlarmStore.Load();

@@ -26,6 +26,7 @@ public partial class FlyoutViewModel : BaseViewModel
     private readonly ITimelineRepository _repository;
     private readonly IActiveScheduleService _scheduleService;
     private readonly ISettingsService _settingsService;
+    private int _loadVersion;
 
     public ObservableCollection<TimelineFlyoutItem> Timelines { get; } = [];
     public ICommand SelectTimelineCommand { get; }
@@ -47,14 +48,15 @@ public partial class FlyoutViewModel : BaseViewModel
 
     public async Task LoadTimelinesAsync()
     {
+        var version = ++_loadVersion;
         var activeId = _scheduleService.ActiveTimelineId;
         var startupId = _settingsService.StartupTimelineId;
         bool isOpenLast = _settingsService.OpenLastTimeline;
 
         bool shouldHighlight = !isOpenLast && startupId != Guid.Empty;
+        var allTimelines = (await _repository.GetAllAsync()).ToList();
+        if (version != _loadVersion) return;
         Timelines.Clear();
-
-        var allTimelines = await _repository.GetAllAsync();
         foreach (var t in allTimelines)
         {
             var item = new TimelineFlyoutItem(t)

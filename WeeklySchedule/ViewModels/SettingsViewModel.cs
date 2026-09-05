@@ -12,6 +12,8 @@ public partial class SettingsViewModel : BaseViewModel
     private readonly ISettingsService _settingsService;
     private readonly ITimelineRepository _timelineRepository;
     private readonly INotificationService _notificationService;
+    private int _refreshVersion;
+    private bool _isRefreshing;
 
     public ObservableCollection<string> ThemeOptions { get; } = ["Как в системе", "Светлая", "Темная"];
     public ObservableCollection<Timeline> StartupTimelines { get; } = [];
@@ -28,7 +30,7 @@ public partial class SettingsViewModel : BaseViewModel
     public bool IsStartupPickerVisible => !OpenLast;
 
     private Timeline? _selectedStartupTimeline;
-    public Timeline? SelectedStartupTimeline { get => _selectedStartupTimeline; set { if (SetProperty(ref _selectedStartupTimeline, value) && value != null) _settingsService.StartupTimelineId = value.Id; } }
+    public Timeline? SelectedStartupTimeline { get => _selectedStartupTimeline; set { if (SetProperty(ref _selectedStartupTimeline, value) && value != null && !_isRefreshing) _settingsService.StartupTimelineId = value.Id; } }
 
     private bool _areAllPermissionsGranted;
     public bool AreAllPermissionsGranted
@@ -59,7 +61,7 @@ public partial class SettingsViewModel : BaseViewModel
         _notificationService = notificationService;
 
         ToggleOpenLastCommand = new Command(() => OpenLast = !OpenLast);
-        RequestPermissionCommand = new Command(async () => await RequestAllPermissionsAsync());
+        RequestPermissionCommand = new Command(() => SafeFireAndForget.Run(RequestAllPermissionsAsync));
         AddReminderCommand = new Command(AddReminder);
         DeleteReminderCommand = new Command<NotificationReminderViewModel>(DeleteReminder);
 
@@ -69,7 +71,6 @@ public partial class SettingsViewModel : BaseViewModel
         _notifyAtStart = _settingsService.NotifyAtStart;
 
         LoadReminders();
-        SafeFireAndForget.Run(LoadStartupTimelinesAsync);
     }
 
     public async Task CheckAllPermissionsAsync()
@@ -111,18 +112,32 @@ public partial class SettingsViewModel : BaseViewModel
         _settingsService.NotifyBeforeList = ReminderItems.Select(i => new NotificationReminder { MinutesBefore = i.Minutes, IsActive = i.IsActive }).ToList();
     }
 
-    private async Task LoadStartupTimelinesAsync()
+    public async Task RefreshAsync()
     {
-        StartupTimelines.Clear();
-        var all = await _timelineRepository.GetAllAsync();
-        foreach (var t in all) StartupTimelines.Add(t);
+        var version = ++_refreshVersion;
+        var all = (await _timelineRepository.GetAllAsync()).ToList();
+        if (version != _refreshVersion) return;
 
-        var savedId = _settingsService.StartupTimelineId;
-        _selectedStartupTimeline = StartupTimelines.FirstOrDefault(t => t.Id == savedId) ?? StartupTimelines.FirstOrDefault();
-        if (_selectedStartupTimeline != null && _settingsService.StartupTimelineId != _selectedStartupTimeline.Id)
-            _settingsService.StartupTimelineId = _selectedStartupTimeline.Id;
-
-        OnPropertyChanged(nameof(SelectedStartupTimeline));
+        _isRefreshing = true;
+        try
+        {
+            StartupTimelines.Clear();
+            foreach (var t in all) StartupTimelines.Add(t);
+            _selectedStartupTimeline = all.FirstOrDefault(t => t.Id == _settingsService.StartupTimelineId);
+            _openLast = _settingsService.OpenLastTimeline;
+            _selectedTheme = _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" };
+            _defaultDuration = _settingsService.DefaultLessonDuration;
+            _notifyAtStart = _settingsService.NotifyAtStart;
+            LoadReminders();
+            OnPropertyChanged(nameof(SelectedStartupTimeline));
+            OnPropertyChanged(nameof(OpenLast));
+            OnPropertyChanged(nameof(IsStartupPickerVisible));
+            OnPropertyChanged(nameof(SelectedTheme));
+            OnPropertyChanged(nameof(DefaultDuration));
+            OnPropertyChanged(nameof(NotifyAtStart));
+        }
+        finally { _isRefreshing = false; }
+        await CheckAllPermissionsAsync();
     }
 }
 
@@ -137,6 +152,17 @@ public class NotificationReminderViewModel : BaseViewModel
         _onChanged = onChanged;
     }
 
-    public int Minutes { get => _model.MinutesBefore; set { if (_model.MinutesBefore != value) { _model.MinutesBefore = value; OnPropertyChanged(); _onChanged(); } } }
+    public int Minutes
+    {
+        get => _model.MinutesBefore;
+        set
+        {
+            var minutes = Math.Clamp(value, 0, 7 * 24 * 60);
+            if (_model.MinutesBefore == minutes) return;
+            _model.MinutesBefore = minutes;
+            OnPropertyChanged();
+            _onChanged();
+        }
+    }
     public bool IsActive { get => _model.IsActive; set { if (_model.IsActive != value) { _model.IsActive = value; OnPropertyChanged(); _onChanged(); } } }
 }

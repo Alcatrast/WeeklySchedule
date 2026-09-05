@@ -20,6 +20,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     private readonly ITimelineRepository _timelineRepo;
     private readonly INavigationService _navigationService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly Action? _onImported;
 
     private GroupItem? _selectedGroup;
     public ObservableCollection<GroupCategory> Categories { get; } = [];
@@ -47,7 +48,8 @@ public partial class GroupSelectionViewModel : BaseViewModel
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         INavigationService navigationService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Action? onImported = null)
     {
         _filePath = filePath;
         _timelineExists = timelineExists;
@@ -56,6 +58,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         _timelineRepo = timelineRepo;
         _navigationService = navigationService;
         _serviceProvider = serviceProvider;
+        _onImported = onImported;
 
         ToggleCategoryCommand = new Command<GroupCategory>(ToggleCategory);
         SelectGroupCommand = new Command<GroupItem>(SelectGroup);
@@ -152,6 +155,8 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 await _lessonRepo.AddAsync(lesson);
             }
 
+            if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
+            _onImported?.Invoke();
             AppEvents.NotifyDataChanged();
 
             await ShowAlertAsync("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.");

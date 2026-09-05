@@ -17,9 +17,9 @@
 
 		<ApplicationTitle>Weekly</ApplicationTitle>
 		<ApplicationId>com.alcatrast.weeklyschedule</ApplicationId>
-		<ApplicationDisplayVersion>1.0.5</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.0.6</ApplicationDisplayVersion>
 		<!-- versionCode для Android: не должен уменьшаться от сборки к сборке -->
-		<ApplicationVersion>5</ApplicationVersion>
+		<ApplicationVersion>6</ApplicationVersion>
 		<WindowsPackageType>None</WindowsPackageType>
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>

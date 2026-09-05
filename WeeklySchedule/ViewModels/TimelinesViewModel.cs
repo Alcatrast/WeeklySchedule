@@ -12,6 +12,7 @@ public partial class TimelinesViewModel : BaseViewModel
     private readonly ITimelineRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IServiceProvider _serviceProvider;
+    private int _loadVersion;
 
     public ObservableCollection<Timeline> Timelines { get; } = [];
     public ICommand EditTimelineCommand { get; }
@@ -41,17 +42,19 @@ public partial class TimelinesViewModel : BaseViewModel
 
         EditTimelineCommand = new Command<Timeline>(OnEditTimeline);
         CreateTimelineCommand = new Command(OnCreateTimeline);
-        SafeFireAndForget.Run(LoadTimelinesAsync);
     }
 
     public async Task LoadTimelinesAsync()
     {
+        var version = ++_loadVersion;
+        var all = (await _repository.GetAllAsync()).ToList();
+        if (version != _loadVersion) return;
+
         _openLastTimeline = _settingsService.OpenLastTimeline;
         OnPropertyChanged(nameof(OpenLastTimeline));
         OnPropertyChanged(nameof(HighlightedTimelineId));
         Timelines.Clear();
 
-        var all = await _repository.GetAllAsync();
         foreach (var timeline in all) Timelines.Add(timeline);
     }
 

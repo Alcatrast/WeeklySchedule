@@ -58,7 +58,12 @@ public partial class EditLessonPage : ContentPage
                 if (!_isUpdatingTime)
                 {
                     if (_isDurationLastEdited) RecalculateFromStart();
-                    else RecalculateDuration();
+                    else
+                    {
+                        if (_endTime <= _startTime)
+                            EndTime = _startTime.Add(TimeSpan.FromMinutes(1));
+                        RecalculateDuration();
+                    }
                 }
             }
         }
@@ -70,14 +75,7 @@ public partial class EditLessonPage : ContentPage
         get => _endTime;
         set
         {
-            var newValue = value;
-            var maxEnd = new TimeSpan(23, 59, 0);
-            if (newValue > maxEnd) newValue = maxEnd;
-            if (newValue <= _startTime)
-            {
-                newValue = _startTime.Add(TimeSpan.FromMinutes(1));
-                if (newValue > maxEnd) newValue = maxEnd;
-            }
+            var newValue = LessonTimeRange.NormalizeEnd(_startTime, value);
             if (_endTime != newValue)
             {
                 if (!_isUpdatingTime) _isDurationLastEdited = false;
@@ -290,17 +288,18 @@ public partial class EditLessonPage : ContentPage
                 return;
             }
 
-            _lesson.Name = EntryName.Text.Trim();
-            // Editor.Text равен null, пока пользователь ничего не ввел
-            _lesson.Description = EditorDesc.Text?.Trim() ?? string.Empty;
-            _lesson.Type = GetLessonTypeFromRussianName(PickerType.SelectedItem?.ToString() ?? "Лекция");
-            _lesson.Day = GetDayFromRussianName(PickerDay.SelectedItem?.ToString() ?? "Понедельник");
-            _lesson.StartTime = StartTime;
-            _lesson.TimelineId = selectedTimeline.Id;
-
             int enteredMinutes = int.TryParse(DurationText, out var m) ? m : 0;
             var maxEnd = new TimeSpan(23, 59, 0);
             var theoreticalEnd = StartTime + TimeSpan.FromMinutes(enteredMinutes);
+            var endTime = EndTime;
+
+            if (!LessonTimeRange.IsValid(StartTime, endTime))
+            {
+                await DisplayAlertAsync("Ошибка", "Конец пары должен быть позже начала и не позже 23:59.", "ОК");
+                _isProcessing = false;
+                SetButtonsEnabled(true);
+                return;
+            }
 
             if (_isDurationLastEdited && theoreticalEnd > maxEnd)
             {
@@ -314,18 +313,27 @@ public partial class EditLessonPage : ContentPage
                     SetButtonsEnabled(true);
                     return;
                 }
-                _lesson.EndTime = maxEnd;
+                endTime = maxEnd;
             }
-            else
+
+            // Не меняем объект исходной карточки до подтверждения и успешной записи.
+            var savedLesson = new Lesson
             {
-                _lesson.EndTime = EndTime;
-            }
+                Id = _lesson.Id,
+                Name = EntryName.Text.Trim(),
+                Description = EditorDesc.Text?.Trim() ?? string.Empty,
+                Type = GetLessonTypeFromRussianName(PickerType.SelectedItem?.ToString() ?? "Лекция"),
+                Day = GetDayFromRussianName(PickerDay.SelectedItem?.ToString() ?? "Понедельник"),
+                StartTime = StartTime,
+                EndTime = endTime,
+                TimelineId = selectedTimeline.Id
+            };
 
             var repo = GetRepository();
-            if (_isEditMode) await repo.UpdateAsync(_lesson);
-            else await repo.AddAsync(_lesson);
+            if (_isEditMode) await repo.UpdateAsync(savedLesson);
+            else await repo.AddAsync(savedLesson);
 
-            AppEvents.NotifyDataChanged(_lesson.Day);
+            AppEvents.NotifyDataChanged();
             await SafePopModalAsync();
         }
         catch (Exception ex)

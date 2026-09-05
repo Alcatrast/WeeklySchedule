@@ -8,6 +8,7 @@ namespace WeeklySchedule.Views;
 
 public partial class DayView : ContentView
 {
+    private readonly DayViewSubscription _subscription;
     // Конвертеры без состояния: раньше создавались заново на каждый разделитель
     // и на каждую карточку пары внутри цикла перерисовки
     private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
@@ -17,24 +18,22 @@ public partial class DayView : ContentView
     public DayView()
     {
         InitializeComponent();
+        _subscription = new DayViewSubscription(OnLayoutUpdated, OnScrollToCurrentRequested);
 
         var tapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
         tapGesture.Tapped += OnBackgroundDoubleTapped;
 
         MainScroll.GestureRecognizers.Add(tapGesture);
 
-        BindingContextChanged += (_, _) =>
-        {
-            if (BindingContext is DayViewModel vm)
-            {
-                vm.LayoutUpdated -= OnLayoutUpdated;
-                vm.LayoutUpdated += OnLayoutUpdated;
-                vm.ScrollToCurrentRequested -= OnScrollToCurrentRequested;
-                vm.ScrollToCurrentRequested += OnScrollToCurrentRequested;
+        BindingContextChanged += (_, _) => { if (IsLoaded) BindDay(); };
+        Loaded += (_, _) => BindDay();
+        Unloaded += (_, _) => _subscription.Dispose();
+    }
 
-                OnLayoutUpdated();
-            }
-        };
+    private void BindDay()
+    {
+        _subscription.SetSource(BindingContext as DayViewModel);
+        OnLayoutUpdated();
     }
 
     private void OnLayoutUpdated()

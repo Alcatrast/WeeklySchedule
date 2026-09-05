@@ -14,12 +14,18 @@ namespace WeeklySchedule.Platforms.Android.Services;
 [IntentFilter([
     Intent.ActionBootCompleted,
     "android.intent.action.QUICKBOOT_POWERON",
-    Intent.ActionMyPackageReplaced])]
+    Intent.ActionMyPackageReplaced,
+    Intent.ActionTimezoneChanged,
+    Intent.ActionTimeChanged])]
 public class BootReceiver : BroadcastReceiver
 {
     public override void OnReceive(Context? context, Intent? intent)
     {
         if (context == null || intent == null) return;
+        if (intent.Action is not (Intent.ActionBootCompleted or "android.intent.action.QUICKBOOT_POWERON"
+            or Intent.ActionMyPackageReplaced or Intent.ActionTimezoneChanged or Intent.ActionTimeChanged)) return;
+
+        TimeZoneInfo.ClearCachedData();
 
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[BOOT RECEIVER] {intent.Action}: восстанавливаем будильники");
@@ -28,17 +34,19 @@ public class BootReceiver : BroadcastReceiver
         var alarms = ScheduledAlarmStore.Load();
         if (alarms.Count == 0) return;
 
-        var nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        const long weekMillis = 7L * 24 * 60 * 60 * 1000;
+        var now = DateTimeOffset.UtcNow;
+        var zone = TimeZoneInfo.Local;
 
         foreach (var alarm in alarms)
         {
-            // Телефон мог пролежать выключенным дольше недели: отматываем время
-            // вперед недельными шагами, расписание все равно недельное
-            if (alarm.TriggerAtMillis <= 0) continue;
-            while (alarm.TriggerAtMillis <= nowMillis) alarm.TriggerAtMillis += weekMillis;
-
-            NotificationService.SetAlarm(context, alarm);
+            try
+            {
+                if (alarm.MoveToNextOccurrence(now, zone)) NotificationService.SetAlarm(context, alarm);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BOOT RECEIVER] {alarm.NotificationId}: {ex}");
+            }
         }
 
         ScheduledAlarmStore.Save(alarms);

@@ -15,10 +15,11 @@ public partial class GroupSelectionPage : ContentPage
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         INavigationService navigationService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Action? onImported = null)
     {
         InitializeComponent();
-        BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider);
+        BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider, onImported);
     }
 
     protected override void OnAppearing()

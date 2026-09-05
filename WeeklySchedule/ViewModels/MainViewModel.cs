@@ -35,6 +35,8 @@ public partial class MainViewModel : BaseViewModel
     // не дождавшись предыдущего
     private readonly SemaphoreSlim _initGate = new(1, 1);
     private bool _startupCompleted;
+    private int _loadVersion;
+    private int _notificationVersion;
 
     public ObservableCollection<DayViewModel> Days { get; } = [];
 
@@ -74,7 +76,7 @@ public partial class MainViewModel : BaseViewModel
         _notificationService = notificationService;
 
         _settingsService.SettingsChanged += OnSettingsChanged;
-        CheckPendingNavigation();
+        _navService.NavigationRequested += () => MainThread.BeginInvokeOnMainThread(CheckPendingNavigation);
 
         _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
         _scheduler.OnTimeMarkerReached += (now) =>
@@ -108,6 +110,8 @@ public partial class MainViewModel : BaseViewModel
 
     public void CheckPendingNavigation()
     {
+        // На холодном старте запрос ждет завершения выбора стартового расписания.
+        if (!_startupCompleted) return;
         if (_navService.PendingTimelineId.HasValue)
         {
             var targetId = _navService.PendingTimelineId.Value;
@@ -116,36 +120,32 @@ public partial class MainViewModel : BaseViewModel
         }
     }
 
-    private void OnActiveTimelineChanged(Guid newTimelineId) => SafeFireAndForget.Run(async () =>
+    private void OnActiveTimelineChanged(Guid newTimelineId)
     {
-        var timeline = await _timelineRepository.GetByIdAsync(newTimelineId);
+        ++_notificationVersion;
+        if (_startupCompleted) SafeFireAndForget.Run(ReloadActiveTimelineAsync);
+    }
+
+    private void OnDataChanged(DayOfWeek? affectedDay) => SafeFireAndForget.Run(ReloadActiveTimelineAsync);
+
+    public async Task ReloadActiveTimelineAsync()
+    {
+        var version = ++_loadVersion;
+        ++_notificationVersion;
+        var timelineId = _scheduleService.ActiveTimelineId;
+        var timeline = await _timelineRepository.GetByIdAsync(timelineId);
+        var lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
+        if (version != _loadVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+
+        // Название, пары и таймер публикуются вместе, только для актуального запроса.
         CurrentTimelineName = timeline?.Name ?? "Расписание";
-        _allLessons = [.. await _repository.GetByTimelineIdAsync(newTimelineId)];
+        _allLessons = lessons;
         _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
+        RollDaysWindow();
+        UpdateAllTitles();
         UpdateAllDays();
         await ScheduleAllNotificationsAsync();
-    });
-
-    private void OnDataChanged(DayOfWeek? affectedDay) => SafeFireAndForget.Run(async () =>
-    {
-        _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
-        _scheduler.RebuildQueue();
-        var now = TimeContext.Now;
-
-        if (affectedDay.HasValue)
-        {
-            var targetVM = Days.FirstOrDefault(d => d.DayOfWeek == affectedDay.Value);
-            targetVM?.UpdateLayout(now, _allLessons);
-            var todayVM = Days.FirstOrDefault(d => d.Date == now.Date);
-            if (todayVM != targetVM) todayVM?.UpdateLayout(now, _allLessons);
-            if (targetVM == SelectedDayVM) targetVM?.RequestScroll();
-        }
-        else
-        {
-            UpdateAllDays();
-        }
-        await ScheduleAllNotificationsAsync();
-    });
+    }
 
     private void InitializeDays()
     {
@@ -208,19 +208,9 @@ public partial class MainViewModel : BaseViewModel
                 _startupCompleted = true;
             }
 
+            CheckPendingNavigation();
             await EnsureDefaultTimelineExistsAsync();
-
-            var activeTimeline = await _timelineRepository.GetByIdAsync(_scheduleService.ActiveTimelineId);
-            CurrentTimelineName = activeTimeline?.Name ?? "Расписание";
-            _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
-            _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
-
-            // Приложение могло пролежать в фоне через полночь: тогда таймер был остановлен
-            // и OnDayChanged не придет — окно дней надо сдвинуть здесь
-            RollDaysWindow();
-            UpdateAllTitles();
-            UpdateAllDays();
-            await ScheduleAllNotificationsAsync();
+            await ReloadActiveTimelineAsync();
         }
         finally
         {
@@ -260,10 +250,12 @@ public partial class MainViewModel : BaseViewModel
             await _timelineRepository.AddAsync(defaultTimeline);
             _scheduleService.ActiveTimelineId = defaultTimeline.Id;
         }
-        else if (_scheduleService.ActiveTimelineId == Guid.Empty ||
-                 await _timelineRepository.GetByIdAsync(_scheduleService.ActiveTimelineId) == null)
+        else
         {
-            _scheduleService.ActiveTimelineId = timelines.First().Id;
+            var checkedId = _scheduleService.ActiveTimelineId;
+            var active = await _timelineRepository.GetByIdAsync(checkedId);
+            if (checkedId == _scheduleService.ActiveTimelineId && active == null)
+                _scheduleService.ActiveTimelineId = timelines.First().Id;
         }
     }
 
@@ -283,18 +275,24 @@ public partial class MainViewModel : BaseViewModel
 
     public async Task ScheduleAllNotificationsAsync()
     {
-        _notificationService.CancelAllNotifications();
-        var timeline = await _timelineRepository.GetByIdAsync(_scheduleService.ActiveTimelineId);
+        var version = ++_notificationVersion;
+        var timelineId = _scheduleService.ActiveTimelineId;
+        var timeline = await _timelineRepository.GetByIdAsync(timelineId);
+        var lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
+        if (version != _notificationVersion || timelineId != _scheduleService.ActiveTimelineId) return;
 
+        // До этой точки старый запрос не должен ни отменять, ни ставить будильники.
+        _notificationService.CancelAllNotifications();
         if (timeline == null || !timeline.NotificationsEnabled) return;
 
         bool notifyAtStart = _settingsService.NotifyAtStart;
-        var activeReminders = _settingsService.NotifyBeforeList.Where(r => r.IsActive).ToList();
+        var activeReminders = _settingsService.NotifyBeforeList
+            .Where(r => r.IsActive && r.MinutesBefore >= 0 && r.MinutesBefore <= 7 * 24 * 60).ToList();
 
         if (!notifyAtStart && activeReminders.Count == 0) return;
 
         var now = TimeContext.Now;
-        foreach (var lesson in _allLessons)
+        foreach (var lesson in lessons)
         {
             if (notifyAtStart)
             {

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using global::Android.Content;
 using Application = global::Android.App.Application;
+using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Platforms.Android.Services;
 
@@ -19,6 +21,28 @@ public sealed class ScheduledAlarm
     public long TriggerAtMillis { get; set; }
 
     public int MinutesBefore { get; set; }
+    public DayOfWeek? LessonDay { get; set; }
+    public TimeSpan? LessonStartTime { get; set; }
+
+    public bool MoveToNextOccurrence(DateTimeOffset after, TimeZoneInfo zone)
+    {
+        // Миграция будильников 1.0.5: в них сохранен только Unix timestamp.
+        // Настоящие день и время берем из пары, а не из уже сменившегося часового пояса.
+        if (LessonDay == null || LessonStartTime == null)
+        {
+            if (!Guid.TryParse(TimelineId, out var timelineId) || !Guid.TryParse(LessonId, out var lessonId)) return false;
+            var path = Path.Combine(FileSystem.AppDataDirectory, "Timelines", timelineId.ToString(), "Lessons", $"{lessonId}.json");
+            var lesson = JsonSerializer.Deserialize<Lesson>(File.ReadAllText(path),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (lesson == null) return false;
+            LessonDay = lesson.Day;
+            LessonStartTime = lesson.StartTime;
+        }
+
+        TriggerAtMillis = WeeklyOccurrence.Next(LessonDay.Value, LessonStartTime.Value,
+            MinutesBefore, after, zone).ToUnixTimeMilliseconds();
+        return true;
+    }
 }
 
 /// <summary>
