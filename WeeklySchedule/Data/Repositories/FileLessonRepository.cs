@@ -146,15 +146,4 @@ public class FileLessonRepository : ILessonRepository
             });
         }
     }
-
-    public async Task ClearAsync()
-    {
-        await Task.Run(() =>
-        {
-            lock (_lock)
-            {
-                if (Directory.Exists(_baseDirectoryPath)) Directory.Delete(_baseDirectoryPath, true);
-            }
-        });
-    }
 }

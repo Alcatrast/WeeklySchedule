@@ -79,8 +79,6 @@
                 <Label Text="Стартовый таймлайн" FontSize="16" FontAttributes="Bold"/>
                 <Picker ItemsSource="{Binding StartupTimelines}" SelectedItem="{Binding SelectedStartupTimeline}" FontSize="16" ItemDisplayBinding="{Binding Name}"/>
             </VerticalStackLayout>
-            <Label Text="Язык интерфейса" FontSize="16" FontAttributes="Bold"/>
-            <Picker ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage}" FontSize="16"/>
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

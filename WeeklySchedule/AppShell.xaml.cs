@@ -1,7 +1,4 @@
-﻿using System.Collections.Specialized;
-using WeeklySchedule.Data.Repositories;
-using WeeklySchedule.Services;
-using WeeklySchedule.ViewModels;
+﻿using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
 namespace WeeklySchedule;
@@ -10,11 +7,7 @@ public partial class AppShell : Shell
 {
     public FlyoutViewModel FlyoutVM { get; }
 
-    public AppShell(
-        ITimelineRepository repo,
-        IActiveScheduleService sched,
-        ISettingsService settings,
-        FlyoutViewModel flyoutVm)
+    public AppShell(FlyoutViewModel flyoutVm)
     {
         FlyoutVM = flyoutVm;
         InitializeComponent();
@@ -25,16 +18,9 @@ public partial class AppShell : Shell
         Routing.RegisterRoute(nameof(TimelinesPage), typeof(TimelinesPage));
         Routing.RegisterRoute(nameof(EditTimelinePage), typeof(EditTimelinePage));
 
-        FlyoutVM.Timelines.CollectionChanged += Timelines_CollectionChanged;
-
-        // УБИРАЕМ КОСТЫЛЬ С ИЗМЕРЕНИЕМ ТЕКСТА. 
+        // УБИРАЕМ КОСТЫЛЬ С ИЗМЕРЕНИЕМ ТЕКСТА.
         // Flyout должен иметь фиксированную разумную ширину.
         this.FlyoutWidth = 320;
-    }
-
-    private void Timelines_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        // Больше не пересчитываем ширину. Это было ошибкой архитектуры.
     }
 
     protected override async void OnAppearing()

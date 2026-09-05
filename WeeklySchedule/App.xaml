@@ -16,9 +16,6 @@
             <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
             <converters:SeparatorTypeToHeightConverter x:Key="SepToHeight" />
             <converters:SeparatorTypeToColorConverter x:Key="SepToColor" />
-            <converters:ScheduleItemTemplateSelector x:Key="ItemSelector" />
-            <converters:TimelineHighlightConverter x:Key="TimelineHighlightConverter" />
-            <converters:TimelineStrokeConverter x:Key="TimelineStrokeConverter" />
             <converters:IsEqualConverter x:Key="IsEqualConverter" />
             <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
         </ResourceDictionary>

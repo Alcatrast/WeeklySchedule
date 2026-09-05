@@ -13,7 +13,6 @@ public partial class SettingsViewModel : BaseViewModel
     private readonly INotificationService _notificationService;
 
     public ObservableCollection<string> ThemeOptions { get; } = ["Как в системе", "Светлая", "Темная"];
-    public ObservableCollection<string> LanguageOptions { get; } = ["Русский", "English"];
     public ObservableCollection<Timeline> StartupTimelines { get; } = [];
 
     private string _selectedTheme;
@@ -21,9 +20,6 @@ public partial class SettingsViewModel : BaseViewModel
 
     private int _defaultDuration;
     public int DefaultDuration { get => _defaultDuration; set { if (SetProperty(ref _defaultDuration, value)) _settingsService.DefaultLessonDuration = value; } }
-
-    private string _selectedLanguage;
-    public string SelectedLanguage { get => _selectedLanguage; set { if (SetProperty(ref _selectedLanguage, value)) _settingsService.Language = value == "Русский" ? AppLanguage.Russian : AppLanguage.English; } }
 
     private bool _openLast;
     public bool OpenLast { get => _openLast; set { if (SetProperty(ref _openLast, value)) { _settingsService.OpenLastTimeline = value; OnPropertyChanged(nameof(IsStartupPickerVisible)); } } }
@@ -68,7 +64,6 @@ public partial class SettingsViewModel : BaseViewModel
 
         _selectedTheme = _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" };
         _defaultDuration = _settingsService.DefaultLessonDuration;
-        _selectedLanguage = _settingsService.Language == AppLanguage.Russian ? "Русский" : "English";
         _openLast = _settingsService.OpenLastTimeline;
         _notifyAtStart = _settingsService.NotifyAtStart;
 

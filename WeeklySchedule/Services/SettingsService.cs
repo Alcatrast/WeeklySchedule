@@ -35,16 +35,6 @@ public class SettingsService : ISettingsService
         }
     }
 
-    public AppLanguage Language
-    {
-        get => (AppLanguage)Preferences.Get(nameof(Language), (int)AppLanguage.Russian);
-        set
-        {
-            Preferences.Set(nameof(Language), (int)value);
-            SettingsChanged?.Invoke();
-        }
-    }
-
     public bool OpenLastTimeline
     {
         get => Preferences.Get(nameof(OpenLastTimeline), true);

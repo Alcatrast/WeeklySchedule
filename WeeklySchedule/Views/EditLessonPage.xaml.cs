@@ -1,6 +1,7 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
+using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Views;
@@ -57,6 +58,7 @@ public partial class EditLessonPage : ContentPage
         }
     }
 
+    // Длительность новой пары берется из настроек, см. DefaultDurationMinutes
     private string _durationText = "85";
     public string DurationText
     {
@@ -128,11 +130,19 @@ public partial class EditLessonPage : ContentPage
             // ТЕПЕРЬ preselectedTime доступна в этой области видимости
             _startTime = preselectedTime ?? TimeContext.Now.TimeOfDay;
             OnPropertyChanged(nameof(StartTime));
-            _durationText = "85";
+            _durationText = DefaultDurationMinutes().ToString();
             OnPropertyChanged(nameof(DurationText));
             RecalculateFromStart();
         }
         _isUpdatingTime = false;
+    }
+
+    // Настройка "Длительность пары по умолчанию" до этого никем не читалась
+    private static int DefaultDurationMinutes()
+    {
+        var settings = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<ISettingsService>();
+        var minutes = settings.DefaultLessonDuration;
+        return minutes > 0 ? minutes : 85;
     }
 
     private ILessonRepository GetRepository()

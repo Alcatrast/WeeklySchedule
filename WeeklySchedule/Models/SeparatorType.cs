@@ -1,4 +1,4 @@
-﻿namespace WeeklySchedule.Models;
+namespace WeeklySchedule.Models;
 
 public enum SeparatorType
 {
@@ -6,19 +6,4 @@ public enum SeparatorType
     ThickWhite,     // Толстый белый (маркер текущего времени)
     ThinRedTop,     // Тонкий красный сверху (граница текущей пары)
     ThinRedBottom   // Тонкий красный снизу (граница текущей пары)
-}
-
-public abstract class ScheduleItem { }
-
-public class LessonItem : ScheduleItem
-{
-    public Lesson Lesson { get; set; } = null!;
-    public bool IsPast { get; set; }
-    public bool IsCurrent { get; set; }
-}
-
-public class SeparatorItem : ScheduleItem
-{
-    public SeparatorType Type { get; set; }
-    public bool IsPast { get; set; }
 }
