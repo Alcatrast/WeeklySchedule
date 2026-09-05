@@ -13,10 +13,6 @@
 		<Nullable>enable</Nullable>
 		<AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
 
-		<!-- ИГНОРИРОВАНИЕ ПРЕДУПРЕЖДЕНИЯ О "ПОНИЖЕНИИ" ВЕРСИИ -->
-		<!-- Это безопасная практика, когда мы намеренно фиксируем стабильную версию (2.88.9) поверх кривой транзитивной превью-версии -->
-		<NoWarn>$(NoWarn);NU1605</NoWarn>
-
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<ApplicationTitle>Weekly</ApplicationTitle>
@@ -51,24 +47,10 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.100" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />
 
-		<!-- === 2. NPOI === -->
-		<!-- 2.7.2 - последняя абсолютно стабильная версия. 2.8.0+ могут быть превью с нестабильными транзитивными зависимостями -->
+		<!-- === 2. NPOI: чтение xls/xlsx при импорте расписания === -->
 		<PackageReference Include="NPOI" Version="2.8.0" />
 
-		<!-- === 3. SkiaSharp (ЕДИНОЕ РЕШЕНИЕ ДЛЯ ВСЕХ ПЛАТФОРМ) === -->
-		<!-- Этот мета-пакет автоматически включает SkiaSharp + NativeAssets.Android + NativeAssets.Win32 и т.д. -->
-		<!-- Версия 2.88.9 является золотым стандартом стабильности на данный момент -->
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.151.1" />
-
 		<PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
-	</ItemGroup>
-
-	<!-- === 4. Жесткая фиксация версий SkiaSharp для всех транзитивных зависимостей === -->
-	<!-- Это гарантирует, что даже если какая-то библиотека попросит другую версию, будет использована 2.88.9 -->
-	<ItemGroup>
-		<PackageReference Update="SkiaSharp" Version="2.88.9" />
-		<PackageReference Update="SkiaSharp.NativeAssets.Android" Version="2.88.9" />
-		<PackageReference Update="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
 	</ItemGroup>
 
 	<ItemGroup>

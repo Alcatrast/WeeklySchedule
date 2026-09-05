@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             xmlns:models="clr-namespace:WeeklySchedule.Models"
              x:Class="WeeklySchedule.Views.GroupSelectionPage"
              x:DataType="vm:GroupSelectionViewModel"
              Title="Выберите группу:">
@@ -9,8 +10,8 @@
         <ScrollView x:Name="MainScroll">
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Categories}" Spacing="8" Padding="20">
                 <BindableLayout.ItemTemplate>
-                    <DataTemplate>
-                        <Border StrokeShape="RoundRectangle 10" 
+                    <DataTemplate x:DataType="models:GroupCategory">
+                        <Border StrokeShape="RoundRectangle 10"
                                 StrokeThickness="1" 
                                 Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" 
                                 Padding="10">
@@ -35,7 +36,7 @@
                                             Wrap="Wrap" Direction="Row" JustifyContent="Start" AlignItems="Center"
                                             IsVisible="{Binding IsExpanded}" Margin="0,5,0,0">
                                     <BindableLayout.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="models:GroupItem">
                                             <Border StrokeShape="RoundRectangle 20"
                                                     BackgroundColor="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                                                     Margin="4" Padding="12,6" HeightRequest="40" IsEnabled="{Binding IsEnabled}">

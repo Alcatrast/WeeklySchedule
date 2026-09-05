@@ -38,7 +38,7 @@ public partial class GroupSelectionPage : ContentPage
         return base.OnBackButtonPressed();
     }
 
-    private void OnCategoryTapped(object sender, TappedEventArgs e)
+    private void OnCategoryTapped(object? sender, TappedEventArgs e)
     {
         if (sender is View view && view.BindingContext is GroupCategory category && BindingContext is GroupSelectionViewModel vm)
         {
@@ -46,7 +46,7 @@ public partial class GroupSelectionPage : ContentPage
         }
     }
 
-    private void OnGroupTapped(object sender, TappedEventArgs e)
+    private void OnGroupTapped(object? sender, TappedEventArgs e)
     {
         if (sender is View view && view.BindingContext is GroupItem group && BindingContext is GroupSelectionViewModel vm)
         {

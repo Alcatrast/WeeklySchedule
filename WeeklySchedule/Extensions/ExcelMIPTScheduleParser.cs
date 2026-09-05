@@ -7,23 +7,52 @@ using NPOI.XSSF.UserModel;
 using System.Text.RegularExpressions;
 using WeeklySchedule.Models;
 
-namespace WeeklySchedule.Extentions;
+namespace WeeklySchedule.Extensions;
 
 public class ExcelMIPTScheduleParser
 {
     private readonly ILogger<ExcelMIPTScheduleParser> _logger;
     private readonly DataFormatter _formatter = new();
 
+    // Регулярки компилируются один раз, а не на каждую ячейку
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex GroupNameRegex = new(@"Б\d{2}-\d{3}", RegexOptions.Compiled);
+    private static readonly Regex GroupNameSplitRegex = new(@"(?=Б\d{2}-\d{3})", RegexOptions.Compiled);
+    private static readonly Regex WordSplitRegex = new(@"[\s\n\r\t]+", RegexOptions.Compiled);
+    private static readonly Regex TimeRangeSplitRegex = new(@"\s*[-–—]\s*", RegexOptions.Compiled);
+    private static readonly Regex RoomRegex = new(
+        @"(ауд\.|кабинет|каб\.)\s*\d+|(\d+\s+[А-Я]{1,3}\b)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex InitialsRegex = new(@"[А-Я]\.\s*[А-Я]\.\s*[А-Яа-я]+", RegexOptions.Compiled);
+    private static readonly Regex InitialsWordRegex = new(@"\b[А-Я]\.\s*[А-Я]\.\s*[А-Яа-яё]+", RegexOptions.Compiled);
+
+    // Объединенные ячейки листа. Раньше NumMergedRegions/GetMergedRegion дергались
+    // на каждое обращение к ячейке во вложенных циклах
+    private ISheet? _mergedRegionsSheet;
+    private List<CellRangeAddress> _mergedRegions = [];
+
     public ExcelMIPTScheduleParser(ILogger<ExcelMIPTScheduleParser> logger)
     {
         _logger = logger;
+    }
+
+    private List<CellRangeAddress> GetMergedRegions(ISheet sheet)
+    {
+        if (!ReferenceEquals(_mergedRegionsSheet, sheet))
+        {
+            var regions = new List<CellRangeAddress>(sheet.NumMergedRegions);
+            for (int i = 0; i < sheet.NumMergedRegions; i++) regions.Add(sheet.GetMergedRegion(i));
+            _mergedRegions = regions;
+            _mergedRegionsSheet = sheet;
+        }
+        return _mergedRegions;
     }
 
     public List<string> ExtractAllGroupNames(string filePath)
     {
         var groupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using var fs = File.OpenRead(filePath);
-        var workbook = WorkbookFactory.Create(fs);
+        using var workbook = WorkbookFactory.Create(fs);
         var sheet = workbook.GetSheetAt(0);
 
         for (int r = 0; r <= Math.Min(15, sheet.LastRowNum); r++)
@@ -36,10 +65,10 @@ public class ExcelMIPTScheduleParser
                 if (string.IsNullOrWhiteSpace(text)) continue;
 
                 // Нормализуем пробелы и переносы строк
-                text = Regex.Replace(text, @"\s+", " ").Trim();
+                text = WhitespaceRegex.Replace(text, " ").Trim();
 
                 // Ищем все вхождения паттерна группы
-                var matches = Regex.Matches(text, @"Б\d{2}-\d{3}");
+                var matches = GroupNameRegex.Matches(text);
                 if (matches.Count == 0) continue;
 
                 if (matches.Count == 1)
@@ -52,7 +81,7 @@ public class ExcelMIPTScheduleParser
                 {
                     // Несколько вхождений — разделяем по паттерну
                     // Например: "Б09-401 Б09-402"
-                    var parts = Regex.Split(text, @"(?=Б\d{2}-\d{3})");
+                    var parts = GroupNameSplitRegex.Split(text);
                     foreach (var part in parts)
                     {
                         var trimmed = part.Trim();
@@ -73,7 +102,7 @@ public class ExcelMIPTScheduleParser
         var lessons = new List<Lesson>();
 
         using var fs = File.OpenRead(filePath);
-        var workbook = WorkbookFactory.Create(fs);
+        using var workbook = WorkbookFactory.Create(fs);
         var sheet = workbook.GetSheetAt(0);
 
         int groupColIndex = FindGroupColumn(sheet, groupName);
@@ -106,7 +135,7 @@ public class ExcelMIPTScheduleParser
 
             var mergedRegion = GetMergedRegionForCell(sheet, r, groupColIndex);
 
-            ICell cell = null;
+            ICell? cell = null;
             int firstRow = r;
             int lastRowOfLesson = r;
 
@@ -170,9 +199,8 @@ public class ExcelMIPTScheduleParser
     {
         var slots = new List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)>();
 
-        for (int i = 0; i < sheet.NumMergedRegions; i++)
+        foreach (var cr in GetMergedRegions(sheet))
         {
-            var cr = sheet.GetMergedRegion(i);
             if (cr.FirstColumn == 1 && cr.LastColumn == 1)
             {
                 var text = GetEffectiveCellText(sheet, cr.FirstRow, 1);
@@ -249,7 +277,7 @@ public class ExcelMIPTScheduleParser
 
                 // 2. Ячейка содержит несколько групп через перенос/пробел (например "Б09-401\nБ09-402")
                 // Разбиваем по переносам строк и пробелам, ищем точное совпадение одной из частей
-                var parts = Regex.Split(cellText, @"[\s\n\r\t]+");
+                var parts = WordSplitRegex.Split(cellText);
                 if (parts.Any(p => p.Equals(groupName, StringComparison.OrdinalIgnoreCase)))
                     return cell.ColumnIndex;
 
@@ -276,9 +304,8 @@ public class ExcelMIPTScheduleParser
 
     private string GetEffectiveCellText(ISheet sheet, int rowIdx, int colIdx)
     {
-        for (int i = 0; i < sheet.NumMergedRegions; i++)
+        foreach (var cr in GetMergedRegions(sheet))
         {
-            var cr = sheet.GetMergedRegion(i);
             if (cr.FirstRow <= rowIdx && cr.LastRow >= rowIdx &&
                 cr.FirstColumn <= colIdx && cr.LastColumn >= colIdx)
             {
@@ -301,9 +328,8 @@ public class ExcelMIPTScheduleParser
 
     private CellRangeAddress? GetMergedRegionForCell(ISheet sheet, int rowIndex, int colIndex)
     {
-        for (int i = 0; i < sheet.NumMergedRegions; i++)
+        foreach (var cr in GetMergedRegions(sheet))
         {
-            var cr = sheet.GetMergedRegion(i);
             if (cr.FirstRow <= rowIndex && cr.LastRow >= rowIndex &&
                 cr.FirstColumn <= colIndex && cr.LastColumn >= colIndex)
             {
@@ -409,7 +435,7 @@ public class ExcelMIPTScheduleParser
     private (TimeSpan Start, TimeSpan End) ParseTimeRange(string timeStr)
     {
         if (string.IsNullOrWhiteSpace(timeStr)) return (TimeSpan.Zero, TimeSpan.Zero);
-        var parts = Regex.Split(timeStr.Trim(), @"\s*[-–—]\s*");
+        var parts = TimeRangeSplitRegex.Split(timeStr.Trim());
         if (parts.Length < 2) return (TimeSpan.Zero, TimeSpan.Zero);
         return (ParseSingleTime(parts[0].Trim()), ParseSingleTime(parts[1].Trim()));
     }
@@ -506,12 +532,12 @@ public class ExcelMIPTScheduleParser
         }
 
         // Сценарий 3: Поиск номера аудитории
-        var roomMatch = Regex.Match(rawText, @"(ауд\.|кабинет|каб\.)\s*\d+|(\d+\s+[А-Я]{1,3}\b)", RegexOptions.IgnoreCase);
+        var roomMatch = RoomRegex.Match(rawText);
         if (roomMatch.Success && roomMatch.Index > 10)
         {
             string beforeRoom = CleanText(rawText.Substring(0, roomMatch.Index));
             string roomAndAfter = CleanText(rawText.Substring(roomMatch.Index));
-            var initialsMatch = Regex.Match(beforeRoom, @"[А-Я]\.\s*[А-Я]\.\s*[А-Яа-я]+");
+            var initialsMatch = InitialsRegex.Match(beforeRoom);
             if (initialsMatch.Success)
             {
                 string name = CleanText(beforeRoom.Substring(0, initialsMatch.Index));
@@ -522,7 +548,7 @@ public class ExcelMIPTScheduleParser
         }
 
         // Сценарий 4: Поиск инициалов
-        var initialsOnlyMatch = Regex.Match(rawText, @"\b[А-Я]\.\s*[А-Я]\.\s*[А-Яа-яё]+");
+        var initialsOnlyMatch = InitialsWordRegex.Match(rawText);
         if (initialsOnlyMatch.Success && initialsOnlyMatch.Index > 15)
         {
             return (CleanText(rawText.Substring(0, initialsOnlyMatch.Index)), CleanText(rawText.Substring(initialsOnlyMatch.Index)));

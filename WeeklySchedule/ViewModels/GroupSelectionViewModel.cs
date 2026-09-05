@@ -2,7 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
-using WeeklySchedule.Extentions;
+using WeeklySchedule.Extensions;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
@@ -153,23 +153,25 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
             AppEvents.NotifyDataChanged();
 
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null)
-            {
-                await mainPage.DisplayAlert("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.", "OK");
-            }
+            await ShowAlertAsync("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.");
 
             await SafeClosePagesAsync();
         }
         catch (Exception)
         {
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null) await mainPage.DisplayAlert("Ошибка", "Не удалось импортировать расписание.", "OK");
+            await ShowAlertAsync("Ошибка", "Не удалось импортировать расписание.");
         }
         finally
         {
             IsProcessing = false;
         }
+    }
+
+    // Application.MainPage и Page.DisplayAlert объявлены устаревшими в MAUI 10
+    private static Task ShowAlertAsync(string title, string message)
+    {
+        var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+        return page?.DisplayAlertAsync(title, message, "OK") ?? Task.CompletedTask;
     }
 
     private async Task SafeClosePagesAsync()
@@ -189,8 +191,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null) await mainPage.DisplayAlert("Ошибка", message, "OK");
+            await ShowAlertAsync("Ошибка", message);
             await _navigationService.PopModalAsync();
         }
         catch { }
