@@ -127,8 +127,7 @@ public partial class DayView : ContentView
                 Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
                 HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0),
                 VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(10, lineOffset, 10, 0),
-                Opacity = br.IsPast ? 0.5 : 1.0
+                Margin = new Thickness(10, lineOffset, 10, 0)
             };
 
             Grid.SetRow(separatorLine, br.StartRow);

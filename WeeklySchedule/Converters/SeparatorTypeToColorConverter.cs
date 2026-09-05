@@ -12,8 +12,6 @@ public class SeparatorTypeToColorConverter : IValueConverter
             return type switch
             {
                 SeparatorType.ThickWhite => Colors.LightGray,
-                SeparatorType.ThinRedTop => Colors.Red,
-                SeparatorType.ThinRedBottom => Colors.Red,
                 _ => Colors.Transparent
             };
         }

@@ -236,25 +236,41 @@ public class ExcelMIPTScheduleParser
         TimeSpan start = TimeSpan.Zero;
         TimeSpan end = TimeSpan.Zero;
 
-        var startSlot = timeSlots.FirstOrDefault(ts => firstRow >= ts.FirstRow && firstRow <= ts.LastRow);
-        if (startSlot.FirstRow != 0 || startSlot.LastRow != 0 || startSlot.Start != TimeSpan.Zero)
+        // Раньше "слот найден" проверялось сравнением полей кортежа с нулем: слот,
+        // который начинается в первой строке листа, считался бы ненайденным
+        int startIndex = timeSlots.FindIndex(ts => firstRow >= ts.FirstRow && firstRow <= ts.LastRow);
+        if (startIndex >= 0)
         {
-            if (firstRow == startSlot.FirstRow)
-                start = startSlot.Start;
-            else
-                start = startSlot.End - TimeSpan.FromMinutes(40);
+            var slot = timeSlots[startIndex];
+            start = firstRow == slot.FirstRow
+                ? slot.Start
+                : InterpolateSlotTime(slot, firstRow - slot.FirstRow);
         }
 
-        var endSlot = timeSlots.FirstOrDefault(ts => lastRow >= ts.FirstRow && lastRow <= ts.LastRow);
-        if (endSlot.FirstRow != 0 || endSlot.LastRow != 0 || endSlot.Start != TimeSpan.Zero)
+        int endIndex = timeSlots.FindIndex(ts => lastRow >= ts.FirstRow && lastRow <= ts.LastRow);
+        if (endIndex >= 0)
         {
-            if (lastRow == endSlot.LastRow)
-                end = endSlot.End;
-            else
-                end = endSlot.Start + TimeSpan.FromMinutes(40);
+            var slot = timeSlots[endIndex];
+            end = lastRow == slot.LastRow
+                ? slot.End
+                : InterpolateSlotTime(slot, lastRow - slot.FirstRow + 1);
         }
 
         return (start, end);
+    }
+
+    /// <summary>
+    /// Время границы пары, которая занимает слот не целиком: делим слот на строки
+    /// пропорционально. Для обычной пары (слот из двух строк по 80 минут) это дает
+    /// ровно те 40 минут, которые раньше были захардкожены, но не ломается на
+    /// слотах другой длины и другого числа строк.
+    /// </summary>
+    private static TimeSpan InterpolateSlotTime(
+        (int FirstRow, int LastRow, TimeSpan Start, TimeSpan End) slot, int rowOffset)
+    {
+        int rows = slot.LastRow - slot.FirstRow + 1;
+        if (rows <= 0) return slot.Start;
+        return slot.Start + (slot.End - slot.Start) * rowOffset / rows;
     }
 
     #endregion

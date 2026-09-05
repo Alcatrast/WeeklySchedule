@@ -12,8 +12,6 @@ public class SeparatorTypeToHeightConverter : IValueConverter
             return type switch
             {
                 SeparatorType.ThickWhite => 4.0,
-                SeparatorType.ThinRedTop => 2.0,
-                SeparatorType.ThinRedBottom => 2.0,
                 _ => 0.0
             };
         }

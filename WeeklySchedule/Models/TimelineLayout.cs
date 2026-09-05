@@ -24,7 +24,6 @@ public class BreakPlacement
     public int RowSpan { get; set; }
     public int TotalMinutes { get; set; }
     public SeparatorType Type { get; set; } = SeparatorType.None;
-    public bool IsPast { get; set; }
 }
 public class TimelineLayout
 {
