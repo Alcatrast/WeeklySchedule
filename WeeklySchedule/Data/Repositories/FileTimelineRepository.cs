@@ -22,19 +22,49 @@ public class FileTimelineRepository : ITimelineRepository
         if (!File.Exists(_filePath)) File.WriteAllText(_filePath, "[]");
     }
 
-    private List<Timeline> LoadAll()
+    // null означает "файл есть, но прочитать его не удалось". Отличать этот случай
+    // от пустого списка обязательно: иначе любая запись поверх стирает данные,
+    // которые не смогли прочитать из-за временной ошибки ввода-вывода
+    private List<Timeline>? TryLoadAll()
     {
         try
         {
             var json = File.ReadAllText(_filePath);
             return JsonSerializer.Deserialize<List<Timeline>>(json, _jsonOptions) ?? [];
         }
-        catch { return []; }
+        catch { return null; }
+    }
+
+    private List<Timeline> LoadAll() => TryLoadAll() ?? [];
+
+    // Список для операции, которая потом вызовет SaveAll. Нечитаемый файл сначала
+    // уводим в резервную копию, чтобы данные можно было достать руками
+    private List<Timeline> LoadAllForWrite()
+    {
+        var list = TryLoadAll();
+        if (list != null) return list;
+
+        try
+        {
+            if (File.Exists(_filePath))
+            {
+                var backup = Path.Combine(
+                    FileSystem.AppDataDirectory,
+                    $"timelines.corrupted-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+                File.Move(_filePath, backup, overwrite: true);
+            }
+        }
+        catch { }
+
+        return [];
     }
 
     private void SaveAll(List<Timeline> timelines)
     {
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(timelines, _jsonOptions));
+        // Пишем через временный файл: обрыв записи не оставит обрезанный timelines.json
+        var tempPath = _filePath + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(timelines, _jsonOptions));
+        File.Move(tempPath, _filePath, overwrite: true);
     }
 
     public async Task<IEnumerable<Timeline>> GetAllAsync()
@@ -53,7 +83,7 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
                 list.Add(timeline);
                 SaveAll(list);
                 Directory.CreateDirectory(Path.Combine(_baseDirectoryPath, timeline.Id.ToString()));
@@ -67,7 +97,7 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
                 var index = list.FindIndex(t => t.Id == timeline.Id);
                 if (index != -1)
                 {
@@ -84,7 +114,7 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
                 list.RemoveAll(t => t.Id == id);
                 SaveAll(list);
                 var timelineDir = Path.Combine(_baseDirectoryPath, id.ToString());
