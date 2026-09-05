@@ -1,6 +1,4 @@
-﻿using System.Collections.Specialized;
-using WeeklySchedule.Data.Repositories;
-using WeeklySchedule.Services;
+﻿using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
@@ -10,11 +8,7 @@ public partial class AppShell : Shell
 {
     public FlyoutViewModel FlyoutVM { get; }
 
-    public AppShell(
-        ITimelineRepository repo,
-        IActiveScheduleService sched,
-        ISettingsService settings,
-        FlyoutViewModel flyoutVm)
+    public AppShell(FlyoutViewModel flyoutVm)
     {
         FlyoutVM = flyoutVm;
         InitializeComponent();
@@ -25,50 +19,37 @@ public partial class AppShell : Shell
         Routing.RegisterRoute(nameof(TimelinesPage), typeof(TimelinesPage));
         Routing.RegisterRoute(nameof(EditTimelinePage), typeof(EditTimelinePage));
 
-        FlyoutVM.Timelines.CollectionChanged += Timelines_CollectionChanged;
-
-        // УБИРАЕМ КОСТЫЛЬ С ИЗМЕРЕНИЕМ ТЕКСТА. 
+        // УБИРАЕМ КОСТЫЛЬ С ИЗМЕРЕНИЕМ ТЕКСТА.
         // Flyout должен иметь фиксированную разумную ширину.
         this.FlyoutWidth = 320;
     }
 
-    private void Timelines_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        // Больше не пересчитываем ширину. Это было ошибкой архитектуры.
-    }
-
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-        await FlyoutVM.LoadTimelinesAsync();
+        SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
     }
 
-    protected override async void OnNavigated(ShellNavigatedEventArgs args)
+    protected override void OnNavigated(ShellNavigatedEventArgs args)
     {
         base.OnNavigated(args);
         if (args.Current?.Location.OriginalString.Contains("MainPage") == true)
         {
-            await FlyoutVM.LoadTimelinesAsync();
+            SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
         }
     }
 
     private void CloseFlyout() => this.FlyoutIsPresented = false;
 
-    private async void OnTimelinesManageClicked(object? sender, TappedEventArgs e)
+    private void NavigateTo(string route)
     {
         CloseFlyout();
-        await this.GoToAsync(nameof(TimelinesPage));
+        SafeFireAndForget.Run(() => this.GoToAsync(route));
     }
 
-    private async void OnSettingsClicked(object? sender, TappedEventArgs e)
-    {
-        CloseFlyout();
-        await this.GoToAsync(nameof(SettingsPage));
-    }
+    private void OnTimelinesManageClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(TimelinesPage));
 
-    private async void OnAboutClicked(object? sender, TappedEventArgs e)
-    {
-        CloseFlyout();
-        await this.GoToAsync(nameof(AboutPage));
-    }
+    private void OnSettingsClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(SettingsPage));
+
+    private void OnAboutClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(AboutPage));
 }

@@ -10,5 +10,4 @@ public interface ILessonRepository
     Task AddAsync(Lesson lesson);
     Task UpdateAsync(Lesson lesson);
     Task DeleteAsync(Guid id);
-    Task ClearAsync();
 }

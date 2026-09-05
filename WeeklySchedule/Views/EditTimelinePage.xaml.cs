@@ -3,13 +3,13 @@ using Microsoft.Maui.Controls.Shapes;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
 
 public partial class EditTimelinePage : ContentPage
 {
-    public static bool IsOpen { get; private set; } = false;
     private EditTimelineViewModel? _vm;
 
     // Конструктор для DI
@@ -21,7 +21,6 @@ public partial class EditTimelinePage : ContentPage
         INavigationService navigationService)
     {
         InitializeComponent();
-        IsOpen = true;
 
         _vm = new EditTimelineViewModel(repository, settingsService, notificationService, filePickerService, navigationService, null);
         BindingContext = _vm;
@@ -43,6 +42,8 @@ public partial class EditTimelinePage : ContentPage
     {
         if (_vm != null)
         {
+            _vm.ImportRequested -= OnImportRequested;
+            _vm.PropertyChanged -= Vm_PropertyChanged;
             // Пересоздаем VM с нужным таймлайном, так как он был null в конструкторе
             // В реальном проекте лучше использовать фабрику или передавать timeline в конструктор
             // Но для сохранения структуры оставим так
@@ -59,30 +60,33 @@ public partial class EditTimelinePage : ContentPage
         }
     }
 
-    private async void OnImportRequested(string filePath)
+    private void OnImportRequested(string filePath, Timeline timeline, bool timelineExists)
     {
-        if (_vm == null) return;
-        var services = Application.Current!.Handler!.MauiContext!.Services;
-        var groupPage = new GroupSelectionPage(
-            filePath,
-            _vm.IsEditMode,
-            // Нужно получить текущий таймлайн. Если его нет, создаем временный
-            new Timeline(),
-            services.GetRequiredService<ILessonRepository>(),
-            services.GetRequiredService<ITimelineRepository>(),
-            services.GetRequiredService<INavigationService>(),
-            services);
+        SafeFireAndForget.Run(async () =>
+        {
+            var services = Application.Current!.Handler!.MauiContext!.Services;
+            var groupPage = new GroupSelectionPage(
+                filePath,
+                timelineExists,
+                timeline,
+                services.GetRequiredService<ILessonRepository>(),
+                services.GetRequiredService<ITimelineRepository>(),
+                services.GetRequiredService<INavigationService>(),
+                services,
+                _vm!.ApplyStartupSelection);
 
-        await Shell.Current!.Navigation.PushModalAsync(groupPage);
+            await Shell.Current!.Navigation.PushModalAsync(groupPage);
+        });
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         if (BindingContext is EditTimelineViewModel vm)
         {
+            vm.PropertyChanged -= Vm_PropertyChanged;
             vm.PropertyChanged += Vm_PropertyChanged;
-            await vm.CheckPermissionsAsync();
+            SafeFireAndForget.Run(vm.CheckPermissionsAsync);
         }
     }
 
@@ -92,9 +96,9 @@ public partial class EditTimelinePage : ContentPage
         if (_vm != null)
         {
             _vm.PropertyChanged -= Vm_PropertyChanged;
-            _vm.ImportRequested -= OnImportRequested;
+            // Подписка живет столько же, сколько страница и ее VM. Временный
+            // уход в выбор файла/группы не должен отключать следующий импорт.
         }
-        IsOpen = false;
     }
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)

@@ -1,6 +1,7 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
@@ -9,23 +10,24 @@ public partial class GroupSelectionPage : ContentPage
 {
     public GroupSelectionPage(
         string filePath,
-        bool isEditMode,
+        bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         INavigationService navigationService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Action? onImported = null)
     {
         InitializeComponent();
-        BindingContext = new GroupSelectionViewModel(filePath, isEditMode, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider);
+        BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider, onImported);
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         if (BindingContext is GroupSelectionViewModel vm)
         {
-            await vm.InitializeAsync();
+            SafeFireAndForget.Run(vm.InitializeAsync);
         }
     }
 
@@ -38,7 +40,7 @@ public partial class GroupSelectionPage : ContentPage
         return base.OnBackButtonPressed();
     }
 
-    private void OnCategoryTapped(object sender, TappedEventArgs e)
+    private void OnCategoryTapped(object? sender, TappedEventArgs e)
     {
         if (sender is View view && view.BindingContext is GroupCategory category && BindingContext is GroupSelectionViewModel vm)
         {
@@ -46,7 +48,7 @@ public partial class GroupSelectionPage : ContentPage
         }
     }
 
-    private void OnGroupTapped(object sender, TappedEventArgs e)
+    private void OnGroupTapped(object? sender, TappedEventArgs e)
     {
         if (sender is View view && view.BindingContext is GroupItem group && BindingContext is GroupSelectionViewModel vm)
         {

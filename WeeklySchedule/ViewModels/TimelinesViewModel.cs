@@ -3,6 +3,7 @@ using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -11,6 +12,7 @@ public partial class TimelinesViewModel : BaseViewModel
     private readonly ITimelineRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IServiceProvider _serviceProvider;
+    private int _loadVersion;
 
     public ObservableCollection<Timeline> Timelines { get; } = [];
     public ICommand EditTimelineCommand { get; }
@@ -40,33 +42,38 @@ public partial class TimelinesViewModel : BaseViewModel
 
         EditTimelineCommand = new Command<Timeline>(OnEditTimeline);
         CreateTimelineCommand = new Command(OnCreateTimeline);
-        _ = LoadTimelinesAsync();
     }
 
     public async Task LoadTimelinesAsync()
     {
+        var version = ++_loadVersion;
+        var all = (await _repository.GetAllAsync()).ToList();
+        if (version != _loadVersion) return;
+
         _openLastTimeline = _settingsService.OpenLastTimeline;
         OnPropertyChanged(nameof(OpenLastTimeline));
         OnPropertyChanged(nameof(HighlightedTimelineId));
         Timelines.Clear();
 
-        var all = await _repository.GetAllAsync();
         foreach (var timeline in all) Timelines.Add(timeline);
     }
 
-    private async void OnEditTimeline(Timeline? timeline)
+    private void OnEditTimeline(Timeline? timeline)
     {
         if (timeline == null) return;
-        // Резолвим страницу через DI
-        var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-        editPage.Initialize(timeline);
-        await Shell.Current!.Navigation.PushModalAsync(editPage);
+        OpenEditPage(timeline);
     }
 
-    private async void OnCreateTimeline()
+    private void OnCreateTimeline() => OpenEditPage(null);
+
+    private void OpenEditPage(Timeline? timeline)
     {
-        var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-        editPage.Initialize(null);
-        await Shell.Current!.Navigation.PushModalAsync(editPage);
+        SafeFireAndForget.Run(async () =>
+        {
+            // Резолвим страницу через DI
+            var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
+            editPage.Initialize(timeline);
+            await Shell.Current!.Navigation.PushModalAsync(editPage);
+        });
     }
 }

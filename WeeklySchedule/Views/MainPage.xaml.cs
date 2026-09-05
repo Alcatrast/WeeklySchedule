@@ -1,3 +1,4 @@
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
@@ -14,37 +15,37 @@ public partial class MainPage : ContentPage
         BindingContext = _viewModel;
     }
 
-    private async void OnHeaderDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnHeaderDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (EditLessonPage.IsOpen) return;
-        if (_viewModel.SelectedDayVM != null)
+        if (_viewModel.SelectedDayVM == null) return;
+
+        SafeFireAndForget.Run(async () =>
         {
             var editPage = new EditLessonPage(
                 lesson: null,
                 preselectedDay: _viewModel.SelectedDayVM.DayOfWeek,
                 activeTimelineId: _viewModel.ActiveTimelineId);
-            if (Shell.Current != null)
-            {
-                await Shell.Current.Navigation.PushModalAsync(editPage);
-            }
-        }
+            await EditLessonPage.OpenModalAsync(editPage);
+        });
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         _viewModel.CheckPendingNavigation();
 
-        // ИСПРАВЛЕНО: Асинхронный вызов инициализации
-        await _viewModel.InitializeDataAsync();
-
-        _viewModel.SelectedDayVM?.RequestScroll();
-
-        if (Shell.Current is AppShell shell && shell.FlyoutVM != null)
+        SafeFireAndForget.Run(async () =>
         {
-            // ИСПРАВЛЕНО: Асинхронный вызов загрузки таймлайнов
-            await shell.FlyoutVM.LoadTimelinesAsync();
-        }
+            await _viewModel.InitializeDataAsync();
+
+            _viewModel.SelectedDayVM?.RequestScroll();
+
+            if (Shell.Current is AppShell shell && shell.FlyoutVM != null)
+            {
+                await shell.FlyoutVM.LoadTimelinesAsync();
+            }
+        });
     }
 
     protected override void OnDisappearing()

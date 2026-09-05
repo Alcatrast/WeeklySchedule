@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Data.Repositories;
 
@@ -19,22 +20,44 @@ public class FileTimelineRepository : ITimelineRepository
         _filePath = Path.Combine(FileSystem.AppDataDirectory, "timelines.json");
         _baseDirectoryPath = Path.Combine(FileSystem.AppDataDirectory, "Timelines");
 
-        if (!File.Exists(_filePath)) File.WriteAllText(_filePath, "[]");
     }
 
+    // Ошибки доступа/чтения нельзя выдавать за пустой каталог.
     private List<Timeline> LoadAll()
     {
         try
         {
             var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<Timeline>>(json, _jsonOptions) ?? [];
+            return JsonSerializer.Deserialize<List<Timeline>>(json, _jsonOptions)
+                ?? throw new JsonException("Каталог расписаний содержит null вместо списка.");
         }
-        catch { return []; }
+        catch (FileNotFoundException) { return []; }
+        catch (DirectoryNotFoundException) { return []; }
+    }
+
+    // Список для операции, которая потом вызовет SaveAll. Нечитаемый файл сначала
+    // уводим в резервную копию, чтобы данные можно было достать руками
+    private List<Timeline> LoadAllForWrite()
+    {
+        try
+        {
+            return LoadAll();
+        }
+        catch (JsonException)
+        {
+            var backup = Path.Combine(FileSystem.AppDataDirectory,
+                $"timelines.corrupted-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.json");
+            // Ошибка копирования прерывает операцию. Оригинал остается на месте
+            // также и при последующем сбое записи нового каталога.
+            File.Copy(_filePath, backup, overwrite: false);
+            return [];
+        }
     }
 
     private void SaveAll(List<Timeline> timelines)
     {
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(timelines, _jsonOptions));
+        // Пишем через временный файл: обрыв записи не оставит обрезанный timelines.json
+        AtomicFile.WriteAllText(_filePath, JsonSerializer.Serialize(timelines, _jsonOptions));
     }
 
     public async Task<IEnumerable<Timeline>> GetAllAsync()
@@ -53,7 +76,8 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
+                if (list.Any(t => t.Id == timeline.Id)) return;
                 list.Add(timeline);
                 SaveAll(list);
                 Directory.CreateDirectory(Path.Combine(_baseDirectoryPath, timeline.Id.ToString()));
@@ -67,7 +91,7 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
                 var index = list.FindIndex(t => t.Id == timeline.Id);
                 if (index != -1)
                 {
@@ -84,7 +108,7 @@ public class FileTimelineRepository : ITimelineRepository
         {
             lock (_lock)
             {
-                var list = LoadAll();
+                var list = LoadAllForWrite();
                 list.RemoveAll(t => t.Id == id);
                 SaveAll(list);
                 var timelineDir = Path.Combine(_baseDirectoryPath, id.ToString());

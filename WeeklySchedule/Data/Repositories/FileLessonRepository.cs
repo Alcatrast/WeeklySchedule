@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Data.Repositories;
 
@@ -28,6 +29,18 @@ public class FileLessonRepository : ILessonRepository
     {
         var dir = GetDirectoryPath(timelineId);
         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+    }
+
+    // Удаляет файлы пары во всех таймлайнах, кроме keepPath. Вызывать под _lock
+    private void DeleteCopiesExcept(Guid lessonId, string keepPath)
+    {
+        if (!Directory.Exists(_baseDirectoryPath)) return;
+        foreach (var timelineDir in Directory.GetDirectories(_baseDirectoryPath))
+        {
+            var path = Path.Combine(timelineDir, "Lessons", $"{lessonId}.json");
+            if (string.Equals(path, keepPath, StringComparison.OrdinalIgnoreCase)) continue;
+            if (File.Exists(path)) File.Delete(path);
+        }
     }
 
     public async Task<IEnumerable<Lesson>> GetAllAsync()
@@ -97,7 +110,7 @@ public class FileLessonRepository : ILessonRepository
             lock (_lock)
             {
                 EnsureDirectoryExists(lesson.TimelineId);
-                File.WriteAllText(GetFilePath(lesson.TimelineId, lesson.Id), JsonSerializer.Serialize(lesson, _jsonOptions));
+                AtomicFile.WriteAllText(GetFilePath(lesson.TimelineId, lesson.Id), JsonSerializer.Serialize(lesson, _jsonOptions));
             }
         });
     }
@@ -108,10 +121,13 @@ public class FileLessonRepository : ILessonRepository
         {
             lock (_lock)
             {
-                // Упрощено: просто перезаписываем. Если TimelineId изменился, старую удалим при следующем GetAll
                 EnsureDirectoryExists(lesson.TimelineId);
                 var newPath = GetFilePath(lesson.TimelineId, lesson.Id);
-                File.WriteAllText(newPath, JsonSerializer.Serialize(lesson, _jsonOptions));
+                AtomicFile.WriteAllText(newPath, JsonSerializer.Serialize(lesson, _jsonOptions));
+
+                // Пару могли перенести в другой таймлайн: файл в старой папке
+                // остался бы и читался как дубликат в GetAllAsync
+                DeleteCopiesExcept(lesson.Id, newPath);
             }
         });
     }
@@ -130,16 +146,5 @@ public class FileLessonRepository : ILessonRepository
                 }
             });
         }
-    }
-
-    public async Task ClearAsync()
-    {
-        await Task.Run(() =>
-        {
-            lock (_lock)
-            {
-                if (Directory.Exists(_baseDirectoryPath)) Directory.Delete(_baseDirectoryPath, true);
-            }
-        });
     }
 }

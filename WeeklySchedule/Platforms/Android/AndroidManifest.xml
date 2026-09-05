@@ -1,11 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
-	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<!-- SCHEDULE_EXACT_ALARM пользователь выдает вручную в настройках,
+	     USE_EXACT_ALARM (Android 13+) действует сразу. Google Play разрешает
+	     второе только будильникам и календарям, но приложение ставится
+	     напрямую из apk, а не через стор -->
 	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 	<uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+	<!-- Будильники стираются при перезагрузке телефона: без этого разрешения
+	     BootReceiver не получит ACTION_BOOT_COMPLETED и не восстановит их -->
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 	<!-- Разрешение для запроса исключения из оптимизации батареи -->
 	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 	<!-- Разрешения для чтения файлов (Excel) -->

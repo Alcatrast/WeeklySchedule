@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using WeeklySchedule.Core;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.Views;
 
 namespace WeeklySchedule.ViewModels;
@@ -20,8 +21,6 @@ public partial class DayViewModel : BaseViewModel
 
     public TimelineLayout Layout { get; private set; } = new();
     public event Action? LayoutUpdated;
-    public event Action<DateTime>? TimeStatusUpdated;
-
     public event Action? ScrollToCurrentRequested;
     public ICommand EditLessonCommand { get; }
 
@@ -31,14 +30,13 @@ public partial class DayViewModel : BaseViewModel
         EditLessonCommand = new Command<Lesson>(OnEditLesson);
     }
 
-    private async void OnEditLesson(Lesson? lesson)
+    private void OnEditLesson(Lesson? lesson)
     {
         if (EditLessonPage.IsOpen) return;
         if (lesson == null) return;
 
-        var editPage = new EditLessonPage(lesson);
-        var navPage = new NavigationPage(editPage);
-        if (Shell.Current != null) await Shell.Current.Navigation.PushModalAsync(navPage);
+        SafeFireAndForget.Run(() =>
+            EditLessonPage.OpenModalAsync(new EditLessonPage(lesson), wrapInNavigationPage: true));
     }
 
     public void RequestScroll() => ScrollToCurrentRequested?.Invoke();
@@ -67,10 +65,5 @@ public partial class DayViewModel : BaseViewModel
     {
         Layout = TimelineLayoutBuilder.Build(Date, allLessons, now);
         LayoutUpdated?.Invoke();
-    }
-
-    public void UpdateTimeStatus(DateTime now)
-    {
-        TimeStatusUpdated?.Invoke(now);
     }
 }

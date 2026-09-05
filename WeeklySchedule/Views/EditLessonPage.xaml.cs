@@ -1,13 +1,44 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
+using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Views;
 
 public partial class EditLessonPage : ContentPage
 {
-    public static bool IsOpen { get; private set; } = false;
+    private static bool _isOpen;
+
+    /// <summary>
+    /// Открыт ли редактор пары. Обработчики двойного тапа сверяются с флагом,
+    /// чтобы второй тап не открыл вторую копию страницы.
+    /// </summary>
+    public static bool IsOpen => _isOpen;
+
+    /// <summary>
+    /// Показывает страницу как модальную. Флаг ставится здесь, а не в конструкторе:
+    /// страницу можно создать и не показать (нет Shell, упал PushModalAsync), тогда
+    /// OnDisappearing не придет, флаг залипнет в true и редактор перестанет
+    /// открываться до перезапуска приложения.
+    /// </summary>
+    public static async Task OpenModalAsync(EditLessonPage page, bool wrapInNavigationPage = false)
+    {
+        var navigation = Shell.Current?.Navigation;
+        if (navigation == null || _isOpen) return;
+
+        _isOpen = true;
+        try
+        {
+            await navigation.PushModalAsync(wrapInNavigationPage ? new NavigationPage(page) : page);
+        }
+        catch
+        {
+            _isOpen = false;
+            throw;
+        }
+    }
+
     private bool _isProcessing = false;
     private readonly Lesson _lesson;
     private readonly bool _isEditMode;
@@ -27,7 +58,12 @@ public partial class EditLessonPage : ContentPage
                 if (!_isUpdatingTime)
                 {
                     if (_isDurationLastEdited) RecalculateFromStart();
-                    else RecalculateDuration();
+                    else
+                    {
+                        if (_endTime <= _startTime)
+                            EndTime = _startTime.Add(TimeSpan.FromMinutes(1));
+                        RecalculateDuration();
+                    }
                 }
             }
         }
@@ -39,14 +75,7 @@ public partial class EditLessonPage : ContentPage
         get => _endTime;
         set
         {
-            var newValue = value;
-            var maxEnd = new TimeSpan(23, 59, 0);
-            if (newValue > maxEnd) newValue = maxEnd;
-            if (newValue <= _startTime)
-            {
-                newValue = _startTime.Add(TimeSpan.FromMinutes(1));
-                if (newValue > maxEnd) newValue = maxEnd;
-            }
+            var newValue = LessonTimeRange.NormalizeEnd(_startTime, value);
             if (_endTime != newValue)
             {
                 if (!_isUpdatingTime) _isDurationLastEdited = false;
@@ -57,6 +86,7 @@ public partial class EditLessonPage : ContentPage
         }
     }
 
+    // Длительность новой пары берется из настроек, см. DefaultDurationMinutes
     private string _durationText = "85";
     public string DurationText
     {
@@ -80,7 +110,6 @@ public partial class EditLessonPage : ContentPage
     public EditLessonPage(Lesson? lesson = null, DayOfWeek? preselectedDay = null, TimeSpan? preselectedTime = null, Guid? activeTimelineId = null)
     {
         InitializeComponent();
-        IsOpen = true;
         BindingContext = this;
         _isEditMode = lesson != null;
         _lesson = lesson ?? new Lesson { Day = preselectedDay ?? DayOfWeek.Monday };
@@ -94,7 +123,7 @@ public partial class EditLessonPage : ContentPage
         PickerDay.SelectedItem = GetRussianDayName(_lesson.Day);
 
         // ИСПРАВЛЕНО: Передаем preselectedTime в асинхронный метод
-        _ = LoadTimelinesAsync(activeTimelineId, preselectedTime);
+        SafeFireAndForget.Run(() => LoadTimelinesAsync(activeTimelineId, preselectedTime));
     }
 
     // ИСПРАВЛЕНО: Добавлен параметр TimeSpan? preselectedTime в сигнатуру
@@ -128,11 +157,19 @@ public partial class EditLessonPage : ContentPage
             // ТЕПЕРЬ preselectedTime доступна в этой области видимости
             _startTime = preselectedTime ?? TimeContext.Now.TimeOfDay;
             OnPropertyChanged(nameof(StartTime));
-            _durationText = "85";
+            _durationText = DefaultDurationMinutes().ToString();
             OnPropertyChanged(nameof(DurationText));
             RecalculateFromStart();
         }
         _isUpdatingTime = false;
+    }
+
+    // Настройка "Длительность пары по умолчанию" до этого никем не читалась
+    private static int DefaultDurationMinutes()
+    {
+        var settings = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<ISettingsService>();
+        var minutes = settings.DefaultLessonDuration;
+        return minutes > 0 ? minutes : 85;
     }
 
     private ILessonRepository GetRepository()
@@ -143,7 +180,7 @@ public partial class EditLessonPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        IsOpen = false;
+        _isOpen = false;
         _isProcessing = false;
     }
 
@@ -251,16 +288,18 @@ public partial class EditLessonPage : ContentPage
                 return;
             }
 
-            _lesson.Name = EntryName.Text.Trim();
-            _lesson.Description = EditorDesc.Text.Trim();
-            _lesson.Type = GetLessonTypeFromRussianName(PickerType.SelectedItem?.ToString() ?? "Лекция");
-            _lesson.Day = GetDayFromRussianName(PickerDay.SelectedItem?.ToString() ?? "Понедельник");
-            _lesson.StartTime = StartTime;
-            _lesson.TimelineId = selectedTimeline.Id;
-
             int enteredMinutes = int.TryParse(DurationText, out var m) ? m : 0;
             var maxEnd = new TimeSpan(23, 59, 0);
             var theoreticalEnd = StartTime + TimeSpan.FromMinutes(enteredMinutes);
+            var endTime = EndTime;
+
+            if (!LessonTimeRange.IsValid(StartTime, endTime))
+            {
+                await DisplayAlertAsync("Ошибка", "Конец пары должен быть позже начала и не позже 23:59.", "ОК");
+                _isProcessing = false;
+                SetButtonsEnabled(true);
+                return;
+            }
 
             if (_isDurationLastEdited && theoreticalEnd > maxEnd)
             {
@@ -274,18 +313,27 @@ public partial class EditLessonPage : ContentPage
                     SetButtonsEnabled(true);
                     return;
                 }
-                _lesson.EndTime = maxEnd;
+                endTime = maxEnd;
             }
-            else
+
+            // Не меняем объект исходной карточки до подтверждения и успешной записи.
+            var savedLesson = new Lesson
             {
-                _lesson.EndTime = EndTime;
-            }
+                Id = _lesson.Id,
+                Name = EntryName.Text.Trim(),
+                Description = EditorDesc.Text?.Trim() ?? string.Empty,
+                Type = GetLessonTypeFromRussianName(PickerType.SelectedItem?.ToString() ?? "Лекция"),
+                Day = GetDayFromRussianName(PickerDay.SelectedItem?.ToString() ?? "Понедельник"),
+                StartTime = StartTime,
+                EndTime = endTime,
+                TimelineId = selectedTimeline.Id
+            };
 
             var repo = GetRepository();
-            if (_isEditMode) await repo.UpdateAsync(_lesson);
-            else await repo.AddAsync(_lesson);
+            if (_isEditMode) await repo.UpdateAsync(savedLesson);
+            else await repo.AddAsync(savedLesson);
 
-            AppEvents.NotifyDataChanged(_lesson.Day);
+            AppEvents.NotifyDataChanged();
             await SafePopModalAsync();
         }
         catch (Exception ex)

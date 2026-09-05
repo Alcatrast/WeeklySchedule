@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using WeeklySchedule.Converters;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Services;
@@ -39,13 +38,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<INotificationService, MockNotificationService>();
 #endif
 
-        // Converters
-        builder.Services.AddSingleton<BoolToColorConverter>();
-        builder.Services.AddSingleton<LessonTypeToColorConverter>();
-        builder.Services.AddSingleton<BoolToOpacityConverter>();
-        builder.Services.AddSingleton<SeparatorTypeToHeightConverter>();
-        builder.Services.AddSingleton<SeparatorTypeToColorConverter>();
-        builder.Services.AddSingleton<ScheduleItemTemplateSelector>();
+        // Конвертеры в DI не нужны: XAML берет их из App.xaml как StaticResource,
+        // а код в DayView держит собственные статические экземпляры
 
         // ViewModels
         builder.Services.AddSingleton<MainViewModel>();

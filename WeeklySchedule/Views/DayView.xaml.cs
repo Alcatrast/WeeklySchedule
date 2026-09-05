@@ -8,30 +8,32 @@ namespace WeeklySchedule.Views;
 
 public partial class DayView : ContentView
 {
-    private readonly Dictionary<object, View> _elementMap = [];
-    private Lesson? _currentActiveLesson;
+    private readonly DayViewSubscription _subscription;
+    // Конвертеры без состояния: раньше создавались заново на каждый разделитель
+    // и на каждую карточку пары внутри цикла перерисовки
+    private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
+    private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
+    private static readonly Converters.LessonTypeToColorConverter LessonColor = new();
 
     public DayView()
     {
         InitializeComponent();
+        _subscription = new DayViewSubscription(OnLayoutUpdated, OnScrollToCurrentRequested);
 
         var tapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
         tapGesture.Tapped += OnBackgroundDoubleTapped;
 
         MainScroll.GestureRecognizers.Add(tapGesture);
 
-        BindingContextChanged += (_, _) =>
-        {
-            if (BindingContext is DayViewModel vm)
-            {
-                vm.LayoutUpdated -= OnLayoutUpdated;
-                vm.LayoutUpdated += OnLayoutUpdated;
-                vm.ScrollToCurrentRequested -= OnScrollToCurrentRequested;
-                vm.ScrollToCurrentRequested += OnScrollToCurrentRequested;
+        BindingContextChanged += (_, _) => { if (IsLoaded) BindDay(); };
+        Loaded += (_, _) => BindDay();
+        Unloaded += (_, _) => _subscription.Dispose();
+    }
 
-                OnLayoutUpdated();
-            }
-        };
+    private void BindDay()
+    {
+        _subscription.SetSource(BindingContext as DayViewModel);
+        OnLayoutUpdated();
     }
 
     private void OnLayoutUpdated()
@@ -43,8 +45,6 @@ public partial class DayView : ContentView
         TimelineGrid.Children.Clear();
         TimelineGrid.RowDefinitions.Clear();
         TimelineGrid.ColumnDefinitions.Clear();
-        _elementMap.Clear();
-        _currentActiveLesson = null;
 
         var displayInfo = DeviceDisplay.MainDisplayInfo;
         double screenHeightDp = displayInfo.Height / displayInfo.Density;
@@ -55,8 +55,6 @@ public partial class DayView : ContentView
             TimelineGrid.Children.Clear();
             TimelineGrid.RowDefinitions.Clear();
             TimelineGrid.ColumnDefinitions.Clear();
-            _elementMap.Clear();
-            _currentActiveLesson = null;
 
             // Сбрасываем жесткие высоты и позволяем Grid центрироваться в ScrollView
             TimelineGrid.VerticalOptions = LayoutOptions.Center;
@@ -123,16 +121,12 @@ public partial class DayView : ContentView
             if (breakHeight > maxElementHeight) breakHeight = maxElementHeight;
             double lineOffset = (breakHeight / 2.0) - 1.0;
 
-            var colorConverter = new Converters.SeparatorTypeToColorConverter();
-            var heightConverter = new Converters.SeparatorTypeToHeightConverter();
-
             var separatorLine = new BoxView
             {
-                Color = (Color)(colorConverter.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
-                HeightRequest = (double)(heightConverter.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0),
+                Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
+                HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0),
                 VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(10, lineOffset, 10, 0),
-                Opacity = br.IsPast ? 0.5 : 1.0
+                Margin = new Thickness(10, lineOffset, 10, 0)
             };
 
             Grid.SetRow(separatorLine, br.StartRow);
@@ -157,9 +151,6 @@ public partial class DayView : ContentView
             Grid.SetColumn(lessonCard, lp.Column);
             Grid.SetColumnSpan(lessonCard, lp.ColumnSpan);
             TimelineGrid.Children.Add(lessonCard);
-
-            _elementMap[lp.Lesson] = lessonCard;
-            if (lp.IsCurrent) _currentActiveLesson = lp.Lesson;
         }
 
         TimelineGrid.InvalidateMeasure();
@@ -187,8 +178,7 @@ public partial class DayView : ContentView
         bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime && now.Date == vm.Date;
         bool isPast = now.TimeOfDay >= lp.Lesson.EndTime && now.Date == vm.Date;
 
-        var converter = new Converters.LessonTypeToColorConverter();
-        var bgColor = converter.Convert(lp.Lesson.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) as Color ?? Colors.Gray;
+        var bgColor = LessonColor.Convert(lp.Lesson.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) as Color ?? Colors.Gray;
 
         var border = new Border
         {
@@ -269,10 +259,12 @@ public partial class DayView : ContentView
 
     }
 
-    private async void OnBackgroundDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnBackgroundDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (EditLessonPage.IsOpen) return;
-        if (BindingContext is DayViewModel vm)
+        if (BindingContext is not DayViewModel vm) return;
+
+        SafeFireAndForget.Run(async () =>
         {
             var scheduleService = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<IActiveScheduleService>();
 
@@ -281,10 +273,7 @@ public partial class DayView : ContentView
                 preselectedDay: vm.DayOfWeek,
                 activeTimelineId: scheduleService.ActiveTimelineId); // Передаем ID
 
-            if (Shell.Current != null)
-            {
-                await Shell.Current.Navigation.PushModalAsync(editPage);
-            }
-        }
+            await EditLessonPage.OpenModalAsync(editPage);
+        });
     }
 }

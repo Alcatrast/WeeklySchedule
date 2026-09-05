@@ -4,8 +4,11 @@ namespace WeeklySchedule.Core;
 
 public static class TimelineLayoutBuilder
 {
-    private static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
-    private static int Lcm(int a, int b) => (a / Gcd(a, b)) * b;
+    // Потолок числа колонок: НОК конкурентностей растет очень быстро, а сетка
+    // из сотен колонок все равно нечитаема
+    private const int MaxColumns = 24;
+
+    private static long Gcd(long a, long b) => b == 0 ? a : Gcd(b, a % b);
 
     public static TimelineLayout Build(DateTime date, List<Lesson> allLessons, DateTime now)
     {
@@ -88,19 +91,29 @@ public static class TimelineLayoutBuilder
             allConcurrencies.Add(c);
         }
 
-        int totalColumns = 1;
+        // Берем НОК конкурентностей: при нем каждый остров делит ширину нацело.
+        // Накапливаем в long и обрываемся на потолке — в int произведение
+        // нескольких взаимно простых конкурентностей переполняется
+        long columns = 1;
         foreach (var c in allConcurrencies)
         {
-            totalColumns = Lcm(totalColumns, c);
+            columns = columns / Gcd(columns, c) * c;
+            if (columns >= MaxColumns)
+            {
+                columns = MaxColumns;
+                break;
+            }
         }
-        totalColumns = Math.Min(totalColumns, 24);
+
+        // Колонок не может быть меньше, чем одновременных пар в самом плотном острове
+        int maxConcurrency = allConcurrencies.Count > 0 ? allConcurrencies.Max() : 1;
+        int totalColumns = (int)Math.Max(columns, maxConcurrency);
 
         var placements = new List<LessonPlacement>();
 
         foreach (var island in islands)
         {
             int c = islandMaxC[island];
-            int span = totalColumns / c;
 
             var sortedIsland = island.OrderBy(l => l.StartTime)
                                      .ThenByDescending(l => l.EndTime - l.StartTime)
@@ -129,56 +142,56 @@ public static class TimelineLayoutBuilder
                 int lessonMinutes = (int)(lesson.EndTime - lesson.StartTime).TotalMinutes;
                 bool isCurrent = now.TimeOfDay >= lesson.StartTime && now.TimeOfDay < lesson.EndTime && now.Date == date;
 
+                // Границы колонки считаем от краев сетки, а не как colIndex * span:
+                // если НОК уперся в потолок, totalColumns может не делиться на c,
+                // и колонки одинаковой ширины оставили бы пустую полосу справа
+                int colStart = colIndex * totalColumns / c;
+                int colEnd = (colIndex + 1) * totalColumns / c;
+
                 placements.Add(new LessonPlacement
                 {
                     Lesson = lesson,
                     StartRow = startRow,
                     RowSpan = rowSpan,
                     TotalMinutes = lessonMinutes,
-                    Column = colIndex * span,
-                    ColumnSpan = span,
+                    Column = colStart,
+                    ColumnSpan = Math.Max(1, colEnd - colStart),
                     IsCurrent = isCurrent
                 });
             }
         }
 
+        // Рисуется ровно один разделитель — маркер текущего времени в перерыве.
+        // Прошедшие перерывы в список не попадают, поэтому и флага "перерыв
+        // в прошлом" здесь больше нет: он не мог стать true ни у одного элемента
         var breaks = new List<BreakPlacement>();
-        bool isToday = date.Date == now.Date;
-        for (int i = 0; i < segments.Count; i++)
+        if (date.Date == now.Date)
         {
-            var seg = segments[i];
-            bool isBreak = !dayLessons.Any(l => l.StartTime < seg.End && l.EndTime > seg.Start);
-            if (isBreak)
+            for (int i = 0; i < segments.Count; i++)
             {
-                var breakEnd = seg.Start + TimeSpan.FromMinutes(seg.DurationMinutes);
-                bool isPast = isToday && breakEnd <= now.TimeOfDay;
+                var seg = segments[i];
 
-                bool isCurrentBreak = isToday && now.TimeOfDay >= seg.Start && now.TimeOfDay <= breakEnd;
+                bool isBreak = !dayLessons.Any(l => l.StartTime < seg.End && l.EndTime > seg.Start);
+                if (!isBreak) continue;
 
-                SeparatorType type = SeparatorType.None;
-                if (isCurrentBreak)
+                bool isCurrentBreak = now.TimeOfDay >= seg.Start && now.TimeOfDay <= seg.End;
+                if (!isCurrentBreak) continue;
+
+                // Перерыв может состоять из нескольких подряд идущих сегментов
+                var last = breaks.Count > 0 ? breaks[^1] : null;
+                if (last != null && last.StartRow + last.RowSpan == i)
                 {
-                    type = SeparatorType.ThickWhite;
+                    last.RowSpan++;
+                    last.TotalMinutes += seg.DurationMinutes;
                 }
                 else
-                {
-                    type = SeparatorType.None;
-                }
-
-                if (breaks.Count != 0 && breaks.Last().StartRow + breaks.Last().RowSpan == i && breaks.Last().Type == type && type != SeparatorType.None)
-                {
-                    breaks.Last().RowSpan++;
-                    breaks.Last().TotalMinutes += seg.DurationMinutes;
-                }
-                else if (type != SeparatorType.None)
                 {
                     breaks.Add(new BreakPlacement
                     {
                         StartRow = i,
                         RowSpan = 1,
                         TotalMinutes = seg.DurationMinutes,
-                        Type = type,
-                        IsPast = isPast
+                        Type = SeparatorType.ThickWhite
                     });
                 }
             }

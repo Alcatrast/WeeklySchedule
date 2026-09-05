@@ -35,16 +35,6 @@ public class SettingsService : ISettingsService
         }
     }
 
-    public AppLanguage Language
-    {
-        get => (AppLanguage)Preferences.Get(nameof(Language), (int)AppLanguage.Russian);
-        set
-        {
-            Preferences.Set(nameof(Language), (int)value);
-            SettingsChanged?.Invoke();
-        }
-    }
-
     public bool OpenLastTimeline
     {
         get => Preferences.Get(nameof(OpenLastTimeline), true);
@@ -90,19 +80,30 @@ public class SettingsService : ISettingsService
         }
     }
 
+    // Напоминание при первом открытии, пока пользователь ничего не настроил
+    private static List<NotificationReminder> DefaultReminders() =>
+        [new() { MinutesBefore = 10, IsActive = true }];
+
     public List<NotificationReminder> NotifyBeforeList
     {
         get
         {
             var json = Preferences.Get(nameof(NotifyBeforeList), string.Empty);
-            if (string.IsNullOrEmpty(json))
+
+            // Дефолт именно возвращаем, а не записываем: запись из геттера дергала бы
+            // SettingsChanged и перепланирование уведомлений на ровном месте, в том
+            // числе из обработчика самого SettingsChanged
+            if (string.IsNullOrEmpty(json)) return DefaultReminders();
+
+            try
             {
-                // Дефолтное значение при первом открытии
-                var defaultList = new List<NotificationReminder> { new() { MinutesBefore = 10, IsActive = true } };
-                NotifyBeforeList = defaultList;
-                return defaultList;
+                return JsonSerializer.Deserialize<List<NotificationReminder>>(json) ?? DefaultReminders();
             }
-            return JsonSerializer.Deserialize<List<NotificationReminder>>(json) ?? new();
+            catch (JsonException)
+            {
+                // Битый JSON в Preferences не должен ронять приложение на старте
+                return DefaultReminders();
+            }
         }
         set
         {

@@ -25,19 +25,11 @@
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Timelines}" Spacing="10" Padding="15">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="models:Timeline">
-                        <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2">
-                            <Border.BackgroundColor>
-                                <MultiBinding Converter="{StaticResource TimelineHighlightConverter}">
-                                    <Binding Path="Id" />
-                                    <Binding Path="BindingContext.HighlightedTimelineId" Source="{x:Reference TimelinesPageRoot}" />
-                                </MultiBinding>
-                            </Border.BackgroundColor>
-                            <Border.Stroke>
-                                <MultiBinding Converter="{StaticResource TimelineStrokeConverter}">
-                                    <Binding Path="Id" />
-                                    <Binding Path="BindingContext.HighlightedTimelineId" Source="{x:Reference TimelinesPageRoot}" />
-                                </MultiBinding>
-                            </Border.Stroke>
+                        <!-- Цвета нейтральные и от таймлайна не зависят: выделение
+                             активного таймлайна показывает иконка-звезда ниже -->
+                        <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2"
+                                BackgroundColor="{AppThemeBinding Light=#E1E1E1, Dark=#2C2C2C}"
+                                Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer NumberOfTapsRequired="2" 
                                   Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}" 

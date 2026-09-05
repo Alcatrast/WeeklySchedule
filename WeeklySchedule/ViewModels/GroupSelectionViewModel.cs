@@ -2,21 +2,25 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
-using WeeklySchedule.Extentions;
+using WeeklySchedule.Extensions;
+using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
 public partial class GroupSelectionViewModel : BaseViewModel
 {
     private readonly string _filePath;
-    private readonly bool _isEditMode;
+    // Таймлайн уже сохранен в репозитории (режим "дополнить импортом")
+    private readonly bool _timelineExists;
     private readonly Timeline _timeline;
     private readonly ILessonRepository _lessonRepo;
     private readonly ITimelineRepository _timelineRepo;
     private readonly INavigationService _navigationService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly Action? _onImported;
 
     private GroupItem? _selectedGroup;
     public ObservableCollection<GroupCategory> Categories { get; } = [];
@@ -39,20 +43,22 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
     public GroupSelectionViewModel(
         string filePath,
-        bool isEditMode,
+        bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         INavigationService navigationService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Action? onImported = null)
     {
         _filePath = filePath;
-        _isEditMode = isEditMode;
+        _timelineExists = timelineExists;
         _timeline = timeline;
         _lessonRepo = lessonRepo;
         _timelineRepo = timelineRepo;
         _navigationService = navigationService;
         _serviceProvider = serviceProvider;
+        _onImported = onImported;
 
         ToggleCategoryCommand = new Command<GroupCategory>(ToggleCategory);
         SelectGroupCommand = new Command<GroupItem>(SelectGroup);
@@ -115,7 +121,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         if (IsProcessing || IsLoadingGroups) return;
         if (_selectedGroup == group)
-            _ = ImportGroupAsync(group);
+            SafeFireAndForget.Run(() => ImportGroupAsync(group));
         else
         {
             if (_selectedGroup != null) _selectedGroup.IsSelected = false;
@@ -135,9 +141,11 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 return parser.ParseGroupSchedule(_filePath, group.FullGroupName);
             });
 
-            if (!_isEditMode)
+            if (!_timelineExists)
             {
-                _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
+                // Имя, введенное пользователем, приоритетнее автоматического
+                if (string.IsNullOrWhiteSpace(_timeline.Name))
+                    _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
                 await _timelineRepo.AddAsync(_timeline);
             }
 
@@ -147,23 +155,29 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 await _lessonRepo.AddAsync(lesson);
             }
 
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null)
-            {
-                await mainPage.DisplayAlert("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.", "OK");
-            }
+            if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
+            _onImported?.Invoke();
+            AppEvents.NotifyDataChanged();
+
+            await ShowAlertAsync("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.");
 
             await SafeClosePagesAsync();
         }
         catch (Exception)
         {
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null) await mainPage.DisplayAlert("Ошибка", "Не удалось импортировать расписание.", "OK");
+            await ShowAlertAsync("Ошибка", "Не удалось импортировать расписание.");
         }
         finally
         {
             IsProcessing = false;
         }
+    }
+
+    // Application.MainPage и Page.DisplayAlert объявлены устаревшими в MAUI 10
+    private static Task ShowAlertAsync(string title, string message)
+    {
+        var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+        return page?.DisplayAlertAsync(title, message, "OK") ?? Task.CompletedTask;
     }
 
     private async Task SafeClosePagesAsync()
@@ -183,8 +197,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
-            var mainPage = Application.Current?.MainPage;
-            if (mainPage != null) await mainPage.DisplayAlert("Ошибка", message, "OK");
+            await ShowAlertAsync("Ошибка", message);
             await _navigationService.PopModalAsync();
         }
         catch { }
