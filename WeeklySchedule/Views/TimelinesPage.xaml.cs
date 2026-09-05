@@ -1,3 +1,4 @@
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
@@ -13,9 +14,9 @@ public partial class TimelinesPage : ContentPage
         BindingContext = _viewModel;
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.LoadTimelinesAsync();
+        SafeFireAndForget.Run(_viewModel.LoadTimelinesAsync);
     }
 }

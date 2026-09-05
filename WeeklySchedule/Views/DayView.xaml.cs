@@ -260,10 +260,12 @@ public partial class DayView : ContentView
 
     }
 
-    private async void OnBackgroundDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnBackgroundDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (EditLessonPage.IsOpen) return;
-        if (BindingContext is DayViewModel vm)
+        if (BindingContext is not DayViewModel vm) return;
+
+        SafeFireAndForget.Run(async () =>
         {
             var scheduleService = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<IActiveScheduleService>();
 
@@ -273,6 +275,6 @@ public partial class DayView : ContentView
                 activeTimelineId: scheduleService.ActiveTimelineId); // Передаем ID
 
             await EditLessonPage.OpenModalAsync(editPage);
-        }
+        });
     }
 }

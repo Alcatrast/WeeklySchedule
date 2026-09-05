@@ -1,4 +1,5 @@
-﻿using WeeklySchedule.ViewModels;
+﻿using WeeklySchedule.Utilities;
+using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
 namespace WeeklySchedule;
@@ -23,38 +24,32 @@ public partial class AppShell : Shell
         this.FlyoutWidth = 320;
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
-        await FlyoutVM.LoadTimelinesAsync();
+        SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
     }
 
-    protected override async void OnNavigated(ShellNavigatedEventArgs args)
+    protected override void OnNavigated(ShellNavigatedEventArgs args)
     {
         base.OnNavigated(args);
         if (args.Current?.Location.OriginalString.Contains("MainPage") == true)
         {
-            await FlyoutVM.LoadTimelinesAsync();
+            SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
         }
     }
 
     private void CloseFlyout() => this.FlyoutIsPresented = false;
 
-    private async void OnTimelinesManageClicked(object? sender, TappedEventArgs e)
+    private void NavigateTo(string route)
     {
         CloseFlyout();
-        await this.GoToAsync(nameof(TimelinesPage));
+        SafeFireAndForget.Run(() => this.GoToAsync(route));
     }
 
-    private async void OnSettingsClicked(object? sender, TappedEventArgs e)
-    {
-        CloseFlyout();
-        await this.GoToAsync(nameof(SettingsPage));
-    }
+    private void OnTimelinesManageClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(TimelinesPage));
 
-    private async void OnAboutClicked(object? sender, TappedEventArgs e)
-    {
-        CloseFlyout();
-        await this.GoToAsync(nameof(AboutPage));
-    }
+    private void OnSettingsClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(SettingsPage));
+
+    private void OnAboutClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(AboutPage));
 }

@@ -3,6 +3,7 @@ using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -37,11 +38,11 @@ public partial class FlyoutViewModel : BaseViewModel
 
         SelectTimelineCommand = new Command<Timeline>(OnSelectTimeline);
 
-        // ИСПРАВЛЕНО (CS0029): 
-        // События ожидают Action/Action<T> (возвращают void). 
-        // Мы оборачиваем вызов Task-метода в async void лямбду, что является стандартом для fire-and-forget подписки на события.
-        _scheduleService.ActiveTimelineChanged += async (_) => await LoadTimelinesAsync();
-        _settingsService.SettingsChanged += async () => await LoadTimelinesAsync();
+        // События объявлены как Action/Action<T>, поэтому Task-метод приходится
+        // запускать без ожидания. Раньше это была async void лямбда: исключение
+        // из нее не ловилось нигде и роняло процесс
+        _scheduleService.ActiveTimelineChanged += (_) => SafeFireAndForget.Run(LoadTimelinesAsync);
+        _settingsService.SettingsChanged += () => SafeFireAndForget.Run(LoadTimelinesAsync);
     }
 
     public async Task LoadTimelinesAsync()

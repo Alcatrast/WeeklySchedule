@@ -1,6 +1,7 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
@@ -20,12 +21,12 @@ public partial class GroupSelectionPage : ContentPage
         BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider);
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         if (BindingContext is GroupSelectionViewModel vm)
         {
-            await vm.InitializeAsync();
+            SafeFireAndForget.Run(vm.InitializeAsync);
         }
     }
 

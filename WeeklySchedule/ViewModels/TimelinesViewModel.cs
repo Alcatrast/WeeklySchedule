@@ -3,6 +3,7 @@ using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -40,7 +41,7 @@ public partial class TimelinesViewModel : BaseViewModel
 
         EditTimelineCommand = new Command<Timeline>(OnEditTimeline);
         CreateTimelineCommand = new Command(OnCreateTimeline);
-        _ = LoadTimelinesAsync();
+        SafeFireAndForget.Run(LoadTimelinesAsync);
     }
 
     public async Task LoadTimelinesAsync()
@@ -54,19 +55,22 @@ public partial class TimelinesViewModel : BaseViewModel
         foreach (var timeline in all) Timelines.Add(timeline);
     }
 
-    private async void OnEditTimeline(Timeline? timeline)
+    private void OnEditTimeline(Timeline? timeline)
     {
         if (timeline == null) return;
-        // Резолвим страницу через DI
-        var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-        editPage.Initialize(timeline);
-        await Shell.Current!.Navigation.PushModalAsync(editPage);
+        OpenEditPage(timeline);
     }
 
-    private async void OnCreateTimeline()
+    private void OnCreateTimeline() => OpenEditPage(null);
+
+    private void OpenEditPage(Timeline? timeline)
     {
-        var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-        editPage.Initialize(null);
-        await Shell.Current!.Navigation.PushModalAsync(editPage);
+        SafeFireAndForget.Run(async () =>
+        {
+            // Резолвим страницу через DI
+            var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
+            editPage.Initialize(timeline);
+            await Shell.Current!.Navigation.PushModalAsync(editPage);
+        });
     }
 }

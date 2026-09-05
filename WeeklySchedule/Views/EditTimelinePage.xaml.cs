@@ -3,6 +3,7 @@ using Microsoft.Maui.Controls.Shapes;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
@@ -57,28 +58,31 @@ public partial class EditTimelinePage : ContentPage
         }
     }
 
-    private async void OnImportRequested(string filePath, Timeline timeline, bool timelineExists)
+    private void OnImportRequested(string filePath, Timeline timeline, bool timelineExists)
     {
-        var services = Application.Current!.Handler!.MauiContext!.Services;
-        var groupPage = new GroupSelectionPage(
-            filePath,
-            timelineExists,
-            timeline,
-            services.GetRequiredService<ILessonRepository>(),
-            services.GetRequiredService<ITimelineRepository>(),
-            services.GetRequiredService<INavigationService>(),
-            services);
+        SafeFireAndForget.Run(async () =>
+        {
+            var services = Application.Current!.Handler!.MauiContext!.Services;
+            var groupPage = new GroupSelectionPage(
+                filePath,
+                timelineExists,
+                timeline,
+                services.GetRequiredService<ILessonRepository>(),
+                services.GetRequiredService<ITimelineRepository>(),
+                services.GetRequiredService<INavigationService>(),
+                services);
 
-        await Shell.Current!.Navigation.PushModalAsync(groupPage);
+            await Shell.Current!.Navigation.PushModalAsync(groupPage);
+        });
     }
 
-    protected override async void OnAppearing()
+    protected override void OnAppearing()
     {
         base.OnAppearing();
         if (BindingContext is EditTimelineViewModel vm)
         {
             vm.PropertyChanged += Vm_PropertyChanged;
-            await vm.CheckPermissionsAsync();
+            SafeFireAndForget.Run(vm.CheckPermissionsAsync);
         }
     }
 

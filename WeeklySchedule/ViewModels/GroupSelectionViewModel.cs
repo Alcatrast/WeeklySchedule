@@ -6,6 +6,7 @@ using WeeklySchedule.Extensions;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -117,7 +118,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         if (IsProcessing || IsLoadingGroups) return;
         if (_selectedGroup == group)
-            _ = ImportGroupAsync(group);
+            SafeFireAndForget.Run(() => ImportGroupAsync(group));
         else
         {
             if (_selectedGroup != null) _selectedGroup.IsSelected = false;

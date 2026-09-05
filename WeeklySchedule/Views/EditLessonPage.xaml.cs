@@ -125,7 +125,7 @@ public partial class EditLessonPage : ContentPage
         PickerDay.SelectedItem = GetRussianDayName(_lesson.Day);
 
         // ИСПРАВЛЕНО: Передаем preselectedTime в асинхронный метод
-        _ = LoadTimelinesAsync(activeTimelineId, preselectedTime);
+        SafeFireAndForget.Run(() => LoadTimelinesAsync(activeTimelineId, preselectedTime));
     }
 
     // ИСПРАВЛЕНО: Добавлен параметр TimeSpan? preselectedTime в сигнатуру

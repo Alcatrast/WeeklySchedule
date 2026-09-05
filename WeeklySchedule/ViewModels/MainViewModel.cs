@@ -104,7 +104,7 @@ public partial class MainViewModel : BaseViewModel
         // еще и отсюда, и два прохода шли параллельно
     }
 
-    private void OnSettingsChanged() => _ = ScheduleAllNotificationsAsync();
+    private void OnSettingsChanged() => SafeFireAndForget.Run(ScheduleAllNotificationsAsync);
 
     public void CheckPendingNavigation()
     {
@@ -116,7 +116,7 @@ public partial class MainViewModel : BaseViewModel
         }
     }
 
-    private async void OnActiveTimelineChanged(Guid newTimelineId)
+    private void OnActiveTimelineChanged(Guid newTimelineId) => SafeFireAndForget.Run(async () =>
     {
         var timeline = await _timelineRepository.GetByIdAsync(newTimelineId);
         CurrentTimelineName = timeline?.Name ?? "Расписание";
@@ -124,9 +124,9 @@ public partial class MainViewModel : BaseViewModel
         _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
         UpdateAllDays();
         await ScheduleAllNotificationsAsync();
-    }
+    });
 
-    private async void OnDataChanged(DayOfWeek? affectedDay)
+    private void OnDataChanged(DayOfWeek? affectedDay) => SafeFireAndForget.Run(async () =>
     {
         _allLessons = [.. await _repository.GetByTimelineIdAsync(_scheduleService.ActiveTimelineId)];
         _scheduler.RebuildQueue();
@@ -145,7 +145,7 @@ public partial class MainViewModel : BaseViewModel
             UpdateAllDays();
         }
         await ScheduleAllNotificationsAsync();
-    }
+    });
 
     private void InitializeDays()
     {

@@ -3,6 +3,7 @@ using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -68,7 +69,7 @@ public partial class SettingsViewModel : BaseViewModel
         _notifyAtStart = _settingsService.NotifyAtStart;
 
         LoadReminders();
-        _ = LoadStartupTimelinesAsync();
+        SafeFireAndForget.Run(LoadStartupTimelinesAsync);
     }
 
     public async Task CheckAllPermissionsAsync()

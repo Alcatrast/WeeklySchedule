@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using WeeklySchedule.Core;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.Views;
 
 namespace WeeklySchedule.ViewModels;
@@ -29,13 +30,13 @@ public partial class DayViewModel : BaseViewModel
         EditLessonCommand = new Command<Lesson>(OnEditLesson);
     }
 
-    private async void OnEditLesson(Lesson? lesson)
+    private void OnEditLesson(Lesson? lesson)
     {
         if (EditLessonPage.IsOpen) return;
         if (lesson == null) return;
 
-        var editPage = new EditLessonPage(lesson);
-        await EditLessonPage.OpenModalAsync(editPage, wrapInNavigationPage: true);
+        SafeFireAndForget.Run(() =>
+            EditLessonPage.OpenModalAsync(new EditLessonPage(lesson), wrapInNavigationPage: true));
     }
 
     public void RequestScroll() => ScrollToCurrentRequested?.Invoke();
