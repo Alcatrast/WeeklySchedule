@@ -296,35 +296,40 @@ public partial class MainViewModel : BaseViewModel
         var now = TimeContext.Now;
         foreach (var lesson in _allLessons)
         {
-            DateTime nextDate = GetNextDateForDayOfWeek(lesson.Day, now.Date);
-            DateTime lessonStartDateTime = nextDate.Add(lesson.StartTime);
-
-            if (notifyAtStart && lessonStartDateTime > now)
+            if (notifyAtStart)
             {
                 _notificationService.ScheduleNotification(
                     timeline.Id, lesson.Id,
                     $"Начало пары: {lesson.Name}", lesson.Description,
-                    lessonStartDateTime, 0);
+                    GetNextOccurrence(lesson, now), 0);
             }
 
             foreach (var reminder in activeReminders)
             {
-                DateTime triggerTime = lessonStartDateTime.AddMinutes(-reminder.MinutesBefore);
-                if (triggerTime > now)
-                {
-                    _notificationService.ScheduleNotification(
-                        timeline.Id, lesson.Id,
-                        $"Скоро начнется: {lesson.Name}",
-                        $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
-                        lessonStartDateTime, reminder.MinutesBefore);
-                }
+                // Отсчитываем от момента напоминания, а не от начала пары: если до
+                // начала осталось меньше, чем MinutesBefore, сегодняшнее напоминание
+                // уже неактуально и брать надо следующую неделю
+                var start = GetNextOccurrence(lesson, now.AddMinutes(reminder.MinutesBefore));
+
+                _notificationService.ScheduleNotification(
+                    timeline.Id, lesson.Id,
+                    $"Скоро начнется: {lesson.Name}",
+                    $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
+                    start, reminder.MinutesBefore);
             }
         }
     }
 
-    private DateTime GetNextDateForDayOfWeek(DayOfWeek targetDay, DateTime fromDate)
+    /// <summary>
+    /// Ближайшее будущее начало пары. Если сегодняшнее вхождение уже прошло, берется
+    /// следующая неделя: раньше такая пара не получала уведомления вообще, потому что
+    /// прошедшее время просто отсеивалось проверкой, а на следующую неделю ничего
+    /// не ставилось.
+    /// </summary>
+    private static DateTime GetNextOccurrence(Lesson lesson, DateTime from)
     {
-        int daysUntil = ((int)targetDay - (int)fromDate.DayOfWeek + 7) % 7;
-        return fromDate.AddDays(daysUntil).Date;
+        int daysUntil = ((int)lesson.Day - (int)from.DayOfWeek + 7) % 7;
+        var occurrence = from.Date.AddDays(daysUntil).Add(lesson.StartTime);
+        return occurrence > from ? occurrence : occurrence.AddDays(7);
     }
 }

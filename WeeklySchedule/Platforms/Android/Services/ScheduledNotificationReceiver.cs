@@ -19,10 +19,27 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         var title = intent.GetStringExtra("Title") ?? "Пара";
         var body = intent.GetStringExtra("Body") ?? "";
         var timelineId = intent.GetStringExtra("TimelineId") ?? "";
+        var lessonId = intent.GetStringExtra("LessonId") ?? "";
         var notificationId = intent.GetIntExtra("NotificationId", 0);
+        var minutesBefore = intent.GetIntExtra("MinutesBefore", 0);
+        var triggerAtMillis = intent.GetLongExtra("TriggerAtMillis", 0);
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] Сработал! ID: {notificationId}, Title: {title}");
 #endif
+
+        // Расписание недельное, а AlarmManager умеет только разовые точные будильники:
+        // повтор ставим сами, здесь. Раньше повтора не было вообще, и без запуска
+        // приложения уведомления заканчивались через неделю
+        RescheduleNextWeek(context, new ScheduledAlarm
+        {
+            NotificationId = notificationId,
+            TimelineId = timelineId,
+            LessonId = lessonId,
+            Title = title,
+            Body = body,
+            TriggerAtMillis = triggerAtMillis,
+            MinutesBefore = minutesBefore
+        });
 
         // Intent для открытия приложения при клике на уведомление
         var appIntent = new Intent(context, typeof(MainActivity));
@@ -30,7 +47,7 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         appIntent.PutExtra("TimelineId", timelineId);
 
         var pendingIntentFlags = PendingIntentFlags.UpdateCurrent;
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        if (OperatingSystem.IsAndroidVersionAtLeast(23))
         {
             pendingIntentFlags |= PendingIntentFlags.Immutable;
         }
@@ -50,7 +67,7 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         var manager = NotificationManagerCompat.From(context);
 
         // Проверка разрешения на показ уведомлений (Android 13+)
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
         {
             var hasPermission = context.CheckSelfPermission(global::Android.Manifest.Permission.PostNotifications)
                                 == global::Android.Content.PM.Permission.Granted;
@@ -67,5 +84,29 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] Уведомление успешно отправлено в NotificationManager.");
 #endif
+    }
+
+    /// <summary>
+    /// Переставляет тот же будильник на следующую неделю и обновляет запись
+    /// в хранилище, чтобы после перезагрузки восстановилось актуальное время.
+    /// </summary>
+    private static void RescheduleNextWeek(Context context, ScheduledAlarm alarm)
+    {
+        // Приложение могло не запускаться несколько недель — отматываем вперед,
+        // пока время не окажется в будущем
+        var next = alarm.TriggerAtMillis;
+        var nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        const long weekMillis = 7L * 24 * 60 * 60 * 1000;
+
+        if (next <= 0) next = nowMillis;
+        while (next <= nowMillis) next += weekMillis;
+
+        alarm.TriggerAtMillis = next;
+        if (!NotificationService.SetAlarm(context, alarm)) return;
+
+        var alarms = ScheduledAlarmStore.Load();
+        alarms.RemoveAll(a => a.NotificationId == alarm.NotificationId);
+        alarms.Add(alarm);
+        ScheduledAlarmStore.Save(alarms);
     }
 }

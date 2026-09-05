@@ -18,7 +18,10 @@ public class NotificationService : INotificationService
     private Context Context => Application.Context;
 
     // Список читается из SharedPreferences один раз за запуск: планирование идет
-    // пачкой по всем парам, и перечитывать хранилище на каждую пару незачем
+    // пачкой по всем парам, и перечитывать хранилище на каждую пару незачем.
+    // Приемники пишут в то же хранилище и могут сделать кэш устаревшим, но набор
+    // идентификаторов они не меняют — только время срабатывания, — поэтому отмена
+    // по кэшу все равно попадает во все поставленные будильники
     private List<ScheduledAlarm>? _alarms;
     private List<ScheduledAlarm> Alarms => _alarms ??= ScheduledAlarmStore.Load();
 
