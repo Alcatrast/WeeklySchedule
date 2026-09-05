@@ -20,14 +20,27 @@ public partial class DayViewModel : BaseViewModel
     }
 
     public TimelineLayout Layout { get; private set; } = new();
+    private LessonState[]? _snapshot;
+    private sealed record LessonState(Guid Id, Guid TimelineId, string Name, string Description,
+        TimeSpan Start, TimeSpan End, LessonType Type);
     public event Action? LayoutUpdated;
     public event Action? ScrollToCurrentRequested;
     public ICommand EditLessonCommand { get; }
+    public ICommand ViewLessonCommand { get; }
+    public ICommand LessonActionsCommand { get; }
 
     public DayViewModel(DateTime date)
     {
         Date = date.Date;
         EditLessonCommand = new Command<Lesson>(OnEditLesson);
+        ViewLessonCommand = new Command<Lesson>(lesson =>
+        {
+            if (lesson != null) SafeFireAndForget.Run(() => LessonDetailsPage.OpenAsync(lesson.Id));
+        });
+        LessonActionsCommand = new Command<Lesson>(lesson =>
+        {
+            if (lesson != null) SafeFireAndForget.Run(() => Services.ItemActions.ShowLessonAsync(lesson));
+        });
     }
 
     private void OnEditLesson(Lesson? lesson)
@@ -39,7 +52,13 @@ public partial class DayViewModel : BaseViewModel
             EditLessonPage.OpenModalAsync(new EditLessonPage(lesson), wrapInNavigationPage: true));
     }
 
-    public void RequestScroll() => ScrollToCurrentRequested?.Invoke();
+    public bool ScrollRequested { get; private set; }
+    public void RequestScroll()
+    {
+        ScrollRequested = true;
+        ScrollToCurrentRequested?.Invoke();
+    }
+    public void AcknowledgeScroll() => ScrollRequested = false;
 
     public void UpdateTitle(DateTime now)
     {
@@ -63,7 +82,14 @@ public partial class DayViewModel : BaseViewModel
 
     public void UpdateLayout(DateTime now, List<Lesson> allLessons)
     {
-        Layout = TimelineLayoutBuilder.Build(Date, allLessons, now);
+        var snapshot = allLessons.Where(l => l.Day == DayOfWeek).OrderBy(l => l.Id)
+            .Select(l => new LessonState(l.Id, l.TimelineId, l.Name, l.Description, l.StartTime, l.EndTime, l.Type)).ToArray();
+        if (_snapshot == null || !_snapshot.SequenceEqual(snapshot))
+        {
+            Layout = TimelineLayoutBuilder.Build(Date, allLessons, now);
+            _snapshot = snapshot;
+        }
+        else TimelineLayoutBuilder.RefreshState(Layout, Date, now);
         LayoutUpdated?.Invoke();
     }
 }

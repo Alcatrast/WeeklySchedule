@@ -161,6 +161,27 @@ public static class TimelineLayoutBuilder
             }
         }
 
+        var layout = new TimelineLayout
+        {
+            TotalMinutes = totalMinutes,
+            TotalColumns = totalColumns,
+            Lessons = placements,
+            Segments = segments,
+            DayStartTime = date.Date.Add(minStart)
+        };
+        RefreshState(layout, date, now);
+        return layout;
+    }
+
+    // Геометрия не зависит от текущего времени. Меняем только состояние карточек
+    // и маркер перерыва, сохраняя объекты размещения.
+    public static void RefreshState(TimelineLayout layout, DateTime date, DateTime now)
+    {
+        foreach (var placement in layout.Lessons)
+            placement.IsCurrent = date.Date == now.Date && now.TimeOfDay >= placement.Lesson.StartTime &&
+                now.TimeOfDay < placement.Lesson.EndTime;
+        var segments = layout.Segments;
+        var dayLessons = layout.Lessons.Select(p => p.Lesson).ToList();
         // Рисуется ровно один разделитель — маркер текущего времени в перерыве.
         // Прошедшие перерывы в список не попадают, поэтому и флага "перерыв
         // в прошлом" здесь больше нет: он не мог стать true ни у одного элемента
@@ -197,14 +218,6 @@ public static class TimelineLayoutBuilder
             }
         }
 
-        return new TimelineLayout
-        {
-            TotalMinutes = totalMinutes,
-            TotalColumns = totalColumns,
-            Lessons = placements,
-            Breaks = breaks,
-            Segments = segments,
-            DayStartTime = date.Date.Add(minStart)
-        };
+        layout.Breaks = breaks;
     }
 }

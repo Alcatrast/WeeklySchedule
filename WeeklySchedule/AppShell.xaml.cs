@@ -27,7 +27,7 @@ public partial class AppShell : Shell
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
+        SafeFireAndForget.Run(FlyoutVM.RefreshIfNeededAsync);
     }
 
     protected override void OnNavigated(ShellNavigatedEventArgs args)
@@ -35,16 +35,31 @@ public partial class AppShell : Shell
         base.OnNavigated(args);
         if (args.Current?.Location.OriginalString.Contains("MainPage") == true)
         {
-            SafeFireAndForget.Run(FlyoutVM.LoadTimelinesAsync);
+            SafeFireAndForget.Run(FlyoutVM.RefreshIfNeededAsync);
         }
     }
 
     private void CloseFlyout() => this.FlyoutIsPresented = false;
+    private bool _navigating;
 
     private void NavigateTo(string route)
     {
-        CloseFlyout();
-        SafeFireAndForget.Run(() => this.GoToAsync(route));
+        if (_navigating) return;
+        _navigating = true;
+        SafeFireAndForget.Run(async () =>
+        {
+            try
+            {
+                // Готовим значения до создания страницы, чтобы блок разрешений
+                // и списки не меняли её размеры посреди открытия.
+                if (route == nameof(SettingsPage))
+                    await Handler!.MauiContext!.Services.GetRequiredService<SettingsViewModel>().RefreshAsync();
+                CloseFlyout();
+                // Остаётся анимация меню; второй сдвиг страницы поверх неё не нужен.
+                await GoToAsync(route, animate: false);
+            }
+            finally { _navigating = false; }
+        });
     }
 
     private void OnTimelinesManageClicked(object? sender, TappedEventArgs e) => NavigateTo(nameof(TimelinesPage));

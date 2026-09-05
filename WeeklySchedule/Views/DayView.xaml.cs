@@ -1,6 +1,5 @@
 using System.Globalization;
 using WeeklySchedule.Models;
-using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
@@ -9,271 +8,200 @@ namespace WeeklySchedule.Views;
 public partial class DayView : ContentView
 {
     private readonly DayViewSubscription _subscription;
-    // Конвертеры без состояния: раньше создавались заново на каждый разделитель
-    // и на каждую карточку пары внутри цикла перерисовки
+    private readonly Dictionary<Guid, LessonCardView> _cards = [];
+    private readonly List<BoxView> _separators = [];
+    private readonly Label _empty = new()
+    {
+        Text = "Свободный день", FontSize = 24, FontAttributes = FontAttributes.Italic,
+        TextColor = Colors.Gray, HorizontalOptions = LayoutOptions.Center,
+        VerticalOptions = LayoutOptions.Center, InputTransparent = true
+    };
     private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
     private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
-    private static readonly Converters.LessonTypeToColorConverter LessonColor = new();
+    private TimelineLayout? _renderedLayout;
+    private double _screenHeight, _pixelsPerMinute, _maxElementHeight, _totalHeight;
+    private double? _restoreY;
+    private bool _scrollQueued, _scrollRunning, _scrollToCurrent;
 
     public DayView()
     {
         InitializeComponent();
         _subscription = new DayViewSubscription(OnLayoutUpdated, OnScrollToCurrentRequested);
-
-        var tapGesture = new TapGestureRecognizer { NumberOfTapsRequired = 2 };
-        tapGesture.Tapped += OnBackgroundDoubleTapped;
-
-        MainScroll.GestureRecognizers.Add(tapGesture);
-
-        BindingContextChanged += (_, _) => { if (IsLoaded) BindDay(); };
+        BindingContextChanged += (_, _) =>
+        {
+            _scrollToCurrent = false;
+            _restoreY = null;
+            if (IsLoaded) BindDay();
+        };
         Loaded += (_, _) => BindDay();
         Unloaded += (_, _) => _subscription.Dispose();
+        MainScroll.SizeChanged += (_, _) => QueueScroll();
+        SizeChanged += (_, _) => { if (IsLoaded) OnLayoutUpdated(); };
     }
 
     private void BindDay()
     {
         _subscription.SetSource(BindingContext as DayViewModel);
         OnLayoutUpdated();
+        if (BindingContext is DayViewModel { ScrollRequested: true }) OnScrollToCurrentRequested();
     }
 
     private void OnLayoutUpdated()
     {
-        if (BindingContext is not DayViewModel vm) return;
-        var layout = vm.Layout;
-        double savedScrollY = MainScroll.ScrollY;
+        if (BindingContext is not DayViewModel day) return;
+        var layout = day.Layout;
+        var display = DeviceDisplay.MainDisplayInfo;
+        var screenHeight = display.Height / display.Density;
+        bool structureChanged = !ReferenceEquals(_renderedLayout, layout) || _screenHeight != screenHeight;
 
-        TimelineGrid.Children.Clear();
-        TimelineGrid.RowDefinitions.Clear();
-        TimelineGrid.ColumnDefinitions.Clear();
-
-        var displayInfo = DeviceDisplay.MainDisplayInfo;
-        double screenHeightDp = displayInfo.Height / displayInfo.Density;
-
-
-        if (layout.TotalMinutes == 0 || layout.Segments.Count == 0)
+        if (structureChanged)
         {
-            TimelineGrid.Children.Clear();
-            TimelineGrid.RowDefinitions.Clear();
-            TimelineGrid.ColumnDefinitions.Clear();
+            _restoreY = MainScroll.ScrollY;
+            _screenHeight = screenHeight;
+            _renderedLayout = layout;
+            _maxElementHeight = (screenHeight - 120) * 0.5;
+            if (_maxElementHeight < 200) _maxElementHeight = 400;
+            int shortest = layout.Lessons.Count > 0 ? layout.Lessons.Min(l => l.TotalMinutes) : 15;
+            _pixelsPerMinute = 90.0 / Math.Max(1, shortest);
 
-            // Сбрасываем жесткие высоты и позволяем Grid центрироваться в ScrollView
-            TimelineGrid.VerticalOptions = LayoutOptions.Center;
-            TimelineGrid.HeightRequest = -1;
+            var ids = layout.Lessons.Select(p => p.Lesson.Id).ToHashSet();
+            foreach (var id in _cards.Keys.Where(id => !ids.Contains(id)).ToArray())
+            {
+                TimelineGrid.Children.Remove(_cards[id]);
+                _cards.Remove(id);
+            }
+
+            bool empty = layout.TotalMinutes == 0 || layout.Segments.Count == 0;
+            TimelineGrid.VerticalOptions = empty ? LayoutOptions.Center : LayoutOptions.Start;
             TimelineGrid.MinimumHeightRequest = -1;
-
-            TimelineGrid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Auto)));
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-
-            var emptyLabel = new Label
+            if (empty)
             {
-                Text = "Свободный день",
-                FontSize = 24,
-                FontAttributes = FontAttributes.Italic,
-                TextColor = Colors.Gray,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center,
-                InputTransparent = true
-            };
-            TimelineGrid.Children.Add(emptyLabel);
-
-            Dispatcher.Dispatch(() => MainScroll.ScrollToAsync(0, 0, false));
-            this.InvalidateMeasure();
-            return;
-        }
-
-        TimelineGrid.HeightRequest = -1;
-        TimelineGrid.VerticalOptions = LayoutOptions.Start;
-
-        double availableHeight = screenHeightDp - 120;
-        double maxElementHeight = availableHeight * 0.5;
-        if (maxElementHeight < 200) maxElementHeight = 400;
-
-        int minLessonMinutes = layout.Lessons.Count > 0 ? layout.Lessons.Min(l => l.TotalMinutes) : 15;
-        if (minLessonMinutes <= 0) minLessonMinutes = 15;
-
-        const double StandardMinCardHeight = 90.0;
-        double dynamicPixelsPerMinute = StandardMinCardHeight / minLessonMinutes;
-
-        double totalGridHeight = 0;
-        foreach (var seg in layout.Segments)
-        {
-            double rowHeight = seg.DurationMinutes * dynamicPixelsPerMinute;
-            if (rowHeight > maxElementHeight) rowHeight = maxElementHeight;
-            TimelineGrid.RowDefinitions.Add(new RowDefinition(new GridLength(rowHeight, GridUnitType.Absolute)));
-            totalGridHeight += rowHeight;
-        }
-
-        int cols = Math.Max(1, layout.TotalColumns);
-        for (int i = 0; i < cols; i++)
-        {
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-        }
-
-        TimelineGrid.ColumnSpacing = 6;
-        TimelineGrid.RowSpacing = 0;
-        TimelineGrid.HeightRequest = totalGridHeight;
-
-        foreach (var br in layout.Breaks)
-        {
-            if (br.Type == SeparatorType.None) continue;
-
-            double breakHeight = br.TotalMinutes * dynamicPixelsPerMinute;
-            if (breakHeight > maxElementHeight) breakHeight = maxElementHeight;
-            double lineOffset = (breakHeight / 2.0) - 1.0;
-
-            var separatorLine = new BoxView
-            {
-                Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
-                HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0),
-                VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(10, lineOffset, 10, 0)
-            };
-
-            Grid.SetRow(separatorLine, br.StartRow);
-            Grid.SetRowSpan(separatorLine, br.RowSpan);
-            Grid.SetColumn(separatorLine, 0);
-            Grid.SetColumnSpan(separatorLine, cols);
-            TimelineGrid.Children.Add(separatorLine);
-        }
-
-        var now = TimeContext.Now;
-        foreach (var lp in layout.Lessons)
-        {
-            var lessonCard = CreateLessonCard(lp, vm, now);
-
-            double cardHeight = lp.TotalMinutes * dynamicPixelsPerMinute;
-            if (cardHeight > maxElementHeight) cardHeight = maxElementHeight;
-
-            lessonCard.HeightRequest = cardHeight;
-            lessonCard.VerticalOptions = LayoutOptions.Fill;
-            Grid.SetRow(lessonCard, lp.StartRow);
-            Grid.SetRowSpan(lessonCard, lp.RowSpan);
-            Grid.SetColumn(lessonCard, lp.Column);
-            Grid.SetColumnSpan(lessonCard, lp.ColumnSpan);
-            TimelineGrid.Children.Add(lessonCard);
-        }
-
-        TimelineGrid.InvalidateMeasure();
-        MainScroll.InvalidateMeasure();
-        this.InvalidateMeasure();
-
-        Dispatcher.Dispatch(() =>
-        {
-            double scrollViewHeight = MainScroll.Height > 0 ? MainScroll.Height : screenHeightDp;
-            if (totalGridHeight <= scrollViewHeight)
-            {
-                MainScroll.ScrollToAsync(0, 0, false);
+                TimelineGrid.RowDefinitions.Clear();
+                TimelineGrid.ColumnDefinitions.Clear();
+                TimelineGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+                if (!TimelineGrid.Children.Contains(_empty)) TimelineGrid.Children.Add(_empty);
+                TimelineGrid.HeightRequest = -1;
+                _totalHeight = 0;
+                _restoreY = 0;
             }
             else
             {
-                double maxScrollY = Math.Max(0, totalGridHeight - scrollViewHeight);
-                double targetScrollY = Math.Min(savedScrollY, maxScrollY);
-                MainScroll.ScrollToAsync(0, targetScrollY, false);
+                TimelineGrid.Children.Remove(_empty);
+                while (TimelineGrid.RowDefinitions.Count > layout.Segments.Count)
+                    TimelineGrid.RowDefinitions.RemoveAt(TimelineGrid.RowDefinitions.Count - 1);
+                _totalHeight = 0;
+                for (int i = 0; i < layout.Segments.Count; i++)
+                {
+                    double height = Math.Min(layout.Segments[i].DurationMinutes * _pixelsPerMinute, _maxElementHeight);
+                    if (i == TimelineGrid.RowDefinitions.Count) TimelineGrid.RowDefinitions.Add(new RowDefinition());
+                    TimelineGrid.RowDefinitions[i].Height = new GridLength(height);
+                    _totalHeight += height;
+                }
+                int columns = Math.Max(1, layout.TotalColumns);
+                while (TimelineGrid.ColumnDefinitions.Count > columns)
+                    TimelineGrid.ColumnDefinitions.RemoveAt(TimelineGrid.ColumnDefinitions.Count - 1);
+                while (TimelineGrid.ColumnDefinitions.Count < columns)
+                    TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+                TimelineGrid.ColumnSpacing = 6;
+                TimelineGrid.HeightRequest = _totalHeight;
+                foreach (var placement in layout.Lessons)
+                {
+                    if (!_cards.TryGetValue(placement.Lesson.Id, out var card))
+                    {
+                        card = new LessonCardView();
+                        _cards.Add(placement.Lesson.Id, card);
+                        TimelineGrid.Children.Add(card);
+                    }
+                    card.HeightRequest = Math.Min(placement.TotalMinutes * _pixelsPerMinute, _maxElementHeight);
+                    card.VerticalOptions = LayoutOptions.Fill;
+                    Grid.SetRow(card, placement.StartRow);
+                    Grid.SetRowSpan(card, placement.RowSpan);
+                    Grid.SetColumn(card, placement.Column);
+                    Grid.SetColumnSpan(card, placement.ColumnSpan);
+                }
             }
-        });
-    }
-
-    private static Border CreateLessonCard(LessonPlacement lp, DayViewModel vm, DateTime now)
-    {
-        bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime && now.Date == vm.Date;
-        bool isPast = now.TimeOfDay >= lp.Lesson.EndTime && now.Date == vm.Date;
-
-        var bgColor = LessonColor.Convert(lp.Lesson.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) as Color ?? Colors.Gray;
-
-        var border = new Border
-        {
-            BackgroundColor = bgColor,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-            StrokeThickness = isCurrent ? 3 : 0,
-            Stroke = isCurrent ? Colors.Red : Colors.Transparent,
-            Padding = new Thickness(10, 10, 10, 10),
-            Margin = new Thickness(3, 2)
-        };
-
-        if (isPast) border.Opacity = 0.5;
-
-        var stack = new VerticalStackLayout
-        {
-            Spacing = 4,
-            VerticalOptions = LayoutOptions.Start,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-
-        var timeLabel = new Label
-        {
-            Text = $"{lp.Lesson.StartTime:hh\\:mm} - {lp.Lesson.EndTime:hh\\:mm}",
-            FontSize = 11,
-            FontAttributes = FontAttributes.Bold,
-            Opacity = 0.8,
-            LineBreakMode = LineBreakMode.NoWrap
-        };
-        stack.Children.Add(timeLabel);
-
-        var nameLabel = new Label
-        {
-            Text = lp.Lesson.Name,
-            FontSize = 14,
-            FontAttributes = FontAttributes.Bold,
-            LineBreakMode = LineBreakMode.TailTruncation
-        };
-        stack.Children.Add(nameLabel);
-
-        if (!string.IsNullOrWhiteSpace(lp.Lesson.Description))
-        {
-            var descLabel = new Label
-            {
-                Text = lp.Lesson.Description,
-                FontSize = 11,
-                Opacity = 0.7,
-                LineBreakMode = LineBreakMode.TailTruncation
-            };
-            stack.Children.Add(descLabel);
         }
 
-        border.Content = stack;
+        var now = TimeContext.Now;
+        foreach (var placement in layout.Lessons)
+            if (_cards.TryGetValue(placement.Lesson.Id, out var card)) card.Update(placement, day, now);
+        UpdateBreaks(layout);
+        if (structureChanged) QueueScroll();
+    }
 
-        var tapGesture = new TapGestureRecognizer();
-        tapGesture.Tapped += (s, e) =>
+    private void UpdateBreaks(TimelineLayout layout)
+    {
+        while (_separators.Count > layout.Breaks.Count)
         {
-            if (vm.EditLessonCommand.CanExecute(lp.Lesson))
-                vm.EditLessonCommand.Execute(lp.Lesson);
-        };
-        border.GestureRecognizers.Add(tapGesture);
-
-        if (isCurrent) border.StyleId = "CurrentLessonAnchor";
-
-        return border;
+            TimelineGrid.Children.Remove(_separators[^1]);
+            _separators.RemoveAt(_separators.Count - 1);
+        }
+        for (int i = 0; i < layout.Breaks.Count; i++)
+        {
+            if (i == _separators.Count)
+            {
+                var line = new BoxView { VerticalOptions = LayoutOptions.Start, InputTransparent = true };
+                _separators.Add(line);
+                TimelineGrid.Children.Add(line);
+            }
+            var br = layout.Breaks[i];
+            var separator = _separators[i];
+            separator.Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent);
+            separator.HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0);
+            separator.Margin = new Thickness(10, Math.Min(br.TotalMinutes * _pixelsPerMinute, _maxElementHeight) / 2 - 1, 10, 0);
+            Grid.SetRow(separator, br.StartRow);
+            Grid.SetRowSpan(separator, br.RowSpan);
+            Grid.SetColumnSpan(separator, Math.Max(1, layout.TotalColumns));
+        }
     }
 
     private void OnScrollToCurrentRequested()
     {
-        var anchor = TimelineGrid.Children
-            .OfType<View>()
-            .FirstOrDefault(v => v.StyleId == "CurrentLessonAnchor");
-
-        if (anchor != null)
-        {
-            var scrollView = this.FindByName<ScrollView>("MainScroll");
-            scrollView?.ScrollToAsync(anchor, ScrollToPosition.Center, true);
-        }
-
+        _scrollToCurrent = true;
+        QueueScroll();
     }
 
-    private void OnBackgroundDoubleTapped(object? sender, TappedEventArgs e)
+    // Один запрос после разметки: автопереход имеет приоритет над восстановлением.
+    private void QueueScroll()
     {
-        if (EditLessonPage.IsOpen) return;
-        if (BindingContext is not DayViewModel vm) return;
-
-        SafeFireAndForget.Run(async () =>
+        if (_scrollQueued || _scrollRunning || !IsLoaded || (!_scrollToCurrent && !_restoreY.HasValue)) return;
+        _scrollQueued = true;
+        Dispatcher.Dispatch(() =>
         {
-            var scheduleService = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<IActiveScheduleService>();
-
-            var editPage = new EditLessonPage(
-                lesson: null,
-                preselectedDay: vm.DayOfWeek,
-                activeTimelineId: scheduleService.ActiveTimelineId); // Передаем ID
-
-            await EditLessonPage.OpenModalAsync(editPage);
+            _scrollQueued = false;
+            if (!IsLoaded || MainScroll.Height <= 0) return; // SizeChanged повторит запрос.
+            SafeFireAndForget.Run(ApplyScrollAsync);
         });
+    }
+
+    private async Task ApplyScrollAsync()
+    {
+        if (_scrollRunning || BindingContext is not DayViewModel day) return;
+        _scrollRunning = true;
+        try
+        {
+            bool requested = _scrollToCurrent;
+            double? target = _restoreY;
+            _scrollToCurrent = false;
+            _restoreY = null;
+            if (requested)
+            {
+                day.AcknowledgeScroll();
+                var anchor = _cards.Values.FirstOrDefault(c => c.StyleId == "CurrentLessonAnchor");
+                if (anchor != null)
+                {
+                    double top = TimelineGrid.RowDefinitions.Take(Grid.GetRow(anchor)).Sum(r => r.Height.Value);
+                    target = top + anchor.HeightRequest / 2 - MainScroll.Height / 2;
+                }
+            }
+            if (target.HasValue)
+                await MainScroll.ScrollToAsync(0, Math.Clamp(target.Value, 0, Math.Max(0, _totalHeight - MainScroll.Height)), requested);
+        }
+        finally
+        {
+            _scrollRunning = false;
+            QueueScroll();
+        }
     }
 }

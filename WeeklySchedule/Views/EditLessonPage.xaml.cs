@@ -353,14 +353,9 @@ public partial class EditLessonPage : ContentPage
         SetButtonsEnabled(false);
         try
         {
-            bool confirm = await DisplayAlertAsync("Подтверждение", "Вы уверены, что хотите удалить эту пару?", "Да, удалить", "Отмена");
+            bool confirm = await ItemActions.DeleteLessonAsync(_lesson);
             if (confirm)
             {
-                var day = _lesson.Day;
-                var repo = GetRepository();
-                await repo.DeleteAsync(_lesson.Id);
-
-                AppEvents.NotifyDataChanged(day);
                 await SafePopModalAsync();
             }
             else

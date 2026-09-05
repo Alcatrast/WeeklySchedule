@@ -3,10 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
              xmlns:models="clr-namespace:WeeklySchedule.Models"
+             xmlns:views="clr-namespace:WeeklySchedule.Views"
              x:Class="WeeklySchedule.Views.TimelinesPage"
              x:Name="TimelinesPageRoot"
              x:DataType="vm:TimelinesViewModel"
              Title="Таймлайны">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="+" Command="{Binding CreateTimelineCommand}" SemanticProperties.Description="Добавить таймлайн" />
+    </ContentPage.ToolbarItems>
     <Grid RowDefinitions="Auto, *">
         <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Padding="15, 10" ColumnSpacing="10">
             <Label Text="Открывать последний выбранный" 
@@ -19,9 +23,6 @@
         </Grid>
 
         <ScrollView Grid.Row="1">
-            <ScrollView.GestureRecognizers>
-                <TapGestureRecognizer NumberOfTapsRequired="2" Command="{Binding CreateTimelineCommand}" />
-            </ScrollView.GestureRecognizers>
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Timelines}" Spacing="10" Padding="15">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="models:Timeline">
@@ -30,15 +31,13 @@
                         <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2"
                                 BackgroundColor="{AppThemeBinding Light=#E1E1E1, Dark=#2C2C2C}"
                                 Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer NumberOfTapsRequired="2" 
-                                  Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}" 
-                                  CommandParameter="{Binding .}" />
-                            </Border.GestureRecognizers>
-
-                            <Grid ColumnDefinitions="Auto, *">
+                            <Grid ColumnDefinitions="*, Auto">
+                            <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
+                                  views:ContextActions.TapCommand="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}"
+                                  views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference TimelinesPageRoot}}"
+                                  views:ContextActions.Parameter="{Binding .}">
                                 <!-- Контейнер для иконок -->
-                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4">
+                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4" InputTransparent="True">
                                     <Path Data="{StaticResource IconStar}" 
                       WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
                       Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
@@ -61,7 +60,11 @@
                       IsVisible="{Binding NotificationsEnabled}" />
                                 </HorizontalStackLayout>
 
-                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" InputTransparent="True" />
+                            </Grid>
+                            <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" Padding="0" BackgroundColor="Transparent"
+                                    TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
+                                    Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference TimelinesPageRoot}}" CommandParameter="{Binding .}" />
                             </Grid>
                         </Border>
                     </DataTemplate>

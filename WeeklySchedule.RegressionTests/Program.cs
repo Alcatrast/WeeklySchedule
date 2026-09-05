@@ -151,11 +151,16 @@ var tests = new (string Name, Func<Task> Run)[]
     })
 };
 
-tests = [.. tests, .. NavigationRegression.Tests];
+tests = [.. tests, .. NavigationRegression.Tests, .. InteractionRegression.Tests];
 var root = Directory.CreateTempSubdirectory("WeeklySchedule-regression-").FullName;
 var failed = 0;
 foreach (var (name, run) in tests)
 {
+    // Singleton-подписчики приложения не должны переходить из одного тестового
+    // экземпляра приложения в другой. В реальном процессе они живут один раз.
+    typeof(WeeklySchedule.Messaging.AppEvents).GetField("DataChanged",
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.SetValue(null, null);
+    TimeContext.Now = DateTime.Now;
     FileSystem.AppDataDirectory = Directory.CreateDirectory(Path.Combine(root, Guid.NewGuid().ToString("N"))).FullName;
     try { await run(); Console.WriteLine($"PASS {name}"); }
     catch (Exception ex) { failed++; Console.WriteLine($"FAIL {name}: {ex}"); }
@@ -201,7 +206,8 @@ sealed class TestSettings : ISettingsService
     public Guid StartupTimelineId { get; set; }
     public bool NotifyAtStart { get; set; }
     public List<NotificationReminder> NotifyBeforeList { get; set; } = [];
-    public event Action? SettingsChanged { add { } remove { } }
+    public event Action? SettingsChanged;
+    public void RaiseChanged() => SettingsChanged?.Invoke();
 }
 sealed class PendingSaveRepository : ITimelineRepository
 {

@@ -13,9 +13,10 @@ public partial class MainPage : ContentPage
         InitializeComponent();
         _viewModel = viewModel;
         BindingContext = _viewModel;
+        SemanticProperties.SetDescription(ToolbarItems[0], "Добавить пару");
     }
 
-    private void OnHeaderDoubleTapped(object? sender, TappedEventArgs e)
+    private void OnAddLessonClicked(object? sender, EventArgs e)
     {
         if (EditLessonPage.IsOpen) return;
         if (_viewModel.SelectedDayVM == null) return;
@@ -43,7 +44,7 @@ public partial class MainPage : ContentPage
 
             if (Shell.Current is AppShell shell && shell.FlyoutVM != null)
             {
-                await shell.FlyoutVM.LoadTimelinesAsync();
+                await shell.FlyoutVM.RefreshIfNeededAsync();
             }
         });
     }

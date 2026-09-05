@@ -7,16 +7,25 @@
   </PropertyGroup>
   <!-- Реальные исходники логики, без MAUI runtime и сторонних тестовых пакетов. -->
   <ItemGroup>
+    <PackageReference Include="NPOI" Version="2.8.0" />
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <Compile Include="../WeeklySchedule/Extensions/ExcelMIPTScheduleParser.cs" Link="Source/ExcelMIPTScheduleParser.cs" />
     <Compile Include="../WeeklySchedule/Utilities/AtomicFile.cs" Link="Source/AtomicFile.cs" />
     <Compile Include="../WeeklySchedule/Utilities/WeeklyOccurrence.cs" Link="Source/WeeklyOccurrence.cs" />
     <Compile Include="../WeeklySchedule/Utilities/LessonTimeRange.cs" Link="Source/LessonTimeRange.cs" />
+    <Compile Include="../WeeklySchedule/Utilities/HoldGestureState.cs" Link="Source/HoldGestureState.cs" />
     <Compile Include="../WeeklySchedule/Utilities/SafeFireAndForget.cs" Link="Source/SafeFireAndForget.cs" />
     <Compile Include="../WeeklySchedule/Data/Repositories/*.cs" Link="Source/Repositories/%(Filename)%(Extension)" />
     <Compile Include="../WeeklySchedule/Models/Lesson.cs" Link="Source/Lesson.cs" />
     <Compile Include="../WeeklySchedule/Models/LessonType.cs" Link="Source/LessonType.cs" />
     <Compile Include="../WeeklySchedule/Models/Timeline.cs" Link="Source/Timeline.cs" />
+    <Compile Include="../WeeklySchedule/Models/BaseDay.cs" Link="Source/BaseDay.cs" />
     <Compile Include="../WeeklySchedule/Models/NotificationReminder.cs" Link="Source/NotificationReminder.cs" />
     <Compile Include="../WeeklySchedule/Services/IActiveScheduleService.cs" Link="Source/IActiveScheduleService.cs" />
+    <Compile Include="../WeeklySchedule/Services/ItemDeletionService.cs" Link="Source/ItemDeletionService.cs" />
+    <Compile Include="../WeeklySchedule/Services/LessonImportService.cs" Link="Source/LessonImportService.cs" />
     <Compile Include="../WeeklySchedule/Services/ISettingsService.cs" Link="Source/ISettingsService.cs" />
     <Compile Include="../WeeklySchedule/Services/INotificationService.cs" Link="Source/INotificationService.cs" />
     <Compile Include="../WeeklySchedule/Services/IFilePickerService.cs" Link="Source/IFilePickerService.cs" />
@@ -29,11 +38,13 @@
     <Compile Include="../WeeklySchedule/ViewModels/MainViewModel.cs" Link="Source/MainViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/SettingsViewModel.cs" Link="Source/SettingsViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/DayViewModel.cs" Link="Source/DayViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/LessonDetailsViewModel.cs" Link="Source/LessonDetailsViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/DayViewSubscription.cs" Link="Source/DayViewSubscription.cs" />
     <Compile Include="../WeeklySchedule/Core/*.cs" Link="Source/Core/%(Filename)%(Extension)" />
     <Compile Include="../WeeklySchedule/Models/TimelineLayout.cs" Link="Source/TimelineLayout.cs" />
     <Compile Include="../WeeklySchedule/Models/SeparatorType.cs" Link="Source/SeparatorType.cs" />
     <Compile Include="../WeeklySchedule/Data/IDataSeeder.cs" Link="Source/IDataSeeder.cs" />
+    <Compile Include="../WeeklySchedule/Data/EmptyDataSeeder.cs" Link="Source/EmptyDataSeeder.cs" />
     <Compile Include="../WeeklySchedule/Utilities/TimeContext.cs" Link="Source/TimeContext.cs" />
     <Compile Include="../WeeklySchedule/Services/INotificationNavigationService.cs" Link="Source/INotificationNavigationService.cs" />
   </ItemGroup>

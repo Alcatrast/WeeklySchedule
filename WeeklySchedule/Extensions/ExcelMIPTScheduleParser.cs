@@ -97,7 +97,11 @@ public class ExcelMIPTScheduleParser
     }
 
     public List<Lesson> ParseGroupSchedule(string filePath, string groupName)
+        => ParseGroupSchedule(filePath, groupName, out _);
+
+    public List<Lesson> ParseGroupSchedule(string filePath, string groupName, out List<BaseDay> baseDays)
     {
+        baseDays = [];
         _logger.LogInformation("Парсинг группы: {GroupName} из {FilePath}", groupName, Path.GetFileName(filePath));
         var lessons = new List<Lesson>();
 
@@ -159,6 +163,23 @@ public class ExcelMIPTScheduleParser
 
             string rawText = _formatter.FormatCellValue(cell).Trim();
             if (string.IsNullOrWhiteSpace(rawText)) continue;
+
+            var normalizedText = WhitespaceRegex.Replace(rawText, " ").Trim();
+            if (normalizedText.StartsWith("Базовый день", StringComparison.OrdinalIgnoreCase))
+            {
+                var bounds = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
+                var dayRegion = GetMergedRegionForCell(sheet, r, 0);
+                var marker = new BaseDay
+                {
+                    Day = currentDay,
+                    AllDay = dayRegion != null && firstRow <= dayRegion.FirstRow && lastRowOfLesson >= dayRegion.LastRow,
+                    StartTime = bounds.Start,
+                    EndTime = bounds.End,
+                    Text = "Базовый день" + normalizedText["Базовый день".Length..]
+                };
+                if (!baseDays.Contains(marker)) baseDays.Add(marker);
+                continue;
+            }
 
             // null означает "не пара" (зеленая заливка) — такие ячейки пропускаем.
             // Нераспознанные цвета метод сам отдает как LessonType.Lab.

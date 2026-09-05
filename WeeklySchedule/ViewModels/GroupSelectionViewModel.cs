@@ -132,14 +132,18 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
     private async Task ImportGroupAsync(GroupItem group)
     {
+        if (IsProcessing) return;
         IsProcessing = true;
         try
         {
-            var lessons = await Task.Run(() =>
+            var parsed = await Task.Run(() =>
             {
                 var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
-                return parser.ParseGroupSchedule(_filePath, group.FullGroupName);
+                var lessons = parser.ParseGroupSchedule(_filePath, group.FullGroupName, out var baseDays);
+                return (Lessons: lessons, BaseDays: baseDays);
             });
+            var lessons = parsed.Lessons;
+            _timeline.BaseDays = (_timeline.BaseDays ?? []).Concat(parsed.BaseDays).Distinct().ToList();
 
             if (!_timelineExists)
             {
@@ -149,17 +153,13 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 await _timelineRepo.AddAsync(_timeline);
             }
 
-            foreach (var lesson in lessons)
-            {
-                lesson.TimelineId = _timeline.Id;
-                await _lessonRepo.AddAsync(lesson);
-            }
+            var added = await LessonImportService.AddMissingAsync(_lessonRepo, _timeline.Id, lessons);
 
             if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
             _onImported?.Invoke();
             AppEvents.NotifyDataChanged();
 
-            await ShowAlertAsync("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.");
+            await ShowAlertAsync("Импорт завершён", $"Добавлено пар: {added}. Уже есть в расписании: {lessons.Count - added}.\nПроверьте корректность данных.");
 
             await SafeClosePagesAsync();
         }

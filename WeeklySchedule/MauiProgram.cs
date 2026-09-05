@@ -23,7 +23,7 @@ public static class MauiProgram
         // Repositories
         builder.Services.AddSingleton<ILessonRepository, FileLessonRepository>();
         builder.Services.AddSingleton<ITimelineRepository, FileTimelineRepository>();
-        builder.Services.AddSingleton<IDataSeeder, DemoDataSeeder>();
+        builder.Services.AddSingleton<IDataSeeder, EmptyDataSeeder>();
 
         // Services
         builder.Services.AddSingleton<IActiveScheduleService, ActiveScheduleService>();
@@ -31,6 +31,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IFilePickerService, FilePickerService>();
         builder.Services.AddSingleton<INotificationNavigationService, NotificationNavigationService>();
         builder.Services.AddSingleton<INavigationService, NavigationService>();
+        builder.Services.AddSingleton<ItemDeletionService>();
 
 #if ANDROID
         builder.Services.AddSingleton<INotificationService, WeeklySchedule.Platforms.Android.Services.NotificationService>();

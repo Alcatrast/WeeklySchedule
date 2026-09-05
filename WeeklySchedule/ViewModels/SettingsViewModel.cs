@@ -87,8 +87,11 @@ public partial class SettingsViewModel : BaseViewModel
 
     private void LoadReminders()
     {
+        var reminders = _settingsService.NotifyBeforeList;
+        if (ReminderItems.Select(r => (r.Minutes, r.IsActive))
+            .SequenceEqual(reminders.Select(r => (r.MinutesBefore, r.IsActive)))) return;
         ReminderItems.Clear();
-        foreach (var item in _settingsService.NotifyBeforeList)
+        foreach (var item in reminders)
             ReminderItems.Add(new NotificationReminderViewModel(item, SaveReminders));
     }
 
@@ -116,28 +119,29 @@ public partial class SettingsViewModel : BaseViewModel
     {
         var version = ++_refreshVersion;
         var all = (await _timelineRepository.GetAllAsync()).ToList();
+        var granted = await _notificationService.CheckAllPermissionsAsync();
         if (version != _refreshVersion) return;
 
         _isRefreshing = true;
         try
         {
-            StartupTimelines.Clear();
-            foreach (var t in all) StartupTimelines.Add(t);
-            _selectedStartupTimeline = all.FirstOrDefault(t => t.Id == _settingsService.StartupTimelineId);
-            _openLast = _settingsService.OpenLastTimeline;
-            _selectedTheme = _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" };
-            _defaultDuration = _settingsService.DefaultLessonDuration;
-            _notifyAtStart = _settingsService.NotifyAtStart;
+            if (!StartupTimelines.Select(t => (t.Id, t.Name, t.NotificationsEnabled))
+                .SequenceEqual(all.Select(t => (t.Id, t.Name, t.NotificationsEnabled))))
+            {
+                StartupTimelines.Clear();
+                foreach (var t in all) StartupTimelines.Add(t);
+            }
+            var startupId = _settingsService.StartupTimelineId;
+            SelectedStartupTimeline = StartupTimelines.FirstOrDefault(t => t.Id == startupId);
+            if (SetProperty(ref _openLast, _settingsService.OpenLastTimeline, nameof(OpenLast)))
+                OnPropertyChanged(nameof(IsStartupPickerVisible));
+            SetProperty(ref _selectedTheme, _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" }, nameof(SelectedTheme));
+            SetProperty(ref _defaultDuration, _settingsService.DefaultLessonDuration, nameof(DefaultDuration));
+            SetProperty(ref _notifyAtStart, _settingsService.NotifyAtStart, nameof(NotifyAtStart));
             LoadReminders();
-            OnPropertyChanged(nameof(SelectedStartupTimeline));
-            OnPropertyChanged(nameof(OpenLast));
-            OnPropertyChanged(nameof(IsStartupPickerVisible));
-            OnPropertyChanged(nameof(SelectedTheme));
-            OnPropertyChanged(nameof(DefaultDuration));
-            OnPropertyChanged(nameof(NotifyAtStart));
+            AreAllPermissionsGranted = granted;
         }
         finally { _isRefreshing = false; }
-        await CheckAllPermissionsAsync();
     }
 }
 

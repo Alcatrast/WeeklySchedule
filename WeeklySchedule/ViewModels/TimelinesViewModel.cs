@@ -17,6 +17,7 @@ public partial class TimelinesViewModel : BaseViewModel
     public ObservableCollection<Timeline> Timelines { get; } = [];
     public ICommand EditTimelineCommand { get; }
     public ICommand CreateTimelineCommand { get; }
+    public ICommand TimelineActionsCommand { get; }
 
     private bool _openLastTimeline;
     public bool OpenLastTimeline
@@ -42,6 +43,10 @@ public partial class TimelinesViewModel : BaseViewModel
 
         EditTimelineCommand = new Command<Timeline>(OnEditTimeline);
         CreateTimelineCommand = new Command(OnCreateTimeline);
+        TimelineActionsCommand = new Command<Timeline>(timeline =>
+        {
+            if (timeline != null) SafeFireAndForget.Run(() => ItemActions.ShowTimelineAsync(timeline));
+        });
     }
 
     public async Task LoadTimelinesAsync()
@@ -53,6 +58,12 @@ public partial class TimelinesViewModel : BaseViewModel
         _openLastTimeline = _settingsService.OpenLastTimeline;
         OnPropertyChanged(nameof(OpenLastTimeline));
         OnPropertyChanged(nameof(HighlightedTimelineId));
+        if (Timelines.Select(t => (t.Id, t.Name, t.NotificationsEnabled))
+            .SequenceEqual(all.Select(t => (t.Id, t.Name, t.NotificationsEnabled))))
+        {
+            for (int i = 0; i < all.Count; i++) Timelines[i].BaseDays = all[i].BaseDays ?? [];
+            return;
+        }
         Timelines.Clear();
 
         foreach (var timeline in all) Timelines.Add(timeline);
@@ -68,12 +79,6 @@ public partial class TimelinesViewModel : BaseViewModel
 
     private void OpenEditPage(Timeline? timeline)
     {
-        SafeFireAndForget.Run(async () =>
-        {
-            // Резолвим страницу через DI
-            var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-            editPage.Initialize(timeline);
-            await Shell.Current!.Navigation.PushModalAsync(editPage);
-        });
+        SafeFireAndForget.Run(() => ItemActions.OpenTimelineAsync(timeline));
     }
 }

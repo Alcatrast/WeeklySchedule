@@ -4,6 +4,7 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:local="clr-namespace:WeeklySchedule"
        xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+       xmlns:views="clr-namespace:WeeklySchedule.Views"
        Title="WeeklySchedule"
        FlyoutBehavior="Flyout">
     <Shell.FlyoutContent>
@@ -16,13 +17,13 @@
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:TimelineFlyoutItem">
                                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                                    <Border.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}" 
-                                  CommandParameter="{Binding Timeline}" />
-                                    </Border.GestureRecognizers>
-                                    <Grid ColumnDefinitions="Auto, *">
+                                    <Grid ColumnDefinitions="*, Auto">
+                                    <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
+                                          views:ContextActions.TapCommand="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}"
+                                          views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}"
+                                          views:ContextActions.Parameter="{Binding Timeline}">
                                         <!-- Контейнер для иконок: Звезда всегда первая, затем Колокольчик -->
-                                        <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4">
+                                        <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4" InputTransparent="True">
                                             <Path Data="{StaticResource IconStar}" 
                       WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
                       Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
@@ -34,7 +35,7 @@
                       IsVisible="{Binding NotificationsEnabled}" />
                                         </HorizontalStackLayout>
 
-                                        <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
+                                        <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center" InputTransparent="True"
                    TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
                                             <Label.Triggers>
                                                 <DataTrigger TargetType="Label" Binding="{Binding IsActive}" Value="True">
@@ -42,6 +43,10 @@
                                                 </DataTrigger>
                                             </Label.Triggers>
                                         </Label>
+                                    </Grid>
+                                    <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" Padding="0" BackgroundColor="Transparent"
+                                            TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
+                                            Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}" CommandParameter="{Binding Timeline}" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>

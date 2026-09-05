@@ -175,17 +175,10 @@ public partial class EditTimelineViewModel : BaseViewModel
 
     private async Task DeleteAsync()
     {
-        bool confirm = false;
-        if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
-            confirm = await page.DisplayAlertAsync("Подтверждение", "Удалить этот таймлайн?", "Да", "Отмена");
+        bool confirm = await ItemActions.DeleteTimelineAsync(_timeline);
 
         if (confirm)
         {
-            if (_settingsService.StartupTimelineId == _timeline.Id)
-                _settingsService.StartupTimelineId = Guid.Empty;
-
-            await _repository.DeleteAsync(_timeline.Id);
-            AppEvents.NotifyDataChanged();
             await _navigationService.PopModalAsync();
         }
     }

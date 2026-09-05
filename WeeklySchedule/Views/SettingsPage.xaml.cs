@@ -10,6 +10,7 @@ public partial class SettingsPage : ContentPage
     {
         InitializeComponent();
         BindingContext = viewModel;
+        UpdatePickerVisibility(viewModel.IsStartupPickerVisible);
     }
 
     protected override void OnAppearing()
@@ -17,11 +18,12 @@ public partial class SettingsPage : ContentPage
         base.OnAppearing();
         if (BindingContext is SettingsViewModel vm)
         {
+            vm.PropertyChanged -= Vm_PropertyChanged;
             vm.PropertyChanged += Vm_PropertyChanged;
             SafeFireAndForget.Run(async () =>
             {
                 await vm.RefreshAsync();
-                UpdatePickerVisibility(vm.IsStartupPickerVisible, false);
+                UpdatePickerVisibility(vm.IsStartupPickerVisible);
             });
         }
     }
@@ -35,30 +37,11 @@ public partial class SettingsPage : ContentPage
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SettingsViewModel.IsStartupPickerVisible) && sender is SettingsViewModel vm)
-            UpdatePickerVisibility(vm.IsStartupPickerVisible, true);
+            UpdatePickerVisibility(vm.IsStartupPickerVisible);
     }
 
-    private void UpdatePickerVisibility(bool isVisible, bool animate)
+    private void UpdatePickerVisibility(bool isVisible)
     {
-        if (!animate)
-        {
-            StartupPickerLayout.IsVisible = isVisible;
-            StartupPickerLayout.Opacity = isVisible ? 1 : 0;
-            return;
-        }
-
-        SafeFireAndForget.Run(async () =>
-        {
-            if (isVisible)
-            {
-                StartupPickerLayout.IsVisible = true;
-                await StartupPickerLayout.FadeToAsync(1, 250, Easing.CubicOut);
-            }
-            else
-            {
-                await StartupPickerLayout.FadeToAsync(0, 250, Easing.CubicIn);
-                StartupPickerLayout.IsVisible = false;
-            }
-        });
+        StartupPickerLayout.IsVisible = isVisible;
     }
 }

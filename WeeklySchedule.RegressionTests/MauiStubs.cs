@@ -60,6 +60,11 @@ public static class ServiceExtensions
 }
 namespace WeeklySchedule.Views
 {
+    public class LessonDetailsPage
+    {
+        public static Guid? LastOpened { get; set; }
+        public static Task OpenAsync(Guid id) { LastOpened = id; return Task.CompletedTask; }
+    }
     public class EditLessonPage
     {
         public EditLessonPage(Models.Lesson lesson) { }
@@ -70,6 +75,18 @@ namespace WeeklySchedule.Views
     public class EditTimelinePage
     {
         public void Initialize(Models.Timeline? timeline) => throw new NotSupportedException("UI is not under test");
+    }
+}
+namespace WeeklySchedule.Services
+{
+    public static class ItemActions
+    {
+        public static Guid? LastLessonMenu { get; set; }
+        public static Guid? LastTimelineMenu { get; set; }
+        public static Task ShowLessonAsync(Models.Lesson lesson) { LastLessonMenu = lesson.Id; return Task.CompletedTask; }
+        public static Task ShowTimelineAsync(Models.Timeline timeline) { LastTimelineMenu = timeline.Id; return Task.CompletedTask; }
+        public static Task OpenTimelineAsync(Models.Timeline? timeline) => Task.CompletedTask;
+        public static Task<bool> DeleteTimelineAsync(Models.Timeline timeline) => Task.FromResult(false);
     }
 }
 namespace Microsoft.Maui.Storage
