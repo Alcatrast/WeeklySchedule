@@ -10,7 +10,7 @@
         <Grid x:Name="TimelineGrid" 
               ColumnSpacing="4" 
               RowSpacing="0" 
-              Padding="5,0"
+              Padding="5,0,5,12"
               VerticalOptions="Start">
         </Grid>
 

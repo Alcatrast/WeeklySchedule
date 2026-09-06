@@ -33,6 +33,7 @@
                                 Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
                             <Grid ColumnDefinitions="*, Auto">
                             <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
+                                  views:PressFeedback.IsEnabled="True"
                                   views:ContextActions.TapCommand="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}"
                                   views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference TimelinesPageRoot}}"
                                   views:ContextActions.Parameter="{Binding .}">
@@ -62,7 +63,7 @@
 
                                 <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" InputTransparent="True" />
                             </Grid>
-                            <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" Padding="0" BackgroundColor="Transparent"
+                            <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="0" BackgroundColor="Transparent"
                                     TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
                                     Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference TimelinesPageRoot}}" CommandParameter="{Binding .}" />
                             </Grid>

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
              xmlns:models="clr-namespace:WeeklySchedule.Models"
+             xmlns:views="clr-namespace:WeeklySchedule.Views"
              x:Class="WeeklySchedule.Views.GroupSelectionPage"
              x:DataType="vm:GroupSelectionViewModel"
              Title="Выберите группу:">
@@ -13,8 +14,9 @@
                     <DataTemplate x:DataType="models:GroupCategory">
                         <Border StrokeShape="RoundRectangle 10"
                                 StrokeThickness="1" 
-                                Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" 
-                                Padding="10">
+                                Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
+                                Padding="10"
+                                views:PressFeedback.IsEnabled="True">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnCategoryTapped" />
                             </Border.GestureRecognizers>
@@ -39,7 +41,8 @@
                                         <DataTemplate x:DataType="models:GroupItem">
                                             <Border StrokeShape="RoundRectangle 20"
                                                     BackgroundColor="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                                                    Margin="4" Padding="12,6" HeightRequest="40">
+                                                    Margin="4" Padding="12,6" HeightRequest="40"
+                                                    views:PressFeedback.IsEnabled="True">
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnGroupTapped" />
                                                 </Border.GestureRecognizers>

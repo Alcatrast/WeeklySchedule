@@ -26,8 +26,10 @@ public sealed class LessonCardView : Border
         _time.InputTransparent = _name.InputTransparent = _description.InputTransparent = true;
         _menu = new Button
         {
-            Text = "⋮", FontSize = 22, Padding = 0, WidthRequest = 40, HeightRequest = 44,
-            MinimumHeightRequest = 44, MinimumWidthRequest = 40,
+            // Квадрат со скруглением в половину стороны: нативная маска ripple
+            // становится круглой, а не прямоугольной полосой поперек карточки
+            Text = "⋮", FontSize = 22, Padding = 0, WidthRequest = 44, HeightRequest = 44,
+            MinimumHeightRequest = 44, MinimumWidthRequest = 44, CornerRadius = 22,
             BackgroundColor = Colors.Transparent, VerticalOptions = LayoutOptions.Start
         };
         _menu.SetAppThemeColor(Button.TextColorProperty, Colors.Black, Colors.White);
@@ -36,6 +38,9 @@ public sealed class LessonCardView : Border
         grid.Add(_text);
         grid.Add(_menu, 1);
         Content = grid;
+        // Касания забирает _text (на нем висят жесты), а затемняется вся карточка.
+        PressFeedback.SetTarget(_text, this);
+        PressFeedback.SetIsEnabled(_text, true);
     }
 
     public void Update(LessonPlacement placement, DayViewModel day, DateTime now)

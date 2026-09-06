@@ -1,4 +1,5 @@
 using System.Globalization;
+using WeeklySchedule.Core;
 using WeeklySchedule.Models;
 using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
@@ -10,6 +11,7 @@ public partial class DayView : ContentView
     private readonly DayViewSubscription _subscription;
     private readonly Dictionary<Guid, LessonCardView> _cards = [];
     private readonly List<BoxView> _separators = [];
+    private readonly List<Label> _gapLabels = [];
     private readonly Label _empty = new()
     {
         Text = "Свободный день", FontSize = 24, FontAttributes = FontAttributes.Italic,
@@ -19,7 +21,8 @@ public partial class DayView : ContentView
     private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
     private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
     private TimelineLayout? _renderedLayout;
-    private double _screenHeight, _pixelsPerMinute, _maxElementHeight, _totalHeight;
+    private double[] _rowHeights = [];
+    private double _totalHeight;
     private double? _restoreY;
     private bool _scrollQueued, _scrollRunning, _scrollToCurrent;
 
@@ -50,19 +53,14 @@ public partial class DayView : ContentView
     {
         if (BindingContext is not DayViewModel day) return;
         var layout = day.Layout;
-        var display = DeviceDisplay.MainDisplayInfo;
-        var screenHeight = display.Height / display.Density;
-        bool structureChanged = !ReferenceEquals(_renderedLayout, layout) || _screenHeight != screenHeight;
+        // Геометрия больше не зависит от размера экрана: масштаб общий для всех дней.
+        bool structureChanged = !ReferenceEquals(_renderedLayout, layout);
 
         if (structureChanged)
         {
             _restoreY = MainScroll.ScrollY;
-            _screenHeight = screenHeight;
             _renderedLayout = layout;
-            _maxElementHeight = (screenHeight - 120) * 0.5;
-            if (_maxElementHeight < 200) _maxElementHeight = 400;
-            int shortest = layout.Lessons.Count > 0 ? layout.Lessons.Min(l => l.TotalMinutes) : 15;
-            _pixelsPerMinute = 90.0 / Math.Max(1, shortest);
+            _rowHeights = TimelineMetrics.RowHeights(layout);
 
             var ids = layout.Lessons.Select(p => p.Lesson.Id).ToHashSet();
             foreach (var id in _cards.Keys.Where(id => !ids.Contains(id)).ToArray())
@@ -88,16 +86,21 @@ public partial class DayView : ContentView
             else
             {
                 TimelineGrid.Children.Remove(_empty);
-                while (TimelineGrid.RowDefinitions.Count > layout.Segments.Count)
+                // Строк на одну больше, чем сегментов: последняя — распорка Star.
+                // Если MAUI когда-нибудь растянет содержимое ScrollView до высоты
+                // вьюпорта, избыток уйдет в нее, а не размажется по строкам пар.
+                int rows = layout.Segments.Count + 1;
+                while (TimelineGrid.RowDefinitions.Count > rows)
                     TimelineGrid.RowDefinitions.RemoveAt(TimelineGrid.RowDefinitions.Count - 1);
+                while (TimelineGrid.RowDefinitions.Count < rows)
+                    TimelineGrid.RowDefinitions.Add(new RowDefinition());
                 _totalHeight = 0;
                 for (int i = 0; i < layout.Segments.Count; i++)
                 {
-                    double height = Math.Min(layout.Segments[i].DurationMinutes * _pixelsPerMinute, _maxElementHeight);
-                    if (i == TimelineGrid.RowDefinitions.Count) TimelineGrid.RowDefinitions.Add(new RowDefinition());
-                    TimelineGrid.RowDefinitions[i].Height = new GridLength(height);
-                    _totalHeight += height;
+                    TimelineGrid.RowDefinitions[i].Height = new GridLength(_rowHeights[i]);
+                    _totalHeight += _rowHeights[i];
                 }
+                TimelineGrid.RowDefinitions[rows - 1].Height = GridLength.Star;
                 int columns = Math.Max(1, layout.TotalColumns);
                 while (TimelineGrid.ColumnDefinitions.Count > columns)
                     TimelineGrid.ColumnDefinitions.RemoveAt(TimelineGrid.ColumnDefinitions.Count - 1);
@@ -113,7 +116,11 @@ public partial class DayView : ContentView
                         _cards.Add(placement.Lesson.Id, card);
                         TimelineGrid.Children.Add(card);
                     }
-                    card.HeightRequest = Math.Min(placement.TotalMinutes * _pixelsPerMinute, _maxElementHeight);
+                    // Android не всегда измеряет Border по высоте строк при RowSpan.
+                    // Явная высота берется из тех же строк, поэтому карточка остается
+                    // согласована с сеткой и не исчезает при нативной раскладке.
+                    card.HeightRequest = TimelineMetrics.SpanHeight(
+                        _rowHeights, placement.StartRow, placement.RowSpan);
                     card.VerticalOptions = LayoutOptions.Fill;
                     Grid.SetRow(card, placement.StartRow);
                     Grid.SetRowSpan(card, placement.RowSpan);
@@ -121,6 +128,7 @@ public partial class DayView : ContentView
                     Grid.SetColumnSpan(card, placement.ColumnSpan);
                 }
             }
+            UpdateGapLabels(layout);
         }
 
         var now = TimeContext.Now;
@@ -128,6 +136,39 @@ public partial class DayView : ContentView
             if (_cards.TryGetValue(placement.Lesson.Id, out var card)) card.Update(placement, day, now);
         UpdateBreaks(layout);
         if (structureChanged) QueueScroll();
+    }
+
+    // Подписи длинных «окон». От текущего времени не зависят, поэтому живут рядом
+    // с геометрией, а не в UpdateBreaks.
+    private void UpdateGapLabels(TimelineLayout layout)
+    {
+        int used = 0;
+        for (int row = 0; row < layout.Segments.Count; row++)
+        {
+            int minutes = layout.Segments[row].DurationMinutes;
+            if (minutes < TimelineMetrics.GapLabelThreshold || !TimelineMetrics.IsGapRow(layout, row)) continue;
+            if (used == _gapLabels.Count)
+            {
+                var created = new Label
+                {
+                    FontSize = 11, TextColor = Colors.Gray, InputTransparent = true,
+                    HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
+                };
+                _gapLabels.Add(created);
+                TimelineGrid.Children.Add(created);
+            }
+            var label = _gapLabels[used++];
+            label.Text = TimelineMetrics.FormatGap(minutes);
+            Grid.SetRow(label, row);
+            Grid.SetRowSpan(label, 1);
+            Grid.SetColumn(label, 0);
+            Grid.SetColumnSpan(label, Math.Max(1, layout.TotalColumns));
+        }
+        while (_gapLabels.Count > used)
+        {
+            TimelineGrid.Children.Remove(_gapLabels[^1]);
+            _gapLabels.RemoveAt(_gapLabels.Count - 1);
+        }
     }
 
     private void UpdateBreaks(TimelineLayout layout)
@@ -149,7 +190,7 @@ public partial class DayView : ContentView
             var separator = _separators[i];
             separator.Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent);
             separator.HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0);
-            separator.Margin = new Thickness(10, Math.Min(br.TotalMinutes * _pixelsPerMinute, _maxElementHeight) / 2 - 1, 10, 0);
+            separator.Margin = new Thickness(10, TimelineMetrics.SpanHeight(_rowHeights, br.StartRow, br.RowSpan) / 2 - 1, 10, 0);
             Grid.SetRow(separator, br.StartRow);
             Grid.SetRowSpan(separator, br.RowSpan);
             Grid.SetColumnSpan(separator, Math.Max(1, layout.TotalColumns));
@@ -191,8 +232,10 @@ public partial class DayView : ContentView
                 var anchor = _cards.Values.FirstOrDefault(c => c.StyleId == "CurrentLessonAnchor");
                 if (anchor != null)
                 {
-                    double top = TimelineGrid.RowDefinitions.Take(Grid.GetRow(anchor)).Sum(r => r.Height.Value);
-                    target = top + anchor.HeightRequest / 2 - MainScroll.Height / 2;
+                    int anchorRow = Grid.GetRow(anchor);
+                    double top = TimelineMetrics.TopOffset(_rowHeights, anchorRow);
+                    double height = TimelineMetrics.SpanHeight(_rowHeights, anchorRow, Grid.GetRowSpan(anchor));
+                    target = top + height / 2 - MainScroll.Height / 2;
                 }
             }
             if (target.HasValue)

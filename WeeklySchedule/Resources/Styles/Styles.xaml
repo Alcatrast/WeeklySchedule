@@ -36,6 +36,14 @@
             <VisualStateGroupList>
                 <VisualStateGroup x:Name="CommonStates">
                     <VisualState x:Name="Normal" />
+                    <!-- Без этого состояния зажатая кнопка рисуется только дефолтным
+                         прямоугольным ripple и читается как серая полоса-строка -->
+                    <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.6" />
+                            <Setter Property="Scale" Value="0.95" />
+                        </VisualState.Setters>
+                    </VisualState>
                     <VisualState x:Name="Disabled">
                         <VisualState.Setters>
                             <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}" />

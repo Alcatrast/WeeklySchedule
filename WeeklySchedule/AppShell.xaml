@@ -19,6 +19,7 @@
                                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
                                     <Grid ColumnDefinitions="*, Auto">
                                     <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
+                                          views:PressFeedback.IsEnabled="True"
                                           views:ContextActions.TapCommand="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}"
                                           views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}"
                                           views:ContextActions.Parameter="{Binding Timeline}">
@@ -44,7 +45,7 @@
                                             </Label.Triggers>
                                         </Label>
                                     </Grid>
-                                    <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" Padding="0" BackgroundColor="Transparent"
+                                    <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="0" BackgroundColor="Transparent"
                                             TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
                                             Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}" CommandParameter="{Binding Timeline}" />
                                     </Grid>
@@ -63,7 +64,7 @@
 
                 <!-- Управление таймлайнами -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                    <Grid ColumnDefinitions="Auto, *" views:PressFeedback.IsEnabled="True">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnTimelinesManageClicked" />
                         </Grid.GestureRecognizers>
@@ -80,7 +81,7 @@
 
                 <!-- Настройки -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                    <Grid ColumnDefinitions="Auto, *" views:PressFeedback.IsEnabled="True">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSettingsClicked" />
                         </Grid.GestureRecognizers>
@@ -96,7 +97,7 @@
 
                 <!-- О приложении -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                    <Grid ColumnDefinitions="Auto, *" views:PressFeedback.IsEnabled="True">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnAboutClicked" />
                         </Grid.GestureRecognizers>

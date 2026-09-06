@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:WeeklySchedule.Views"
              x:Class="WeeklySchedule.Views.EditLessonPage"
              x:Name="ThisPage">
     <ScrollView>
@@ -64,7 +65,8 @@
             </Grid>
 
             <!-- Кнопка Удалить -->
-            <Border x:Name="BorderDelete" BackgroundColor="#D32F2F" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill" IsVisible="False" Margin="0,10,0,0">
+            <Border x:Name="BorderDelete" BackgroundColor="#D32F2F" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill" IsVisible="False" Margin="0,10,0,0"
+                    views:PressFeedback.IsEnabled="True">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnDeleteClicked" />
                 </Border.GestureRecognizers>
@@ -75,7 +77,8 @@
             </Border>
 
             <!-- Кнопка Сохранить -->
-            <Border x:Name="BorderSave" BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill">
+            <Border x:Name="BorderSave" BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill"
+                    views:PressFeedback.IsEnabled="True">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnSaveClicked" />
                 </Border.GestureRecognizers>
@@ -86,7 +89,8 @@
             </Border>
 
             <!-- Кнопка Отмена -->
-            <Border x:Name="BorderCancel" BackgroundColor="Transparent" StrokeShape="RoundRectangle 12" StrokeThickness="1" Stroke="{StaticResource Gray500}" HeightRequest="50" HorizontalOptions="Fill">
+            <Border x:Name="BorderCancel" BackgroundColor="Transparent" StrokeShape="RoundRectangle 12" StrokeThickness="1" Stroke="{StaticResource Gray500}" HeightRequest="50" HorizontalOptions="Fill"
+                    views:PressFeedback.IsEnabled="True">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCancelClicked" />
                 </Border.GestureRecognizers>

@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+             xmlns:views="clr-namespace:WeeklySchedule.Views"
              x:Class="WeeklySchedule.Views.SettingsPage"
              x:Name="SettingsPageRoot"
              x:DataType="vm:SettingsViewModel"
@@ -45,7 +46,8 @@
                             <Grid ColumnDefinitions="Auto, *, Auto" Padding="0,5" ColumnSpacing="10">
                                 <Switch IsToggled="{Binding IsActive}" VerticalOptions="Center"/>
                                 <Entry Grid.Column="1" Text="{Binding Minutes}" Keyboard="Numeric" FontSize="16" VerticalOptions="Center"/>
-                                <Border Grid.Column="2" Style="{StaticResource IconButtonStyle}" BackgroundColor="{StaticResource Danger}">
+                                <Border Grid.Column="2" Style="{StaticResource IconButtonStyle}" BackgroundColor="{StaticResource Danger}"
+                                        views:PressFeedback.IsEnabled="True">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding BindingContext.DeleteReminderCommand, Source={x:Reference SettingsPageRoot}}" CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
@@ -55,7 +57,8 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-                <Border HeightRequest="40" WidthRequest="40" StrokeShape="RoundRectangle 20" StrokeThickness="1" Stroke="{StaticResource Primary}" BackgroundColor="Transparent" HorizontalOptions="Start" VerticalOptions="Center">
+                <Border HeightRequest="40" WidthRequest="40" StrokeShape="RoundRectangle 20" StrokeThickness="1" Stroke="{StaticResource Primary}" BackgroundColor="Transparent" HorizontalOptions="Start" VerticalOptions="Center"
+                        views:PressFeedback.IsEnabled="True">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding AddReminderCommand}" />
                     </Border.GestureRecognizers>
@@ -68,7 +71,7 @@
             <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" FontSize="16"/>
             <Label Text="Длительность пары по умолчанию (мин)" FontSize="16" FontAttributes="Bold"/>
             <Entry Keyboard="Numeric" Text="{Binding DefaultDuration}" FontSize="16"/>
-            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" views:PressFeedback.IsEnabled="True">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ToggleOpenLastCommand}" />
                 </Grid.GestureRecognizers>
