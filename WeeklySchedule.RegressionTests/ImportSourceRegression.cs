@@ -20,7 +20,13 @@ static class ImportSourceRegression
         ("A merge overhanging the next slot snaps to slot bounds", MergeOverhangSnapsToSlotBounds),
         ("The sheet footer is not reported as a row with an unreadable time", FooterIsNotCountedAsSkipped),
         ("Group names mentioned inside lessons stay out of the group list", GroupListTakesOnlyTheHeaderRow),
-        ("A lesson name is not cut at a comma inside brackets", NameKeepsBracketedList)
+        ("A lesson name is not cut at a comma inside brackets", NameKeepsBracketedList),
+        ("Lessons under the second column of a group header are read", SecondGroupColumnIsRead),
+        ("A merge shared by both group columns yields one lesson", SharedMergeIsNotDuplicated),
+        ("A group takes the time column of its own block", GroupUsesItsOwnBlockTimes),
+        ("An explicit time in the lesson text wins over merge geometry", ExplicitTimeInTextWins),
+        ("Room and index numbers in the text are not read as times", NumbersInTextAreNotTimes),
+        ("An ordinary Russian word is not a building code", OrdinaryWordIsNotARoom)
     ];
 
     private static void Check(bool condition) { if (!condition) throw new Exception("Assertion failed"); }
@@ -370,6 +376,157 @@ static class ImportSourceRegression
 
         var physics = lessons.Single(l => l.Name.StartsWith("Физика"));
         Check(physics.Name == "Физика (лекция, семинар)" && physics.Description.Length == 0);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Два блока бок о бок, как на листе МФТИ: у каждого своя пара колонок
+    /// «Дни»/«Часы», времена у блоков РАЗНЫЕ, а шапка второй группы объединена
+    /// на две колонки, и под правой лежит своя пара.
+    ///
+    ///   c0   c1     c2       c3   c4     c5        c6
+    ///   Дни  Часы   Б03-401  Дни  Часы   Б09-401 (объединено c5:c6)
+    /// </summary>
+    private static string WriteWorkbookWithTwoBlocks(string name)
+    {
+        using var workbook = new NPOI.HSSF.UserModel.HSSFWorkbook();
+        var sheet = workbook.CreateSheet("Schedule");
+        void Cell(int row, int column, string text) =>
+            (sheet.GetRow(row) ?? sheet.CreateRow(row)).CreateCell(column).SetCellValue(text);
+        void Merge(int r1, int r2, int c1, int c2) =>
+            sheet.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r1, r2, c1, c2));
+
+        Cell(0, 0, "Дни"); Cell(0, 1, "Часы"); Cell(0, 2, "Б03-401");
+        Cell(0, 3, "Дни"); Cell(0, 4, "Часы"); Cell(0, 5, "Б09-401"); Merge(0, 0, 5, 6);
+
+        Cell(1, 0, "Понедельник"); Merge(1, 3, 0, 0);
+        Cell(1, 3, "Понедельник"); Merge(1, 3, 3, 3);
+
+        // Тот же ряд, разное время у блоков — ровно как B43/AE43 в исходнике
+        Cell(1, 1, "900 - 1025");   Cell(1, 4, "900 - 1025");
+        Cell(2, 1, "1840 - 2005");  Cell(2, 4, "1845 - 2005");
+        Cell(3, 1, "1035 - 1200");  Cell(3, 4, "1035 - 1200");
+
+        Cell(1, 2, "Матанализ");
+        // Вечерняя пара есть в обоих блоках — время у них отличается на пять минут
+        Cell(2, 2, "Вычислительная математика");
+        Cell(1, 5, "Иностранный язык");
+        // Только во второй колонке группы: раньше терялось молча
+        Cell(2, 6, "Физкультура");
+        // Объединение на обе колонки группы — читается дважды, сохраниться должно один раз
+        Cell(3, 5, "Общая лекция"); Merge(3, 3, 5, 6);
+
+        var path = Path.Combine(FileSystem.AppDataDirectory, name);
+        using var stream = File.Create(path);
+        workbook.Write(stream);
+        return path;
+    }
+
+    /// <summary>Лист из одного блока с одной парой: для проверок разбора текста.</summary>
+    private static string WriteWorkbookWithText(string name, string slot, string lessonText)
+    {
+        using var workbook = new NPOI.HSSF.UserModel.HSSFWorkbook();
+        var sheet = workbook.CreateSheet("Schedule");
+        void Cell(int row, int column, string text) =>
+            (sheet.GetRow(row) ?? sheet.CreateRow(row)).CreateCell(column).SetCellValue(text);
+
+        Cell(0, 0, "Дни"); Cell(0, 1, "Часы"); Cell(0, 2, "Б03-401");
+        Cell(1, 0, "Понедельник"); Cell(1, 1, slot); Cell(1, 2, lessonText);
+
+        var path = Path.Combine(FileSystem.AppDataDirectory, name);
+        using var stream = File.Create(path);
+        workbook.Write(stream);
+        return path;
+    }
+
+    // Шапка группы бывает объединена на несколько колонок, и под каждой свои пары.
+    // У Б09-401 в настоящем файле так терялись два занятия иностранным: 3 пары вместо 5
+    private static Task SecondGroupColumnIsRead()
+    {
+        var path = WriteWorkbookWithTwoBlocks("twoblocks.xls");
+        var parser = new ExcelMIPTScheduleParser(Logger);
+        var lessons = parser.ParseGroupSchedule(path, "Б09-401", out _, out _);
+
+        Check(lessons.Any(l => l.Name == "Физкультура"));
+        Check(lessons.Count == 3);
+
+        // Соседняя группа своего расписания при этом не набирает
+        var neighbour = parser.ParseGroupSchedule(path, "Б03-401", out _, out _);
+        Check(neighbour.Count == 2 && neighbour.All(l => l.Name != "Физкультура"));
+        return Task.CompletedTask;
+    }
+
+    private static Task SharedMergeIsNotDuplicated()
+    {
+        var path = WriteWorkbookWithTwoBlocks("shared.xls");
+        var parser = new ExcelMIPTScheduleParser(Logger);
+        var lessons = parser.ParseGroupSchedule(path, "Б09-401", out _, out _);
+
+        Check(lessons.Count(l => l.Name == "Общая лекция") == 1);
+        return Task.CompletedTask;
+    }
+
+    // День и время брались всегда из колонок 0 и 1, поэтому группы неголовных блоков
+    // получали чужое время: в среду B43 говорит «1840 - 2005», а AE43 — «1845 - 2005»
+    private static Task GroupUsesItsOwnBlockTimes()
+    {
+        var path = WriteWorkbookWithTwoBlocks("blocks.xls");
+        var parser = new ExcelMIPTScheduleParser(Logger);
+
+        var second = parser.ParseGroupSchedule(path, "Б09-401", out _, out _);
+        var pe = second.Single(l => l.Name == "Физкультура");
+        Check(pe.StartTime == new TimeSpan(18, 45, 0) && pe.EndTime == new TimeSpan(20, 5, 0));
+
+        // У первого блока своё время в том же ряду
+        var first = parser.ParseGroupSchedule(path, "Б03-401", out _, out _);
+        var evening = first.Single(l => l.StartTime.Hours == 18);
+        Check(evening.StartTime == new TimeSpan(18, 40, 0));
+        return Task.CompletedTask;
+    }
+
+    // «Современное компьютерное зрение (с 18-00 до 21-00)» шло как 18:40–20:05:
+    // читалась только разметка слотов, а написанное в ячейке время игнорировалось
+    private static Task ExplicitTimeInTextWins()
+    {
+        var path = WriteWorkbookWithText("explicit.xls", "1840 - 2005",
+            "Компьютерное зрение (с 18-00 до 21-00)");
+        var parser = new ExcelMIPTScheduleParser(Logger);
+        var lesson = parser.ParseGroupSchedule(path, "Б03-401", out _, out _).Single();
+
+        Check(lesson.StartTime == new TimeSpan(18, 0, 0) && lesson.EndTime == new TimeSpan(21, 0, 0));
+        return Task.CompletedTask;
+    }
+
+    // Обратная сторона предыдущего: номер аудитории и перечисление не время
+    private static Task NumbersInTextAreNotTimes()
+    {
+        var parser = new ExcelMIPTScheduleParser(Logger);
+
+        foreach (var text in new[]
+        {
+            "Мат.стат. (ст.пр. Ченцов А.М.-Цифра 2.36)",
+            "Блок по выбору 3: 1 из 2: Программирование",
+            "Матлогика (ст.пр. Глинский М.С.-4.22 УК)"
+        })
+        {
+            var path = WriteWorkbookWithText("nottime.xls", "900 - 1025", text);
+            var lesson = parser.ParseGroupSchedule(path, "Б03-401", out _, out _).Single();
+            Check(lesson.StartTime == new TimeSpan(9, 0, 0) && lesson.EndTime == new TimeSpan(10, 25, 0));
+        }
+        return Task.CompletedTask;
+    }
+
+    // Шаблон аудитории «\d+ [А-Я]{1,3}» с общим IgnoreCase принимал «1 из» за номер
+    // с корпусом, и шесть групп получали название «Блок по выбору 10:»
+    private static Task OrdinaryWordIsNotARoom()
+    {
+        var path = WriteWorkbookWithText("room.xls", "900 - 1025",
+            "Блок по выбору 10: 1 из списка: Сложность вычислений. Избранные главы -432 ГК");
+        var parser = new ExcelMIPTScheduleParser(Logger);
+        var lesson = parser.ParseGroupSchedule(path, "Б03-401", out _, out _).Single();
+
+        Check(lesson.Name.Contains("Сложность вычислений"));
+        Check(lesson.Description == "432 ГК");
         return Task.CompletedTask;
     }
 

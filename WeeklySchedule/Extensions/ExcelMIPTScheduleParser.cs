@@ -21,9 +21,23 @@ public class ExcelMIPTScheduleParser
     private static readonly Regex GroupNameSplitRegex = new(@"(?=Б\d{2}-\d{3})", RegexOptions.Compiled);
     private static readonly Regex WordSplitRegex = new(@"[\s\n\r\t]+", RegexOptions.Compiled);
     private static readonly Regex TimeRangeSplitRegex = new(@"\s*[-–—]\s*", RegexOptions.Compiled);
+    // «1 из» проходило как «номер + корпус»: с общим IgnoreCase половина шаблона
+    // \d+\s+[А-Я]{1,3} принимает и строчные буквы. Из-за этого шесть групп получали
+    // название «Блок по выбору 10:», а сам предмет уезжал в описание. Корпус в
+    // исходнике всегда прописными (ГК, КПМ, ЛК), поэтому регистр здесь значим;
+    // словесные формы аудитории регистронезависимы через встроенный (?i:…)
     private static readonly Regex RoomRegex = new(
-        @"(ауд\.|кабинет|каб\.)\s*\d+|(\d+\s+[А-Я]{1,3}\b)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        @"(?i:ауд\.|кабинет|каб\.)\s*\d+|\d+\s+[А-Я]{1,3}\b",
+        RegexOptions.Compiled);
+
+    // Явное время внутри текста пары: «с 18-00 до 21-00» или «13:55-15:20».
+    // Либо ключевые слова «с … до …», либо двоеточия в обеих половинах — иначе
+    // временем становятся номера аудиторий («-432 ГК»), перечисления («1 из 2»)
+    // и адреса вроде «Цифра №4.24»
+    private static readonly Regex ExplicitTimeRegex = new(
+        @"с\s*(\d{1,2})[-:.](\d{2})\s*до\s*(\d{1,2})[-:.](\d{2})"
+        + @"|(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})",
+        RegexOptions.Compiled);
     private static readonly Regex InitialsRegex = new(@"[А-Я]\.\s*[А-Я]\.\s*[А-Яа-я]+", RegexOptions.Compiled);
     private static readonly Regex InitialsWordRegex = new(@"\b[А-Я]\.\s*[А-Я]\.\s*[А-Яа-яё]+", RegexOptions.Compiled);
 
@@ -145,17 +159,20 @@ public class ExcelMIPTScheduleParser
         using var workbook = WorkbookFactory.Create(fs);
         var sheet = workbook.GetSheetAt(0);
 
-        int groupColIndex = FindGroupColumn(sheet, groupName);
-        if (groupColIndex == -1)
+        int headerRow = FindHeaderRow(sheet);
+        var groupCols = FindGroupColumns(sheet, groupName, headerRow);
+        if (groupCols.First == -1)
         {
             _logger.LogWarning("Группа {GroupName} не найдена.", groupName);
             return lessons;
         }
 
-        int startDataRow = FindStartDataRow(sheet);
+        var (dayCol, hourCol) = FindBlockColumns(sheet, headerRow, groupCols.First);
+
+        int startDataRow = headerRow >= 0 ? headerRow + 1 : 5;
         int lastRow = sheet.LastRowNum;
 
-        var timeSlots = BuildTimeSlotsMap(sheet, startDataRow, lastRow);
+        var timeSlots = BuildTimeSlotsMap(sheet, startDataRow, lastRow, hourCol);
 
         // Ниже последнего слота расписания уже нет: в файле МФТИ там лежит
         // объединенная на всю ширину сноска «В расписании возможны изменения…».
@@ -174,99 +191,115 @@ public class ExcelMIPTScheduleParser
             var row = sheet.GetRow(r);
             if (row == null) continue;
 
-            string dayStr = GetEffectiveCellText(sheet, r, 0);
+            string dayStr = GetEffectiveCellText(sheet, r, dayCol);
             if (!string.IsNullOrWhiteSpace(dayStr) && IsDayOfWeekValue(dayStr))
             {
                 currentDay = ParseDayOfWeek(dayStr);
             }
 
-            var mergedRegion = GetMergedRegionForCell(sheet, r, groupColIndex);
-
-            ICell? cell = null;
-            int firstRow = r;
-            int lastRowOfLesson = r;
-
-            if (mergedRegion != null)
+            // Все колонки группы, а не только первая: в правых лежат пары подгрупп
+            // и альтернативы. Повторы снимает ключ addedLessons — объединение,
+            // накрывающее обе колонки, дает один и тот же ключ
+            for (int groupColIndex = groupCols.First; groupColIndex <= groupCols.Last; groupColIndex++)
             {
-                firstRow = mergedRegion.FirstRow;
-                lastRowOfLesson = mergedRegion.LastRow;
+                var mergedRegion = GetMergedRegionForCell(sheet, r, groupColIndex);
 
-                var masterRow = sheet.GetRow(mergedRegion.FirstRow);
-                if (masterRow != null)
+                ICell? cell = null;
+                int firstRow = r;
+                int lastRowOfLesson = r;
+
+                if (mergedRegion != null)
                 {
-                    cell = masterRow.GetCell(mergedRegion.FirstColumn);
+                    firstRow = mergedRegion.FirstRow;
+                    lastRowOfLesson = mergedRegion.LastRow;
+
+                    var masterRow = sheet.GetRow(mergedRegion.FirstRow);
+                    if (masterRow != null)
+                    {
+                        cell = masterRow.GetCell(mergedRegion.FirstColumn);
+                    }
                 }
-            }
-            else
-            {
-                cell = row.GetCell(groupColIndex);
-            }
-
-            if (cell == null || cell.CellType == CellType.Blank) continue;
-
-            string rawText = _formatter.FormatCellValue(cell).Trim();
-            if (string.IsNullOrWhiteSpace(rawText)) continue;
-
-            var normalizedText = WhitespaceRegex.Replace(rawText, " ").Trim();
-            if (normalizedText.StartsWith("Базовый день", StringComparison.OrdinalIgnoreCase))
-            {
-                var bounds = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
-                var dayRegion = GetMergedRegionForCell(sheet, r, 0);
-                // Пометка на весь день — либо по объединению в колонке дня, либо когда
-                // время не распозналось: подпись "00:00–00:00" врала бы о границах
-                bool allDay =
-                    (dayRegion != null && firstRow <= dayRegion.FirstRow && lastRowOfLesson >= dayRegion.LastRow)
-                    || !LessonTimeRange.IsValid(bounds.Start, bounds.End);
-                var marker = new BaseDay
+                else
                 {
-                    Day = currentDay,
-                    AllDay = allDay,
-                    StartTime = bounds.Start,
-                    EndTime = bounds.End,
-                    Text = "Базовый день" + normalizedText["Базовый день".Length..]
-                };
-                if (!baseDays.Contains(marker)) baseDays.Add(marker);
-                continue;
-            }
+                    cell = row.GetCell(groupColIndex);
+                }
 
-            // null означает "не пара" (зеленая заливка) — такие ячейки пропускаем.
-            // Нераспознанные цвета метод сам отдает как LessonType.Lab.
-            var lessonType = DetermineLessonTypeByColor(cell);
-            if (lessonType == null) continue;
+                if (cell == null || cell.CellType == CellType.Blank) continue;
 
-            var (name, description) = ParseLessonText(cell, rawText);
-            if (string.IsNullOrWhiteSpace(name)) continue;
+                string rawText = _formatter.FormatCellValue(cell).Trim();
+                if (string.IsNullOrWhiteSpace(rawText)) continue;
 
-            var (startTime, endTime) = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
-            // Условие было через &&, то есть отсекались только пары, у которых не
-            // распозналась НИ ОДНА граница. Пара с одной границей уходила в хранилище
-            // с EndTime = 00:00, а WeekLayout отбрасывает такие пары — на экране
-            // пропадал целый день. Повторный импорт не помогал: разбор давал тот же
-            // испорченный ключ, и AddMissingAsync считал пару уже существующей
-            if (!LessonTimeRange.IsValid(startTime, endTime))
-            {
-                skippedRows++;
-                _logger.LogWarning(
-                    "Строка {Row} ({Day}, «{Name}») пропущена: время не определено ({Start}–{End})",
-                    r, currentDay, name, startTime, endTime);
-                continue;
-            }
-
-            // Создаем уникальный ключ для проверки дубликатов
-            string lessonKey = $"{currentDay}_{startTime}_{endTime}_{name}_{description}_{lessonType}";
-
-            if (!addedLessons.Contains(lessonKey))
-            {
-                addedLessons.Add(lessonKey);
-                lessons.Add(new Lesson
+                var normalizedText = WhitespaceRegex.Replace(rawText, " ").Trim();
+                if (normalizedText.StartsWith("Базовый день", StringComparison.OrdinalIgnoreCase))
                 {
-                    Name = name,
-                    Description = description,
-                    Type = lessonType.Value,
-                    Day = currentDay,
-                    StartTime = startTime,
-                    EndTime = endTime
-                });
+                    var bounds = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
+                    var dayRegion = GetMergedRegionForCell(sheet, r, dayCol);
+                    // Пометка на весь день — либо по объединению в колонке дня, либо когда
+                    // время не распозналось: подпись "00:00–00:00" врала бы о границах
+                    bool allDay =
+                        (dayRegion != null && firstRow <= dayRegion.FirstRow && lastRowOfLesson >= dayRegion.LastRow)
+                        || !LessonTimeRange.IsValid(bounds.Start, bounds.End);
+                    var marker = new BaseDay
+                    {
+                        Day = currentDay,
+                        AllDay = allDay,
+                        StartTime = bounds.Start,
+                        EndTime = bounds.End,
+                        Text = "Базовый день" + normalizedText["Базовый день".Length..]
+                    };
+                    if (!baseDays.Contains(marker)) baseDays.Add(marker);
+                    continue;
+                }
+
+                // null означает "не пара" (зеленая заливка) — такие ячейки пропускаем.
+                // Нераспознанные цвета метод сам отдает как LessonType.Lab.
+                var lessonType = DetermineLessonTypeByColor(cell);
+                if (lessonType == null) continue;
+
+                var (name, description) = ParseLessonText(cell, rawText);
+                if (string.IsNullOrWhiteSpace(name)) continue;
+
+                var (startTime, endTime) = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
+
+                // Явное время в тексте важнее геометрии объединения: «Современное
+                // компьютерное зрение (с 18-00 до 21-00)» уходило как 18:40–20:05,
+                // потому что читалась только разметка слотов
+                if (TryParseExplicitTime(normalizedText, out var textStart, out var textEnd))
+                {
+                    startTime = textStart;
+                    endTime = textEnd;
+                }
+
+                // Условие было через &&, то есть отсекались только пары, у которых не
+                // распозналась НИ ОДНА граница. Пара с одной границей уходила в хранилище
+                // с EndTime = 00:00, а WeekLayout отбрасывает такие пары — на экране
+                // пропадал целый день. Повторный импорт не помогал: разбор давал тот же
+                // испорченный ключ, и AddMissingAsync считал пару уже существующей
+                if (!LessonTimeRange.IsValid(startTime, endTime))
+                {
+                    skippedRows++;
+                    _logger.LogWarning(
+                        "Строка {Row} ({Day}, «{Name}») пропущена: время не определено ({Start}–{End})",
+                        r, currentDay, name, startTime, endTime);
+                    continue;
+                }
+
+                // Создаем уникальный ключ для проверки дубликатов
+                string lessonKey = $"{currentDay}_{startTime}_{endTime}_{name}_{description}_{lessonType}";
+
+                if (!addedLessons.Contains(lessonKey))
+                {
+                    addedLessons.Add(lessonKey);
+                    lessons.Add(new Lesson
+                    {
+                        Name = name,
+                        Description = description,
+                        Type = lessonType.Value,
+                        Day = currentDay,
+                        StartTime = startTime,
+                        EndTime = endTime
+                    });
+                }
             }
         }
 
@@ -277,16 +310,17 @@ public class ExcelMIPTScheduleParser
 
     #region Карта временных слотов
 
-    private List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)> BuildTimeSlotsMap(ISheet sheet, int startRow, int lastRow)
+    private List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)> BuildTimeSlotsMap(
+        ISheet sheet, int startRow, int lastRow, int hourCol)
     {
         var slots = new List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)>();
         var covered = new HashSet<int>();
 
         foreach (var cr in GetMergedRegions(sheet))
         {
-            if (cr.FirstColumn == 1 && cr.LastColumn == 1)
+            if (cr.FirstColumn == hourCol && cr.LastColumn == hourCol)
             {
-                var text = GetEffectiveCellText(sheet, cr.FirstRow, 1);
+                var text = GetEffectiveCellText(sheet, cr.FirstRow, hourCol);
                 var (s, e) = ParseTimeRange(text);
                 if (s != TimeSpan.Zero && e != TimeSpan.Zero)
                 {
@@ -302,7 +336,7 @@ public class ExcelMIPTScheduleParser
         {
             if (covered.Contains(r)) continue;
 
-            var (s, e) = ParseTimeRange(GetEffectiveCellText(sheet, r, 1));
+            var (s, e) = ParseTimeRange(GetEffectiveCellText(sheet, r, hourCol));
             if (s != TimeSpan.Zero && e != TimeSpan.Zero)
             {
                 slots.Add((r, r, s, e));
@@ -365,12 +399,18 @@ public class ExcelMIPTScheduleParser
 
     #region Вспомогательные методы
 
-    private int FindGroupColumn(ISheet sheet, string groupName)
+    /// <summary>
+    /// Диапазон колонок группы. Шапка группы бывает объединена на несколько колонок,
+    /// и под каждой лежат свои пары: у Б09-401 шапка занимает колонки 106–107, в левой
+    /// стоит иностранный на 9:00 и 10:35, в правой — ещё два на 12:10 и 13:55. Читалась
+    /// только левая, и приложение показывало 3 пары вместо 5.
+    /// (-1, -1), если группы на листе нет.
+    /// </summary>
+    private (int First, int Last) FindGroupColumns(ISheet sheet, string groupName, int headerRow)
     {
         // Тот же диапазон строк, что и у ExtractAllGroupNames: список групп для
         // выбора и поиск колонки обязаны понимать «шапку» одинаково, иначе
         // выбранная группа не найдется при разборе
-        int headerRow = FindHeaderRow(sheet);
         int firstScanRow = headerRow >= 0 ? headerRow : 0;
         int lastScanRow = headerRow >= 0 ? headerRow : Math.Min(15, sheet.LastRowNum);
 
@@ -381,23 +421,57 @@ public class ExcelMIPTScheduleParser
             foreach (var cell in row.Cells)
             {
                 string cellText = GetEffectiveCellText(sheet, r, cell.ColumnIndex).Trim();
+                if (!MatchesGroup(cellText, groupName)) continue;
 
-                // 1. Точное совпадение (быстрый путь)
-                if (cellText.Equals(groupName, StringComparison.OrdinalIgnoreCase))
-                    return cell.ColumnIndex;
-
-                // 2. Ячейка содержит несколько групп через перенос/пробел (например "Б09-401\nБ09-402")
-                // Разбиваем по переносам строк и пробелам, ищем точное совпадение одной из частей
-                var parts = WordSplitRegex.Split(cellText);
-                if (parts.Any(p => p.Equals(groupName, StringComparison.OrdinalIgnoreCase)))
-                    return cell.ColumnIndex;
-
-                // 3. Fallback: regex-поиск с границами слова (на случай если группа встроена в текст)
-                if (Regex.IsMatch(cellText, $@"(?:^|[\s\n\r\t]){Regex.Escape(groupName)}(?:$|[\s\n\r\t])", RegexOptions.IgnoreCase))
-                    return cell.ColumnIndex;
+                var region = GetMergedRegionForCell(sheet, r, cell.ColumnIndex);
+                return region == null
+                    ? (cell.ColumnIndex, cell.ColumnIndex)
+                    : (region.FirstColumn, region.LastColumn);
             }
         }
-        return -1;
+        return (-1, -1);
+    }
+
+    private static bool MatchesGroup(string cellText, string groupName)
+    {
+        // 1. Точное совпадение (быстрый путь)
+        if (cellText.Equals(groupName, StringComparison.OrdinalIgnoreCase)) return true;
+
+        // 2. Ячейка содержит несколько групп через перенос/пробел (например "Б09-401\nБ09-402")
+        // Разбиваем по переносам строк и пробелам, ищем точное совпадение одной из частей
+        var parts = WordSplitRegex.Split(cellText);
+        if (parts.Any(p => p.Equals(groupName, StringComparison.OrdinalIgnoreCase))) return true;
+
+        // 3. Fallback: regex-поиск с границами слова (на случай если группа встроена в текст)
+        return Regex.IsMatch(cellText,
+            $@"(?:^|[\s\n\r\t]){Regex.Escape(groupName)}(?:$|[\s\n\r\t])", RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Колонки «Дни» и «Часы» того блока, в котором лежит группа. На листе МФТИ
+    /// десять таблиц бок о бок, у каждой своя пара таких колонок, и времена у них
+    /// не совпадают: в среду колонка B говорит «1840 - 2005», а AE — «1845 - 2005».
+    /// День и время брались всегда из колонок 0 и 1, поэтому группы неголовных
+    /// блоков получали чужое время.
+    /// Если пары колонок слева не нашлось, возвращаем (0, 1) — прежнее поведение.
+    /// </summary>
+    private (int DayCol, int HourCol) FindBlockColumns(ISheet sheet, int headerRow, int groupCol)
+    {
+        if (headerRow < 0) return (0, 1);
+
+        int dayCol = -1, hourCol = -1;
+        // Берем ближайшую слева пару: блоки идут «Дни | Часы | группы… | Дни | Часы | …»
+        for (int c = 1; c <= groupCol; c++)
+        {
+            if (GetEffectiveCellText(sheet, headerRow, c) == "Часы" &&
+                GetEffectiveCellText(sheet, headerRow, c - 1) == "Дни")
+            {
+                dayCol = c - 1;
+                hourCol = c;
+            }
+        }
+
+        return hourCol >= 0 ? (dayCol, hourCol) : (0, 1);
     }
 
     /// <summary>
@@ -417,10 +491,32 @@ public class ExcelMIPTScheduleParser
         return -1;
     }
 
-    private int FindStartDataRow(ISheet sheet)
+    /// <summary>
+    /// Явное время из текста пары. false, если его там нет или оно бессмысленно —
+    /// тогда время берется из геометрии объединения, как раньше.
+    /// </summary>
+    private static bool TryParseExplicitTime(string text, out TimeSpan start, out TimeSpan end)
     {
-        int header = FindHeaderRow(sheet);
-        return header >= 0 ? header + 1 : 5;
+        start = end = TimeSpan.Zero;
+
+        var m = ExplicitTimeRegex.Match(text);
+        if (!m.Success) return false;
+
+        // Две альтернативы шаблона: группы 1-4 для «с … до …», 5-8 для «13:55-15:20»
+        int g = m.Groups[1].Success ? 1 : 5;
+        if (!int.TryParse(m.Groups[g].Value, out int h1) ||
+            !int.TryParse(m.Groups[g + 1].Value, out int m1) ||
+            !int.TryParse(m.Groups[g + 2].Value, out int h2) ||
+            !int.TryParse(m.Groups[g + 3].Value, out int m2)) return false;
+
+        if (h1 > 23 || h2 > 23 || m1 > 59 || m2 > 59) return false;
+
+        start = new TimeSpan(h1, m1, 0);
+        end = new TimeSpan(h2, m2, 0);
+
+        // Тем же предикатом, что и остальные границы: обратный или нулевой
+        // интервал лучше отдать геометрии, чем сохранить
+        return LessonTimeRange.IsValid(start, end);
     }
 
     /// <summary>
