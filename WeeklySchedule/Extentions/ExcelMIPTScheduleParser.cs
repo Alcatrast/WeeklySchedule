@@ -30,6 +30,7 @@ public class ExcelMIPTScheduleParser
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
+
             foreach (var cell in row.Cells)
             {
                 var text = _formatter.FormatCellValue(cell);
@@ -71,7 +72,6 @@ public class ExcelMIPTScheduleParser
     {
         _logger.LogInformation("Парсинг группы: {GroupName} из {FilePath}", groupName, Path.GetFileName(filePath));
         var lessons = new List<Lesson>();
-
         using var fs = File.OpenRead(filePath);
         var workbook = WorkbookFactory.Create(fs);
         var sheet = workbook.GetSheetAt(0);
@@ -85,7 +85,6 @@ public class ExcelMIPTScheduleParser
 
         int startDataRow = FindStartDataRow(sheet);
         int lastRow = sheet.LastRowNum;
-
         var timeSlots = BuildTimeSlotsMap(sheet, startDataRow, lastRow);
 
         DayOfWeek currentDay = DayOfWeek.Monday;
@@ -105,7 +104,6 @@ public class ExcelMIPTScheduleParser
             }
 
             var mergedRegion = GetMergedRegionForCell(sheet, r, groupColIndex);
-
             ICell cell = null;
             int firstRow = r;
             int lastRowOfLesson = r;
@@ -114,7 +112,6 @@ public class ExcelMIPTScheduleParser
             {
                 firstRow = mergedRegion.FirstRow;
                 lastRowOfLesson = mergedRegion.LastRow;
-
                 var masterRow = sheet.GetRow(mergedRegion.FirstRow);
                 if (masterRow != null)
                 {
@@ -143,7 +140,6 @@ public class ExcelMIPTScheduleParser
 
             // Создаем уникальный ключ для проверки дубликатов
             string lessonKey = $"{currentDay}_{startTime}_{endTime}_{name}_{description}_{lessonType}";
-
             if (!addedLessons.Contains(lessonKey))
             {
                 addedLessons.Add(lessonKey);
@@ -164,7 +160,6 @@ public class ExcelMIPTScheduleParser
     }
 
     #region Карта временных слотов
-
     private List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)> BuildTimeSlotsMap(ISheet sheet, int startRow, int lastRow)
     {
         var slots = new List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)>();
@@ -196,7 +191,6 @@ public class ExcelMIPTScheduleParser
                 }
             }
         }
-
         return slots.OrderBy(ts => ts.FirstRow).ToList();
     }
 
@@ -227,17 +221,16 @@ public class ExcelMIPTScheduleParser
 
         return (start, end);
     }
-
     #endregion
 
     #region Вспомогательные методы
-
     private int FindGroupColumn(ISheet sheet, string groupName)
     {
         for (int r = 0; r <= Math.Min(15, sheet.LastRowNum); r++)
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
+
             foreach (var cell in row.Cells)
             {
                 string cellText = GetEffectiveCellText(sheet, r, cell.ColumnIndex).Trim();
@@ -266,8 +259,10 @@ public class ExcelMIPTScheduleParser
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
+
             string col1 = GetEffectiveCellText(sheet, r, 0);
             string col2 = GetEffectiveCellText(sheet, r, 1);
+
             if (col1 == "Дни" && col2 == "Часы") return r + 1;
         }
         return 5;
@@ -323,7 +318,6 @@ public class ExcelMIPTScheduleParser
                lower == "пн" || lower == "вт" || lower == "ср" ||
                lower == "чт" || lower == "пт" || lower == "сб" || lower == "вс";
     }
-
     #endregion
 
     #region Цвет и тип пары
@@ -359,9 +353,9 @@ public class ExcelMIPTScheduleParser
                 return $"{rgb[0]:X2}{rgb[1]:X2}{rgb[2]:X2}";
             }
         }
-
         return "FFFFFF";
     }
+
     /// <summary>
     /// Определяет тип пары сравнением цвета ячейки с окрестностями эталонных цветов палитры.
     /// Допуск: ±30 по каждому RGB-каналу.
@@ -376,7 +370,6 @@ public class ExcelMIPTScheduleParser
         int b = Convert.ToInt32(hex.Substring(4, 2), 16);
 
         const int tolerance = 30;
-
         bool IsClose(int r1, int g1, int b1) =>
             Math.Abs(r - r1) <= tolerance &&
             Math.Abs(g - g1) <= tolerance &&
@@ -384,27 +377,21 @@ public class ExcelMIPTScheduleParser
 
         // FF99CC (255,153,204) — Лекция (розовый)
         if (IsClose(255, 153, 204)) return LessonType.Lecture;
-
         // 00CCFF (0,204,255) и CCFFFF (204,255,255) — Семинар (голубой/светло-голубой)
         if (IsClose(0, 204, 255) || IsClose(204, 255, 255)) return LessonType.Seminar;
-
         // FFCC00 (255,204,0) и FFFF99 (255,255,153) — Практика (жёлтый/светло-жёлтый)
         if (IsClose(255, 204, 0) || IsClose(255, 255, 153)) return LessonType.Practice;
-
         // 99CC00 (153,204,0) и CCFFCC (204,255,204) — Не пара (зелёный/светло-зелёный)
         if (IsClose(153, 204, 0) || IsClose(204, 255, 204)) return null;
 
         // Fallback: если цвет не распознан, но ячейка содержит текст — считаем Лабораторной
         string rawText = _formatter.FormatCellValue(cell).Trim();
         if (!string.IsNullOrWhiteSpace(rawText)) return LessonType.Lab;
-
         return null;
     }
-
     #endregion
 
     #region Время и День недели
-
     private (TimeSpan Start, TimeSpan End) ParseTimeRange(string timeStr)
     {
         if (string.IsNullOrWhiteSpace(timeStr)) return (TimeSpan.Zero, TimeSpan.Zero);
@@ -441,11 +428,9 @@ public class ExcelMIPTScheduleParser
         if (lower.Contains("воскресенье") || lower == "вс") return DayOfWeek.Sunday;
         return DayOfWeek.Monday;
     }
-
     #endregion
 
     #region Логика парсинга текста
-
     public (string Name, string Description) ParseLessonText(ICell cell, string rawText)
     {
         if (string.IsNullOrWhiteSpace(rawText)) return (string.Empty, string.Empty);
@@ -537,6 +522,5 @@ public class ExcelMIPTScheduleParser
         return text.Trim().TrimEnd('-', '–', '—', ',', ' ', '\t', '\n', '\r')
                    .TrimStart('-', '–', '—', ' ', '\t', '\n', '\r');
     }
-
     #endregion
 }
