@@ -39,7 +39,7 @@
                                         <DataTemplate x:DataType="models:GroupItem">
                                             <Border StrokeShape="RoundRectangle 20"
                                                     BackgroundColor="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                                                    Margin="4" Padding="12,6" HeightRequest="40" IsEnabled="{Binding IsEnabled}">
+                                                    Margin="4" Padding="12,6" HeightRequest="40">
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnGroupTapped" />
                                                 </Border.GestureRecognizers>

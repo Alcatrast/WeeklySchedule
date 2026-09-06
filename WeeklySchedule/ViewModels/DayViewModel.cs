@@ -25,14 +25,12 @@ public partial class DayViewModel : BaseViewModel
         TimeSpan Start, TimeSpan End, LessonType Type);
     public event Action? LayoutUpdated;
     public event Action? ScrollToCurrentRequested;
-    public ICommand EditLessonCommand { get; }
     public ICommand ViewLessonCommand { get; }
     public ICommand LessonActionsCommand { get; }
 
     public DayViewModel(DateTime date)
     {
         Date = date.Date;
-        EditLessonCommand = new Command<Lesson>(OnEditLesson);
         ViewLessonCommand = new Command<Lesson>(lesson =>
         {
             if (lesson != null) SafeFireAndForget.Run(() => LessonDetailsPage.OpenAsync(lesson.Id));
@@ -41,15 +39,6 @@ public partial class DayViewModel : BaseViewModel
         {
             if (lesson != null) SafeFireAndForget.Run(() => Services.ItemActions.ShowLessonAsync(lesson));
         });
-    }
-
-    private void OnEditLesson(Lesson? lesson)
-    {
-        if (EditLessonPage.IsOpen) return;
-        if (lesson == null) return;
-
-        SafeFireAndForget.Run(() =>
-            EditLessonPage.OpenModalAsync(new EditLessonPage(lesson), wrapInNavigationPage: true));
     }
 
     public bool ScrollRequested { get; private set; }

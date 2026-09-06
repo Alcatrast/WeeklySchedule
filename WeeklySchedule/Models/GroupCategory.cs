@@ -27,11 +27,4 @@ public class GroupItem : BaseViewModel
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
     }
-
-    private bool _isEnabled = true;
-    public bool IsEnabled
-    {
-        get => _isEnabled;
-        set => SetProperty(ref _isEnabled, value);
-    }
 }

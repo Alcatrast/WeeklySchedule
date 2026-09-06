@@ -7,7 +7,9 @@ public static class WeeklyOccurrence
     public static DateTimeOffset Next(DayOfWeek day, TimeSpan startTime, int minutesBefore,
         DateTimeOffset after, TimeZoneInfo zone)
     {
-        if (!Enum.IsDefined(day) || startTime < TimeSpan.Zero || startTime >= TimeSpan.FromDays(1))
+        if (!Enum.IsDefined(day))
+            throw new ArgumentOutOfRangeException(nameof(day));
+        if (startTime < TimeSpan.Zero || startTime >= TimeSpan.FromDays(1))
             throw new ArgumentOutOfRangeException(nameof(startTime));
         if (minutesBefore < 0 || minutesBefore > 7 * 24 * 60)
             throw new ArgumentOutOfRangeException(nameof(minutesBefore));

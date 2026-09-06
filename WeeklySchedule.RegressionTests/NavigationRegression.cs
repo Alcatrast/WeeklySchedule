@@ -16,7 +16,10 @@ static class NavigationRegression
         ("Warm notification navigation updates the already open main view", WarmNavigation),
         ("Settings refresh reflects added, renamed and deleted timelines", RefreshSettings),
         ("Stale settings refresh cannot replace the newest list", StaleSettings),
-        ("Rebinding and unloading day view releases both event handlers", DaySubscriptions)
+        ("Rebinding and unloading day view releases both event handlers", DaySubscriptions),
+        ("Alarms carry the lesson's own weekday and start time", AlarmMoments),
+        ("Unreadable catalogue is repaired on the read path", CatalogueRecovery),
+        ("Unrepairable catalogue does not loop", CatalogueRecoveryGivesUp)
     ];
 
     private static void Check(bool condition)
@@ -170,6 +173,91 @@ static class NavigationRegression
         return Task.CompletedTask;
     }
 
+    // Реализация уведомлений сама ищет ближайшее вхождение по дню недели и времени
+    // начала. Раньше MainViewModel считал для этого целую дату, а Android-сервис ее
+    // выбрасывал, оставляя от нее ровно эти два поля
+    private static async Task AlarmMoments()
+    {
+        var f = new Fixture();
+        f.Settings.NotifyBeforeList = [new NotificationReminder { MinutesBefore = 15, IsActive = true }];
+        f.Lessons.Items[f.A.Id] = [new Lesson
+        {
+            TimelineId = f.A.Id, Day = DayOfWeek.Thursday,
+            StartTime = new TimeSpan(13, 55, 0), EndTime = new TimeSpan(15, 20, 0)
+        }];
+        await f.VM.ScheduleAllNotificationsAsync();
+        Check(f.Notifications.Moments.Count == 2);
+        Check(f.Notifications.Moments.All(m => m.Day == DayOfWeek.Thursday && m.Start == new TimeSpan(13, 55, 0)));
+        Check(f.Notifications.Moments.Select(m => m.Minutes).Order().SequenceEqual([0, 15]));
+        f.VM.StopMonitor();
+    }
+
+    private static async Task CatalogueRecovery()
+    {
+        var path = Path.Combine(FileSystem.AppDataDirectory, "timelines.json");
+        File.WriteAllText(path, "broken-json");
+        var timelines = new FileTimelineRepository();
+        Application.Current = new Application();
+        var vm = new MainViewModel(new NoLessons(), timelines, new TestSeeder(), new TestActiveSchedule(),
+            new TestSettings(), new NotificationNavigationService(), new RecordingNotifications());
+        try
+        {
+            // Чтения бросают намеренно, а починка живет на путях записи. Без явной
+            // попытки восстановления главный экран молча оставался пустым навсегда
+            await vm.InitializeDataAsync();
+            Check(Directory.GetFiles(FileSystem.AppDataDirectory, "timelines.corrupted-*.json").Length == 1);
+            var recovered = (await timelines.GetAllAsync()).Single();
+            Check(recovered.Name == "Мое расписание" && vm.CurrentTimelineName == "Мое расписание");
+            Check(vm.ActiveTimelineId == recovered.Id);
+        }
+        finally { vm.StopMonitor(); }
+    }
+
+    private static async Task CatalogueRecoveryGivesUp()
+    {
+        var repo = new AlwaysCorruptTimelines();
+        Application.Current = new Application();
+        var vm = new MainViewModel(new NoLessons(), repo, new TestSeeder(), new TestActiveSchedule(),
+            new TestSettings(), new NotificationNavigationService(), new RecordingNotifications());
+        try
+        {
+            await Throws<System.Text.Json.JsonException>(vm.InitializeDataAsync);
+            // Ровно одна попытка починки, а не бесконечный круг
+            Check(repo.RecoveryAttempts == 1);
+        }
+        finally { vm.StopMonitor(); }
+    }
+
+    private static async Task Throws<T>(Func<Task> action) where T : Exception
+    {
+        try { await action(); }
+        catch (T) { return; }
+        throw new Exception($"Expected {typeof(T).Name}");
+    }
+
+    private sealed class NoLessons : ILessonRepository
+    {
+        public Task<IEnumerable<Lesson>> GetByTimelineIdAsync(Guid id) => Task.FromResult<IEnumerable<Lesson>>([]);
+        public Task<IEnumerable<Lesson>> GetAllAsync() => Task.FromResult<IEnumerable<Lesson>>([]);
+        public Task<Lesson?> GetByIdAsync(Guid id) => Task.FromResult<Lesson?>(null);
+        public Task AddAsync(Lesson lesson) => Task.CompletedTask;
+        public Task UpdateAsync(Lesson lesson) => Task.CompletedTask;
+        public Task DeleteAsync(Guid id) => Task.CompletedTask;
+    }
+
+    private sealed class AlwaysCorruptTimelines : ITimelineRepository
+    {
+        public int RecoveryAttempts;
+        private static Task<T> Corrupt<T>() => Task.FromException<T>(new System.Text.Json.JsonException("broken"));
+        public Task<IEnumerable<Timeline>> GetAllAsync() => Corrupt<IEnumerable<Timeline>>();
+        public Task<Timeline?> GetByIdAsync(Guid id) => Corrupt<Timeline?>();
+        public Task AddAsync(Timeline timeline) => Task.CompletedTask;
+        public Task UpdateAsync(Timeline timeline) => Task.CompletedTask;
+        public Task DeleteAsync(Guid id) => Task.CompletedTask;
+        // Починка "удалась", но каталог все равно не читается
+        public Task<bool> TryRecoverCorruptedAsync() { RecoveryAttempts++; return Task.FromResult(true); }
+    }
+
     private sealed class Fixture
     {
         public Timeline A { get; } = new() { Name = "A" };
@@ -205,6 +293,7 @@ static class NavigationRegression
         public Task AddAsync(Timeline timeline) { Items.Add(timeline); return Task.CompletedTask; }
         public Task UpdateAsync(Timeline timeline) => throw new NotSupportedException();
         public Task DeleteAsync(Guid id) => throw new NotSupportedException();
+        public Task<bool> TryRecoverCorruptedAsync() => Task.FromResult(false);
     }
 
     private sealed class ControlledLessons : ILessonRepository
@@ -236,12 +325,17 @@ static class NavigationRegression
     {
         public int Cancellations { get; private set; }
         public List<(Guid Timeline, Guid Lesson)> Scheduled { get; } = [];
-        public void CancelAllNotifications() { Cancellations++; Scheduled.Clear(); }
-        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime time, int minutes) => Scheduled.Add((timelineId, lessonId));
+        public List<(DayOfWeek Day, TimeSpan Start, int Minutes)> Moments { get; } = [];
+        public void CancelAllNotifications() { Cancellations++; Scheduled.Clear(); Moments.Clear(); }
+        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
+            DayOfWeek day, TimeSpan startTime, int minutes)
+        {
+            Scheduled.Add((timelineId, lessonId));
+            Moments.Add((day, startTime, minutes));
+        }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
         public Task<bool> CheckAllPermissionsAsync() => Task.FromResult(true);
         public Task RequestPermissionAsync() => Task.CompletedTask;
         public Task RequestAllPermissionsAsync() => Task.CompletedTask;
-        public void CancelNotificationsForLesson(Guid lessonId) => throw new NotSupportedException();
     }
 }

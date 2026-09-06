@@ -197,6 +197,7 @@ sealed class DelayedRepository : ITimelineRepository
     public Task AddAsync(Timeline timeline) => throw new NotSupportedException();
     public Task UpdateAsync(Timeline timeline) => throw new NotSupportedException();
     public Task DeleteAsync(Guid id) => throw new NotSupportedException();
+    public Task<bool> TryRecoverCorruptedAsync() => Task.FromResult(false);
 }
 sealed class TestSettings : ISettingsService
 {
@@ -218,6 +219,7 @@ sealed class PendingSaveRepository : ITimelineRepository
     public Task<Timeline?> GetByIdAsync(Guid id) => throw new NotSupportedException();
     public Task UpdateAsync(Timeline timeline) => throw new NotSupportedException();
     public Task DeleteAsync(Guid id) => throw new NotSupportedException();
+    public Task<bool> TryRecoverCorruptedAsync() => Task.FromResult(false);
 }
 sealed class TestActiveSchedule : IActiveScheduleService
 {

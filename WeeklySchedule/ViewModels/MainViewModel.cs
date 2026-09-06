@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using WeeklySchedule.Core;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
@@ -53,6 +54,8 @@ public partial class MainViewModel : BaseViewModel
     private string? _notificationSettings;
     private string? _clockContext;
     private bool _monitorEnabled;
+    // Защелка от повторного захода в починку каталога из вложенного вызова
+    private bool _recoveringCatalogue;
 
     public ObservableCollection<DayViewModel> Days { get; } = [];
 
@@ -148,7 +151,7 @@ public partial class MainViewModel : BaseViewModel
     {
         ++_loadVersion;
         ++_notificationVersion;
-        if (_startupCompleted) SafeFireAndForget.Run(RefreshDataIfNeededAsync);
+        if (_startupCompleted) SafeFireAndForget.Run(RefreshWithRecoveryAsync);
     }
 
     private void OnDataChanged(DayOfWeek? affectedDay)
@@ -156,8 +159,13 @@ public partial class MainViewModel : BaseViewModel
         ++_dataRevision;
         ++_loadVersion;
         ++_notificationVersion;
-        if (_startupCompleted) SafeFireAndForget.Run(RefreshDataIfNeededAsync);
+        if (_startupCompleted) SafeFireAndForget.Run(RefreshWithRecoveryAsync);
     }
+
+    // Эти два пути идут мимо InitializeDataAsync, поэтому обертку с починкой
+    // каталога несут сами. Внутри InitializeCoreAsync вызывается голый
+    // RefreshDataIfNeededAsync: вложенные обертки мешали бы друг другу
+    private Task RefreshWithRecoveryAsync() => WithCatalogueRecoveryAsync(RefreshDataIfNeededAsync);
 
     private async Task RefreshDataIfNeededAsync()
     {
@@ -173,6 +181,51 @@ public partial class MainViewModel : BaseViewModel
             }
         }
         finally { _refreshGate.Release(); }
+    }
+
+    /// <summary>
+    /// Каталог расписаний мог остаться нечитаемым после сбоя записи. Чтения из
+    /// репозитория намеренно бросают, а починка живет на путях записи, поэтому без
+    /// этой попытки главный экран молча оставался пустым до конца жизни установки:
+    /// исключение уходило в SafeFireAndForget, а записи, которая бы все починила,
+    /// никто не начинал.
+    /// </summary>
+    private async Task WithCatalogueRecoveryAsync(Func<Task> operation)
+    {
+        try
+        {
+            await operation();
+        }
+        catch (JsonException ex)
+        {
+            // Починка уже идет в параллельной операции — второй заход по тому же
+            // файлу дал бы тот же результат
+            if (_recoveringCatalogue) throw;
+            System.Diagnostics.Debug.WriteLine($"[Каталог] нечитаемый timelines.json: {ex}");
+
+            _recoveringCatalogue = true;
+            try
+            {
+                if (!await _timelineRepository.TryRecoverCorruptedAsync()) throw;
+
+                // Незавершенная загрузка не должна опубликоваться после починки
+                ++_loadVersion;
+                ++_notificationVersion;
+                _loadedRevision = -1;
+                await operation();
+            }
+            finally { _recoveringCatalogue = false; }
+
+            await ReportCatalogueResetAsync();
+        }
+    }
+
+    private static async Task ReportCatalogueResetAsync()
+    {
+        if (Application.Current?.Windows.FirstOrDefault()?.Page is Page page)
+            await page.DisplayAlertAsync("Список расписаний повреждён",
+                "Файл со списком расписаний не читается, рядом с ним сохранена копия. " +
+                "Список создан заново — сами пары остались на месте.", "ОК");
     }
 
     public async Task ReloadActiveTimelineAsync()
@@ -251,39 +304,44 @@ public partial class MainViewModel : BaseViewModel
         await _initGate.WaitAsync();
         try
         {
-            if (!_startupCompleted)
-            {
-                await _seeder.SeedAsync(_repository, _timelineRepository, _scheduleService);
-                // Боковое меню могло прочитать пустой каталог раньше первого посева.
-                AppEvents.NotifyDataChanged();
-
-                // Только на старте: иначе возврат с модалки перебивал бы таймлайн,
-                // который пользователь выбрал руками
-                await ApplyStartupTimelineLogicAsync();
-                _startupCompleted = true;
-            }
-
-            CheckPendingNavigation();
-            if (_loadedTimelineId != ActiveTimelineId || _loadedRevision != _dataRevision)
-            {
-                await RefreshDataIfNeededAsync();
-            }
-            else
-            {
-                // Возврат из просмотра/редактора без сохранения: данные уже в памяти.
-                // Время могло измениться, даже если файлы остались прежними.
-                if (_monitorEnabled) _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
-                RollDaysWindow();
-                UpdateAllTitles();
-                UpdateAllDays();
-                var clockContext = CurrentClockContext();
-                if (_clockContext != clockContext || _notificationSettings != NotificationSettingsKey())
-                    await ScheduleAllNotificationsAsync();
-            }
+            await WithCatalogueRecoveryAsync(InitializeCoreAsync);
         }
         finally
         {
             _initGate.Release();
+        }
+    }
+
+    private async Task InitializeCoreAsync()
+    {
+        if (!_startupCompleted)
+        {
+            await _seeder.SeedAsync(_repository, _timelineRepository, _scheduleService);
+            // Боковое меню могло прочитать пустой каталог раньше первого посева.
+            AppEvents.NotifyDataChanged();
+
+            // Только на старте: иначе возврат с модалки перебивал бы таймлайн,
+            // который пользователь выбрал руками
+            await ApplyStartupTimelineLogicAsync();
+            _startupCompleted = true;
+        }
+
+        CheckPendingNavigation();
+        if (_loadedTimelineId != ActiveTimelineId || _loadedRevision != _dataRevision)
+        {
+            await RefreshDataIfNeededAsync();
+        }
+        else
+        {
+            // Возврат из просмотра/редактора без сохранения: данные уже в памяти.
+            // Время могло измениться, даже если файлы остались прежними.
+            if (_monitorEnabled) _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
+            RollDaysWindow();
+            UpdateAllTitles();
+            UpdateAllDays();
+            var clockContext = CurrentClockContext();
+            if (_clockContext != clockContext || _notificationSettings != NotificationSettingsKey())
+                await ScheduleAllNotificationsAsync();
         }
     }
 
@@ -380,29 +438,34 @@ public partial class MainViewModel : BaseViewModel
             return;
         }
 
-        var now = TimeContext.Now;
         foreach (var lesson in lessons)
         {
-            if (notifyAtStart)
+            // Испорченное время одной пары не должно оставлять без будильников
+            // все остальные: без этого исключение уходило в SafeFireAndForget,
+            // цикл обрывался, а признак успеха не выставлялся и попытка
+            // повторялась при каждом возврате на экран — с тем же результатом
+            try
             {
-                _notificationService.ScheduleNotification(
-                    timeline.Id, lesson.Id,
-                    $"Начало пары: {lesson.Name}", lesson.Description,
-                    GetNextOccurrence(lesson, now), 0);
+                if (notifyAtStart)
+                {
+                    _notificationService.ScheduleNotification(
+                        timeline.Id, lesson.Id,
+                        $"Начало пары: {lesson.Name}", lesson.Description,
+                        lesson.Day, lesson.StartTime, 0);
+                }
+
+                foreach (var reminder in activeReminders)
+                {
+                    _notificationService.ScheduleNotification(
+                        timeline.Id, lesson.Id,
+                        $"Скоро начнется: {lesson.Name}",
+                        $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
+                        lesson.Day, lesson.StartTime, reminder.MinutesBefore);
+                }
             }
-
-            foreach (var reminder in activeReminders)
+            catch (ArgumentOutOfRangeException ex)
             {
-                // Отсчитываем от момента напоминания, а не от начала пары: если до
-                // начала осталось меньше, чем MinutesBefore, сегодняшнее напоминание
-                // уже неактуально и брать надо следующую неделю
-                var start = GetNextOccurrence(lesson, now.AddMinutes(reminder.MinutesBefore));
-
-                _notificationService.ScheduleNotification(
-                    timeline.Id, lesson.Id,
-                    $"Скоро начнется: {lesson.Name}",
-                    $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
-                    start, reminder.MinutesBefore);
+                System.Diagnostics.Debug.WriteLine($"[Уведомления] пара {lesson.Id}: {ex}");
             }
         }
         _notificationSettings = settingsKey;
@@ -411,17 +474,4 @@ public partial class MainViewModel : BaseViewModel
 
     private static string CurrentClockContext() =>
         $"{TimeZoneInfo.Local.Id}:{TimeZoneInfo.Local.GetUtcOffset(TimeContext.Now)}";
-
-    /// <summary>
-    /// Ближайшее будущее начало пары. Если сегодняшнее вхождение уже прошло, берется
-    /// следующая неделя: раньше такая пара не получала уведомления вообще, потому что
-    /// прошедшее время просто отсеивалось проверкой, а на следующую неделю ничего
-    /// не ставилось.
-    /// </summary>
-    private static DateTime GetNextOccurrence(Lesson lesson, DateTime from)
-    {
-        int daysUntil = ((int)lesson.Day - (int)from.DayOfWeek + 7) % 7;
-        var occurrence = from.Date.AddDays(daysUntil).Add(lesson.StartTime);
-        return occurrence > from ? occurrence : occurrence.AddDays(7);
-    }
 }

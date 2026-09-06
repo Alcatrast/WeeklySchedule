@@ -46,7 +46,10 @@ public sealed class LessonCardView : Border
         _description.Text = lesson.Description;
         _description.IsVisible = !string.IsNullOrWhiteSpace(lesson.Description);
         BackgroundColor = LessonColor.Convert(lesson.Type, typeof(Color), null, CultureInfo.InvariantCulture) as Color ?? Colors.Gray;
-        bool current = day.Date == now.Date && now.TimeOfDay >= lesson.StartTime && now.TimeOfDay < lesson.EndTime;
+        // Признак текущей пары считает TimelineLayoutBuilder.RefreshState. Здесь
+        // была вторая копия того же правила, которую ничто не удерживало в
+        // соответствии с первой
+        bool current = placement.IsCurrent;
         StrokeThickness = current ? 3 : 0;
         Stroke = current ? Colors.Red : Colors.Transparent;
         Opacity = day.Date == now.Date && now.TimeOfDay >= lesson.EndTime ? 0.5 : 1;

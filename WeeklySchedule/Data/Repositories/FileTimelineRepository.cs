@@ -60,6 +60,27 @@ public class FileTimelineRepository : ITimelineRepository
         AtomicFile.WriteAllText(_filePath, JsonSerializer.Serialize(timelines, _jsonOptions));
     }
 
+    public async Task<bool> TryRecoverCorruptedAsync()
+    {
+        return await Task.Run(() =>
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    LoadAll();
+                    return false;
+                }
+                catch (JsonException) { }
+
+                // Тот же путь, что и у операций записи: оригинал уезжает в
+                // резервную копию, на его место встает пустой каталог
+                SaveAll(LoadAllForWrite());
+                return true;
+            }
+        });
+    }
+
     public async Task<IEnumerable<Timeline>> GetAllAsync()
     {
         return await Task.Run(() => { lock (_lock) return LoadAll(); });

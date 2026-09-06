@@ -12,10 +12,9 @@
                 <ResourceDictionary Source="Resources/Styles/Icons.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <converters:LessonTypeToColorConverter x:Key="LessonTypeToColorConverter" />
-            <converters:BoolToOpacityConverter x:Key="BoolToOpacity" />
-            <converters:SeparatorTypeToHeightConverter x:Key="SepToHeight" />
-            <converters:SeparatorTypeToColorConverter x:Key="SepToColor" />
+            <!-- Только те, что действительно используются из XAML. Конвертеры типа
+                 пары и разделителей вызываются из кода, где у DayView и LessonCardView
+                 собственные статические экземпляры -->
             <converters:IsEqualConverter x:Key="IsEqualConverter" />
             <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
         </ResourceDictionary>

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using WeeklySchedule.Models;
+using System.Diagnostics;
 
 namespace WeeklySchedule.Services;
 
@@ -11,12 +10,14 @@ public class MockNotificationService : INotificationService
     public Task<bool> CheckAllPermissionsAsync() => Task.FromResult(true);
     public Task RequestAllPermissionsAsync() => Task.CompletedTask;
 
-    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime triggerTime, int minutesBefore)
+    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
+        DayOfWeek day, TimeSpan startTime, int minutesBefore)
     {
 #if DEBUG
-        Debug.WriteLine($"[MOCK Notification] Запланировано: '{title}' на {triggerTime}");
+        Debug.WriteLine($"[MOCK Notification] Запланировано: '{title}' на {day} {startTime:hh\\:mm} " +
+            $"(за {minutesBefore} мин.)");
 #endif
     }
-    public void CancelNotificationsForLesson(Guid lessonId) { }
+
     public void CancelAllNotifications() { }
 }

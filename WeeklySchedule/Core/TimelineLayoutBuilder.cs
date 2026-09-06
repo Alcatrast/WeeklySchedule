@@ -166,8 +166,7 @@ public static class TimelineLayoutBuilder
             TotalMinutes = totalMinutes,
             TotalColumns = totalColumns,
             Lessons = placements,
-            Segments = segments,
-            DayStartTime = date.Date.Add(minStart)
+            Segments = segments
         };
         RefreshState(layout, date, now);
         return layout;

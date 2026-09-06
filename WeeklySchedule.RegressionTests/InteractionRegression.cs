@@ -498,13 +498,14 @@ static class InteractionRegression
         public Task AddAsync(Timeline timeline) { Timelines.Add(timeline); return Task.CompletedTask; }
         public Task UpdateAsync(Timeline timeline) => Task.CompletedTask;
         Task ITimelineRepository.DeleteAsync(Guid id) { Timelines.RemoveAll(t => t.Id == id); Lessons.RemoveAll(l => l.TimelineId == id); return Task.CompletedTask; }
+        public Task<bool> TryRecoverCorruptedAsync() => Task.FromResult(false);
     }
     private sealed class Notifications : INotificationService
     {
         public int Cancellations;
         public void CancelAllNotifications() => Cancellations++;
-        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime time, int minutes) { }
-        public void CancelNotificationsForLesson(Guid id) { }
+        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
+            DayOfWeek day, TimeSpan startTime, int minutes) { }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
         public Task<bool> CheckAllPermissionsAsync() => Task.FromResult(true);
         public Task RequestPermissionAsync() => Task.CompletedTask;

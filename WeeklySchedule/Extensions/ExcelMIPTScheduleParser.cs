@@ -26,10 +26,13 @@ public class ExcelMIPTScheduleParser
     private static readonly Regex InitialsRegex = new(@"[А-Я]\.\s*[А-Я]\.\s*[А-Яа-я]+", RegexOptions.Compiled);
     private static readonly Regex InitialsWordRegex = new(@"\b[А-Я]\.\s*[А-Я]\.\s*[А-Яа-яё]+", RegexOptions.Compiled);
 
-    // Объединенные ячейки листа. Раньше NumMergedRegions/GetMergedRegion дергались
-    // на каждое обращение к ячейке во вложенных циклах
+    // Объединенные ячейки листа, разложенные по строкам. Раньше здесь был плоский
+    // список, и поиск региона для ячейки перебирал его целиком — а этот поиск идет
+    // на каждое обращение к ячейке во вложенных циклах, то есть выходило
+    // O(строки x регионы). Теперь на строку приходятся только ее собственные регионы
     private ISheet? _mergedRegionsSheet;
     private List<CellRangeAddress> _mergedRegions = [];
+    private Dictionary<int, List<CellRangeAddress>> _mergedRegionsByRow = [];
 
     public ExcelMIPTScheduleParser(ILogger<ExcelMIPTScheduleParser> logger)
     {
@@ -38,14 +41,30 @@ public class ExcelMIPTScheduleParser
 
     private List<CellRangeAddress> GetMergedRegions(ISheet sheet)
     {
-        if (!ReferenceEquals(_mergedRegionsSheet, sheet))
-        {
-            var regions = new List<CellRangeAddress>(sheet.NumMergedRegions);
-            for (int i = 0; i < sheet.NumMergedRegions; i++) regions.Add(sheet.GetMergedRegion(i));
-            _mergedRegions = regions;
-            _mergedRegionsSheet = sheet;
-        }
+        EnsureMergedRegions(sheet);
         return _mergedRegions;
+    }
+
+    private void EnsureMergedRegions(ISheet sheet)
+    {
+        if (ReferenceEquals(_mergedRegionsSheet, sheet)) return;
+
+        var regions = new List<CellRangeAddress>(sheet.NumMergedRegions);
+        for (int i = 0; i < sheet.NumMergedRegions; i++) regions.Add(sheet.GetMergedRegion(i));
+
+        var byRow = new Dictionary<int, List<CellRangeAddress>>();
+        foreach (var region in regions)
+        {
+            for (int row = region.FirstRow; row <= region.LastRow; row++)
+            {
+                if (!byRow.TryGetValue(row, out var list)) byRow[row] = list = [];
+                list.Add(region);
+            }
+        }
+
+        _mergedRegions = regions;
+        _mergedRegionsByRow = byRow;
+        _mergedRegionsSheet = sheet;
     }
 
     public List<string> ExtractAllGroupNames(string filePath)
@@ -95,9 +114,6 @@ public class ExcelMIPTScheduleParser
         }
         return groupNames.ToList();
     }
-
-    public List<Lesson> ParseGroupSchedule(string filePath, string groupName)
-        => ParseGroupSchedule(filePath, groupName, out _);
 
     public List<Lesson> ParseGroupSchedule(string filePath, string groupName, out List<BaseDay> baseDays)
     {
@@ -219,6 +235,7 @@ public class ExcelMIPTScheduleParser
     private List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)> BuildTimeSlotsMap(ISheet sheet, int startRow, int lastRow)
     {
         var slots = new List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)>();
+        var covered = new HashSet<int>();
 
         foreach (var cr in GetMergedRegions(sheet))
         {
@@ -229,21 +246,21 @@ public class ExcelMIPTScheduleParser
                 if (s != TimeSpan.Zero && e != TimeSpan.Zero)
                 {
                     slots.Add((cr.FirstRow, cr.LastRow, s, e));
+                    for (int r = cr.FirstRow; r <= cr.LastRow; r++) covered.Add(r);
                 }
             }
         }
 
+        // Раньше принадлежность строки уже найденному слоту проверялась перебором
+        // всего списка слотов на каждую строку листа
         for (int r = startRow; r <= lastRow; r++)
         {
-            bool covered = slots.Any(ts => r >= ts.FirstRow && r <= ts.LastRow);
-            if (!covered)
+            if (covered.Contains(r)) continue;
+
+            var (s, e) = ParseTimeRange(GetEffectiveCellText(sheet, r, 1));
+            if (s != TimeSpan.Zero && e != TimeSpan.Zero)
             {
-                var text = GetCellText(sheet, r, 1);
-                var (s, e) = ParseTimeRange(text);
-                if (s != TimeSpan.Zero && e != TimeSpan.Zero)
-                {
-                    slots.Add((r, r, s, e));
-                }
+                slots.Add((r, r, s, e));
             }
         }
 
@@ -339,39 +356,33 @@ public class ExcelMIPTScheduleParser
         return 5;
     }
 
+    /// <summary>
+    /// Текст ячейки с учетом объединений: у объединенной области значение хранится
+    /// только в левой верхней ячейке.
+    /// </summary>
     private string GetEffectiveCellText(ISheet sheet, int rowIdx, int colIdx)
     {
-        foreach (var cr in GetMergedRegions(sheet))
+        var region = GetMergedRegionForCell(sheet, rowIdx, colIdx);
+        if (region != null)
         {
-            if (cr.FirstRow <= rowIdx && cr.LastRow >= rowIdx &&
-                cr.FirstColumn <= colIdx && cr.LastColumn >= colIdx)
-            {
-                var masterRow = sheet.GetRow(cr.FirstRow);
-                if (masterRow == null) return string.Empty;
-                var masterCell = masterRow.GetCell(cr.FirstColumn);
-                if (masterCell == null) return string.Empty;
-                return _formatter.FormatCellValue(masterCell).Trim();
-            }
+            var masterRow = sheet.GetRow(region.FirstRow);
+            var masterCell = masterRow?.GetCell(region.FirstColumn);
+            return masterCell == null ? string.Empty : _formatter.FormatCellValue(masterCell).Trim();
         }
 
         var row = sheet.GetRow(rowIdx);
-        if (row == null) return string.Empty;
-        var cell = row.GetCell(colIdx);
-        if (cell == null) return string.Empty;
-        return _formatter.FormatCellValue(cell).Trim();
+        var cell = row?.GetCell(colIdx);
+        return cell == null ? string.Empty : _formatter.FormatCellValue(cell).Trim();
     }
-
-    private string GetCellText(ISheet sheet, int rowIdx, int colIdx) => GetEffectiveCellText(sheet, rowIdx, colIdx);
 
     private CellRangeAddress? GetMergedRegionForCell(ISheet sheet, int rowIndex, int colIndex)
     {
-        foreach (var cr in GetMergedRegions(sheet))
+        EnsureMergedRegions(sheet);
+        if (!_mergedRegionsByRow.TryGetValue(rowIndex, out var regions)) return null;
+
+        foreach (var cr in regions)
         {
-            if (cr.FirstRow <= rowIndex && cr.LastRow >= rowIndex &&
-                cr.FirstColumn <= colIndex && cr.LastColumn >= colIndex)
-            {
-                return cr;
-            }
+            if (cr.FirstColumn <= colIndex && cr.LastColumn >= colIndex) return cr;
         }
         return null;
     }

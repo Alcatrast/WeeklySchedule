@@ -14,10 +14,10 @@ public partial class AppShell : Shell
         InitializeComponent();
         FlyoutGrid.BindingContext = FlyoutVM;
 
+        // EditTimelinePage маршрута не имеет: ее открывает ItemActions модально
         Routing.RegisterRoute(nameof(SettingsPage), typeof(SettingsPage));
         Routing.RegisterRoute(nameof(AboutPage), typeof(AboutPage));
         Routing.RegisterRoute(nameof(TimelinesPage), typeof(TimelinesPage));
-        Routing.RegisterRoute(nameof(EditTimelinePage), typeof(EditTimelinePage));
 
         // УБИРАЕМ КОСТЫЛЬ С ИЗМЕРЕНИЕМ ТЕКСТА.
         // Flyout должен иметь фиксированную разумную ширину.

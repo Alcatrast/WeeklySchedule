@@ -14,7 +14,7 @@ public class MainActivity : MauiAppCompatActivity
         HandleNotificationIntent(Intent);
     }
 
-    protected override void OnNewIntent(Android.Content.Intent intent)
+    protected override void OnNewIntent(Android.Content.Intent? intent)
     {
         base.OnNewIntent(intent);
         HandleNotificationIntent(intent);
@@ -33,10 +33,4 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
-    // Обработка результата запроса разрешений
-    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Android.Content.PM.Permission[] grantResults)
-    {
-        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
-        // Здесь можно вызвать событие, чтобы UI обновился
-    }
 }

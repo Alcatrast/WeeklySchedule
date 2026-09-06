@@ -32,5 +32,4 @@ public class TimelineLayout
     public List<LessonPlacement> Lessons { get; set; } = [];
     public List<BreakPlacement> Breaks { get; set; } = [];
     public List<TimeSegment> Segments { get; set; } = [];
-    public DateTime DayStartTime { get; set; }
 }

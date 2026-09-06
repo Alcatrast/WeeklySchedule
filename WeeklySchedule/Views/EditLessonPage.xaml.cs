@@ -122,46 +122,54 @@ public partial class EditLessonPage : ContentPage
         PickerType.SelectedItem = GetRussianTypeName(_lesson.Type);
         PickerDay.SelectedItem = GetRussianDayName(_lesson.Day);
 
-        // ИСПРАВЛЕНО: Передаем preselectedTime в асинхронный метод
+        // Время и таймлайн приезжают из хранилища асинхронно. До этого сохранять
+        // нечего: в режиме редактирования поля времени еще нули, в режиме создания
+        // не выбран таймлайн, и пользователь получал ошибку, которая врет о причине
+        SetButtonsEnabled(false);
         SafeFireAndForget.Run(() => LoadTimelinesAsync(activeTimelineId, preselectedTime));
     }
 
-    // ИСПРАВЛЕНО: Добавлен параметр TimeSpan? preselectedTime в сигнатуру
     private async Task LoadTimelinesAsync(Guid? activeTimelineId, TimeSpan? preselectedTime)
     {
-        var timelineRepo = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<ITimelineRepository>();
-        var timelines = (await timelineRepo.GetAllAsync()).ToList();
-
-        PickerTimeline.ItemsSource = timelines;
-        PickerTimeline.ItemDisplayBinding = new Binding("Name");
-
-        if (_isEditMode)
+        try
         {
-            PickerTimeline.SelectedItem = timelines.FirstOrDefault(t => t.Id == _lesson.TimelineId);
-            _startTime = _lesson.StartTime;
-            _endTime = _lesson.EndTime;
-            int durationMinutes = (int)(_endTime - _startTime).TotalMinutes;
-            if (durationMinutes <= 0) durationMinutes = 1;
-            _durationText = durationMinutes.ToString();
-            OnPropertyChanged(nameof(StartTime));
-            OnPropertyChanged(nameof(EndTime));
-            OnPropertyChanged(nameof(DurationText));
-            _isDurationLastEdited = false;
-        }
-        else
-        {
-            var defaultId = activeTimelineId ?? Guid.Empty;
-            PickerTimeline.SelectedItem = timelines.FirstOrDefault(t => t.Id == defaultId) ?? timelines.FirstOrDefault();
-            _isDurationLastEdited = true;
+            var timelineRepo = Application.Current!.Handler!.MauiContext!.Services.GetRequiredService<ITimelineRepository>();
+            var timelines = (await timelineRepo.GetAllAsync()).ToList();
 
-            // ТЕПЕРЬ preselectedTime доступна в этой области видимости
-            _startTime = preselectedTime ?? TimeContext.Now.TimeOfDay;
-            OnPropertyChanged(nameof(StartTime));
-            _durationText = DefaultDurationMinutes().ToString();
-            OnPropertyChanged(nameof(DurationText));
-            RecalculateFromStart();
+            PickerTimeline.ItemsSource = timelines;
+            PickerTimeline.ItemDisplayBinding = new Binding("Name");
+
+            if (_isEditMode)
+            {
+                PickerTimeline.SelectedItem = timelines.FirstOrDefault(t => t.Id == _lesson.TimelineId);
+                _startTime = _lesson.StartTime;
+                _endTime = _lesson.EndTime;
+                int durationMinutes = (int)(_endTime - _startTime).TotalMinutes;
+                if (durationMinutes <= 0) durationMinutes = 1;
+                _durationText = durationMinutes.ToString();
+                OnPropertyChanged(nameof(StartTime));
+                OnPropertyChanged(nameof(EndTime));
+                OnPropertyChanged(nameof(DurationText));
+                _isDurationLastEdited = false;
+            }
+            else
+            {
+                var defaultId = activeTimelineId ?? Guid.Empty;
+                PickerTimeline.SelectedItem = timelines.FirstOrDefault(t => t.Id == defaultId) ?? timelines.FirstOrDefault();
+                _isDurationLastEdited = true;
+
+                _startTime = preselectedTime ?? TimeContext.Now.TimeOfDay;
+                OnPropertyChanged(nameof(StartTime));
+                _durationText = DefaultDurationMinutes().ToString();
+                OnPropertyChanged(nameof(DurationText));
+                RecalculateFromStart();
+            }
         }
-        _isUpdatingTime = false;
+        finally
+        {
+            // Отмена должна работать даже если каталог не прочитался
+            SetButtonsEnabled(true);
+        }
     }
 
     // Настройка "Длительность пары по умолчанию" до этого никем не читалась
@@ -334,13 +342,17 @@ public partial class EditLessonPage : ContentPage
             else await repo.AddAsync(savedLesson);
 
             AppEvents.NotifyDataChanged();
-            await SafePopModalAsync();
+            if (await SafePopModalAsync()) return;
+            // Запись прошла, а закрыться не вышло: страница остается на экране,
+            // и кнопки должны снова работать
+            _isProcessing = false;
+            SetButtonsEnabled(true);
         }
         catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Save error: {ex.Message}");
-#endif
+            // Debug.WriteLine и так вырезается в Release. Собственный #if DEBUG
+            // вокруг него оставлял там переменную ex без единого использования
+            System.Diagnostics.Debug.WriteLine($"Save error: {ex}");
             _isProcessing = false;
             SetButtonsEnabled(true);
         }
@@ -354,21 +366,13 @@ public partial class EditLessonPage : ContentPage
         try
         {
             bool confirm = await ItemActions.DeleteLessonAsync(_lesson);
-            if (confirm)
-            {
-                await SafePopModalAsync();
-            }
-            else
-            {
-                _isProcessing = false;
-                SetButtonsEnabled(true);
-            }
+            if (confirm && await SafePopModalAsync()) return;
+            _isProcessing = false;
+            SetButtonsEnabled(true);
         }
         catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Delete error: {ex.Message}");
-#endif
+            System.Diagnostics.Debug.WriteLine($"Delete error: {ex}");
             _isProcessing = false;
             SetButtonsEnabled(true);
         }
@@ -381,14 +385,16 @@ public partial class EditLessonPage : ContentPage
         SetButtonsEnabled(false);
         try
         {
-            await SafePopModalAsync();
+            // Не закрылись — значит страница осталась на экране, и блокировать
+            // ей кнопки навсегда нельзя: выйти было бы уже нечем
+            if (await SafePopModalAsync()) return;
         }
         catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"Cancel error: {ex.Message}");
-#endif
+            System.Diagnostics.Debug.WriteLine($"Cancel error: {ex}");
         }
+        _isProcessing = false;
+        SetButtonsEnabled(true);
     }
 
     private void SetButtonsEnabled(bool isEnabled)
@@ -401,20 +407,21 @@ public partial class EditLessonPage : ContentPage
         BorderCancel.Opacity = isEnabled ? 1.0 : 0.5;
     }
 
-    private async Task SafePopModalAsync()
+    /// <summary>Возвращает true, если страница действительно закрыта.</summary>
+    private async Task<bool> SafePopModalAsync()
     {
         try
         {
             if (Navigation.ModalStack.Count > 0)
             {
                 await Navigation.PopModalAsync();
+                return true;
             }
         }
         catch (Exception ex)
         {
-#if DEBUG
-            System.Diagnostics.Debug.WriteLine($"PopModal safe catch: {ex.Message}");
-#endif
+            System.Diagnostics.Debug.WriteLine($"PopModal safe catch: {ex}");
         }
+        return false;
     }
 }

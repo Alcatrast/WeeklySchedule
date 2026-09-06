@@ -11,7 +11,7 @@ namespace WeeklySchedule.Platforms.Android.Services;
 
 public class NotificationService : INotificationService
 {
-    private const string ChannelId = "weekly_schedule_channel";
+    internal const string ChannelId = "weekly_schedule_channel";
     private const string ChannelName = "Расписание";
 
     internal const string ActionShow = "com.weeklyschedule.SHOW_NOTIFICATION";
@@ -160,10 +160,22 @@ public class NotificationService : INotificationService
         }
     }
 
-    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime triggerTime, int minutesBefore)
+    /// <summary>
+    /// Флаги PendingIntent. Обязаны совпадать у постановки, отмены и повтора из
+    /// приемника: PendingIntent сопоставляется в том числе по ним, и разошедшиеся
+    /// флаги дали бы отмену, которая промахивается мимо поставленного будильника.
+    /// Immutable появился в API 23, а минимальная поддерживаемая версия — 21.
+    /// </summary>
+    internal static PendingIntentFlags BroadcastFlags =>
+        OperatingSystem.IsAndroidVersionAtLeast(23)
+            ? PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable
+            : PendingIntentFlags.UpdateCurrent;
+
+    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
+        DayOfWeek day, TimeSpan startTime, int minutesBefore)
     {
         int notificationId = BuildNotificationId(lessonId, minutesBefore);
-        long triggerMillis = WeeklyOccurrence.Next(triggerTime.DayOfWeek, triggerTime.TimeOfDay,
+        long triggerMillis = WeeklyOccurrence.Next(day, startTime,
             minutesBefore, DateTimeOffset.Now, TimeZoneInfo.Local).ToUnixTimeMilliseconds();
 
         var alarm = new ScheduledAlarm
@@ -175,8 +187,8 @@ public class NotificationService : INotificationService
             Body = body,
             TriggerAtMillis = triggerMillis,
             MinutesBefore = minutesBefore,
-            LessonDay = triggerTime.DayOfWeek,
-            LessonStartTime = triggerTime.TimeOfDay
+            LessonDay = day,
+            LessonStartTime = startTime
         };
 
         if (!SetAlarm(Context, alarm)) return;
@@ -204,8 +216,7 @@ public class NotificationService : INotificationService
         intent.PutExtra("MinutesBefore", alarm.MinutesBefore);
         intent.PutExtra("TriggerAtMillis", alarm.TriggerAtMillis);
 
-        var pendingIntent = PendingIntent.GetBroadcast(context, alarm.NotificationId, intent,
-            PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
+        var pendingIntent = PendingIntent.GetBroadcast(context, alarm.NotificationId, intent, BroadcastFlags);
         if (pendingIntent == null) return false;
 
         if (OperatingSystem.IsAndroidVersionAtLeast(31))
@@ -223,19 +234,6 @@ public class NotificationService : INotificationService
         return true;
     }
 
-    public void CancelNotificationsForLesson(Guid lessonId)
-    {
-        var key = lessonId.ToString();
-
-        var toCancel = Alarms.Where(a => a.LessonId == key).ToList();
-        if (toCancel.Count == 0) return;
-
-        foreach (var alarm in toCancel) CancelAlarm(alarm.NotificationId);
-
-        Alarms.RemoveAll(a => a.LessonId == key);
-        ScheduledAlarmStore.Save(Alarms);
-    }
-
     public void CancelAllNotifications()
     {
         foreach (var alarm in Alarms) CancelAlarm(alarm.NotificationId);
@@ -251,9 +249,8 @@ public class NotificationService : INotificationService
         intent.SetAction(ActionShow);
 
         // Extras при сопоставлении PendingIntent не учитываются, поэтому для отмены
-        // достаточно совпадения requestCode, компонента и действия
-        var pendingIntent = PendingIntent.GetBroadcast(Context, notificationId, intent,
-            PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
+        // достаточно совпадения requestCode, компонента, действия и флагов
+        var pendingIntent = PendingIntent.GetBroadcast(Context, notificationId, intent, BroadcastFlags);
         if (pendingIntent == null) return;
 
         alarmManager.Cancel(pendingIntent);

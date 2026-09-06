@@ -46,25 +46,23 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
         appIntent.SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
         appIntent.PutExtra("TimelineId", timelineId);
 
-        var pendingIntentFlags = PendingIntentFlags.UpdateCurrent;
-        if (OperatingSystem.IsAndroidVersionAtLeast(23))
-        {
-            pendingIntentFlags |= PendingIntentFlags.Immutable;
-        }
+        var pendingAppIntent = PendingIntent.GetActivity(context, notificationId, appIntent,
+            NotificationService.BroadcastFlags);
 
-        var pendingAppIntent = PendingIntent.GetActivity(context, notificationId, appIntent, pendingIntentFlags);
-
-        // Построение уведомления
-        var builder = new NotificationCompat.Builder(context, "weekly_schedule_channel")
-            .SetAutoCancel(true)
-            .SetSmallIcon(global::Android.Resource.Drawable.IcPopupReminder) // Можно заменить на вашу иконку, если добавите в drawable
-            .SetContentTitle(title)
-            .SetContentText(body)
-            .SetContentIntent(pendingAppIntent)
-            .SetPriority(NotificationCompat.PriorityHigh) // Высокий приоритет для всплывающих уведомлений
-            .SetCategory(NotificationCompat.CategoryAlarm);
+        // Построение уведомления. Цепочку не сворачиваем в одно выражение: Set*
+        // объявлены возвращающими Builder?, и анализатор считает разыменованием
+        // с возможным null каждое следующее звено
+        var builder = new NotificationCompat.Builder(context, NotificationService.ChannelId);
+        builder.SetAutoCancel(true);
+        builder.SetSmallIcon(global::Android.Resource.Drawable.IcPopupReminder);
+        builder.SetContentTitle(title);
+        builder.SetContentText(body);
+        builder.SetContentIntent(pendingAppIntent);
+        builder.SetPriority(NotificationCompat.PriorityHigh);
+        builder.SetCategory(NotificationCompat.CategoryAlarm);
 
         var manager = NotificationManagerCompat.From(context);
+        if (manager == null) return;
 
         // Проверка разрешения на показ уведомлений (Android 13+)
         if (OperatingSystem.IsAndroidVersionAtLeast(33))
@@ -80,7 +78,9 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
             }
         }
 
-        manager.Notify(notificationId, builder.Build());
+        var notification = builder.Build();
+        if (notification == null) return;
+        manager.Notify(notificationId, notification);
 #if DEBUG
         System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] Уведомление успешно отправлено в NotificationManager.");
 #endif

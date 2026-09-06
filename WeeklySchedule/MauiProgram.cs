@@ -42,20 +42,20 @@ public static class MauiProgram
         // Конвертеры в DI не нужны: XAML берет их из App.xaml как StaticResource,
         // а код в DayView держит собственные статические экземпляры
 
-        // ViewModels
+        // ViewModels. EditTimelineViewModel и GroupSelectionViewModel здесь не
+        // регистрируются: им нужны Timeline и путь к файлу, которых в контейнере
+        // нет, так что резолв все равно кончился бы исключением. Их создают руками
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<FlyoutViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddTransient<TimelinesViewModel>();
-        builder.Services.AddTransient<EditTimelineViewModel>();
-        builder.Services.AddTransient<GroupSelectionViewModel>();
 
-        // Pages (Все модальные страницы должны быть Transient!)
+        // Страницы, которые открывает Shell или DI. EditLessonPage и
+        // GroupSelectionPage создаются через new с параметрами конкретной пары
+        // или файла, поэтому в контейнере им тоже не место
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<TimelinesPage>();
         builder.Services.AddTransient<EditTimelinePage>();
-        builder.Services.AddTransient<EditLessonPage>();
-        builder.Services.AddTransient<GroupSelectionPage>();
         builder.Services.AddSingleton<AboutPage>();
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddSingleton<AppShell>();

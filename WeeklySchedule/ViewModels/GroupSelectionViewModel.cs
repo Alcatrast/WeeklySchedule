@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
@@ -19,7 +20,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     private readonly ILessonRepository _lessonRepo;
     private readonly ITimelineRepository _timelineRepo;
     private readonly INavigationService _navigationService;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<ExcelMIPTScheduleParser> _logger;
     private readonly Action? _onImported;
 
     private GroupItem? _selectedGroup;
@@ -57,7 +58,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
         _lessonRepo = lessonRepo;
         _timelineRepo = timelineRepo;
         _navigationService = navigationService;
-        _serviceProvider = serviceProvider;
+        // Раньше парсер получал NullLogger, и при разборе чужого файла не оставалось
+        // никакой диагностики — ни ненайденной группы, ни числа прочитанных пар
+        _logger = serviceProvider?.GetService<ILogger<ExcelMIPTScheduleParser>>()
+            ?? NullLogger<ExcelMIPTScheduleParser>.Instance;
         _onImported = onImported;
 
         ToggleCategoryCommand = new Command<GroupCategory>(ToggleCategory);
@@ -65,13 +69,22 @@ public partial class GroupSelectionViewModel : BaseViewModel
         IsLoadingGroups = true;
     }
 
+    /// <summary>
+    /// OnAppearing приходит не только на первом показе: возврат приложения из фона
+    /// на этой же странице запускает разбор повторно. Без сброса списка категории
+    /// и группы задваивались, а без флага загрузки оверлей не появлялся и тапы
+    /// проходили прямо во время повторного чтения файла.
+    /// </summary>
     public async Task InitializeAsync()
     {
+        IsLoadingGroups = true;
+        Categories.Clear();
+        _selectedGroup = null;
         try
         {
             var groups = await Task.Run(() =>
             {
-                var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
+                var parser = new ExcelMIPTScheduleParser(_logger);
                 return parser.ExtractAllGroupNames(_filePath);
             });
 
@@ -138,7 +151,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         {
             var parsed = await Task.Run(() =>
             {
-                var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
+                var parser = new ExcelMIPTScheduleParser(_logger);
                 var lessons = parser.ParseGroupSchedule(_filePath, group.FullGroupName, out var baseDays);
                 return (Lessons: lessons, BaseDays: baseDays);
             });
