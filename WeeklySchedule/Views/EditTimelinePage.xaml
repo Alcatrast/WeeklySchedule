@@ -78,11 +78,32 @@
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding SelectExcelFileCommand}" />
                 </Border.GestureRecognizers>
-                <Label Text="Excel (Физтех) BETA" 
-                       TextColor="White" 
-                       FontSize="16" 
-                       FontAttributes="Bold" 
-                       HorizontalOptions="Center" 
+                <Label Text="Excel (Физтех) BETA"
+                       TextColor="White"
+                       FontSize="16"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+            </Border>
+
+            <!-- Разбор той же копии файла тем же составом группы: расписание в файле
+                 меняется, а выбирать файл и группу заново каждый раз незачем -->
+            <Border HeightRequest="50"
+                    HorizontalOptions="Fill"
+                    IsVisible="{Binding CanReimport}"
+                    StrokeShape="RoundRectangle 12"
+                    StrokeThickness="1"
+                    Stroke="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}"
+                    BackgroundColor="Transparent"
+                    views:PressFeedback.IsEnabled="True">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ReimportCommand}" />
+                </Border.GestureRecognizers>
+                <Label Text="{Binding ReimportLabel}"
+                       TextColor="{AppThemeBinding Light={StaticResource Gray900}, Dark={StaticResource Gray100}}"
+                       FontSize="14"
+                       LineBreakMode="TailTruncation"
+                       HorizontalOptions="Center"
                        VerticalOptions="Center" />
             </Border>
             <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>

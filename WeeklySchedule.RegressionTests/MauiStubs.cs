@@ -91,8 +91,12 @@ namespace WeeklySchedule.Services
 }
 namespace Microsoft.Maui.Storage
 {
+    // Настоящий FileResult отдает и имя, и поток: импорт копирует файл к себе,
+    // потому что путь от системного пикера ведет во временную папку
     public class FileResult
     {
         public string FullPath { get; set; } = "";
+        public string FileName { get; set; } = "";
+        public Task<Stream> OpenReadAsync() => Task.FromResult<Stream>(File.OpenRead(FullPath));
     }
 }

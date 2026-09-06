@@ -13,7 +13,12 @@ namespace WeeklySchedule.ViewModels;
 
 public partial class GroupSelectionViewModel : BaseViewModel
 {
+    // Путь к своей копии файла, а не к тому, что отдал системный пикер: OnAppearing
+    // перечитывает файл при каждом возврате на экран, а копия в кэше приложения к
+    // этому моменту могла быть вычищена системой
     private readonly string _filePath;
+    private readonly string _sourceFileName;
+    private bool _imported;
     // Таймлайн уже сохранен в репозитории (режим "дополнить импортом")
     private readonly bool _timelineExists;
     private readonly Timeline _timeline;
@@ -44,6 +49,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
     public GroupSelectionViewModel(
         string filePath,
+        string sourceFileName,
         bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
@@ -53,6 +59,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         Action? onImported = null)
     {
         _filePath = filePath;
+        _sourceFileName = sourceFileName;
         _timelineExists = timelineExists;
         _timeline = timeline;
         _lessonRepo = lessonRepo;
@@ -152,11 +159,21 @@ public partial class GroupSelectionViewModel : BaseViewModel
             var parsed = await Task.Run(() =>
             {
                 var parser = new ExcelMIPTScheduleParser(_logger);
-                var lessons = parser.ParseGroupSchedule(_filePath, group.FullGroupName, out var baseDays);
-                return (Lessons: lessons, BaseDays: baseDays);
+                var lessons = parser.ParseGroupSchedule(_filePath, group.FullGroupName,
+                    out var baseDays, out int skipped);
+                return (Lessons: lessons, BaseDays: baseDays, Skipped: skipped);
             });
             var lessons = parsed.Lessons;
+            foreach (var lesson in lessons) lesson.FromImport = true;
             _timeline.BaseDays = (_timeline.BaseDays ?? []).Concat(parsed.BaseDays).Distinct().ToList();
+            // Чем разобрали — запоминаем: по этому же файлу и группе работает кнопка
+            // повторного разбора, когда расписание в файле поменяется
+            _timeline.Source = new ImportSource
+            {
+                FileName = _sourceFileName,
+                GroupName = group.FullGroupName,
+                ImportedAt = DateTime.Now
+            };
 
             if (!_timelineExists)
             {
@@ -166,13 +183,22 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 await _timelineRepo.AddAsync(_timeline);
             }
 
+            // Невидимые пары от прежних импортов: разбор вернет для них исправленное
+            // время, но старые записи сами не исчезнут — они не помечены как
+            // импортированные и продолжали бы поднимать уведомления
+            int repaired = await LessonImportService.RemoveUnrenderableAsync(_lessonRepo, _timeline.Id);
             var added = await LessonImportService.AddMissingAsync(_lessonRepo, _timeline.Id, lessons);
 
             if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
+            _imported = true;
             _onImported?.Invoke();
             AppEvents.NotifyDataChanged();
 
-            await ShowAlertAsync("Импорт завершён", $"Добавлено пар: {added}. Уже есть в расписании: {lessons.Count - added}.\nПроверьте корректность данных.");
+            var report = $"Добавлено пар: {added}. Уже есть в расписании: {lessons.Count - added}.";
+            if (repaired > 0) report += $"\nУбрано нечитаемых записей: {repaired}.";
+            if (parsed.Skipped > 0)
+                report += $"\nСтрок с нераспознанным временем: {parsed.Skipped} — они пропущены.";
+            await ShowAlertAsync("Импорт завершён", $"{report}\nПроверьте корректность данных.");
 
             await SafeClosePagesAsync();
         }
@@ -210,9 +236,22 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
+            DiscardUnfinishedSource();
             await ShowAlertAsync("Ошибка", message);
             await _navigationService.PopModalAsync();
         }
         catch { }
+    }
+
+    /// <summary>
+    /// Уход с экрана без выбора группы. В режиме создания таймлайн в репозиторий еще
+    /// не попал, и удалять его папку с сохраненной копией файла будет уже некому.
+    /// Вызывается только с явных путей отмены: OnDisappearing не годится, на Android
+    /// он приходит и при сворачивании приложения.
+    /// </summary>
+    public void DiscardUnfinishedSource()
+    {
+        if (_imported || _timelineExists) return;
+        ScheduleSourceStore.DiscardOrphan(_timeline.Id);
     }
 }

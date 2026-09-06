@@ -147,4 +147,23 @@ public class FileLessonRepository : ILessonRepository
             });
         }
     }
+
+    // Таймлайн известен заранее, поэтому обходить хранилище не нужно. Через
+    // DeleteAsync повторный разбор сделал бы полный обход папок на каждую пару.
+    public async Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids)
+    {
+        var list = ids.ToList();
+        if (list.Count == 0) return;
+        await Task.Run(() =>
+        {
+            lock (_lock)
+            {
+                foreach (var id in list)
+                {
+                    var path = GetFilePath(timelineId, id);
+                    if (File.Exists(path)) File.Delete(path);
+                }
+            }
+        });
+    }
 }

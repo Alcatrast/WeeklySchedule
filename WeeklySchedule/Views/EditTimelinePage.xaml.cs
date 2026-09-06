@@ -15,14 +15,17 @@ public partial class EditTimelinePage : ContentPage
     // Конструктор для DI
     public EditTimelinePage(
         ITimelineRepository repository,
+        ILessonRepository lessonRepository,
         ISettingsService settingsService,
         INotificationService notificationService,
         IFilePickerService filePickerService,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        IServiceProvider serviceProvider)
     {
         InitializeComponent();
 
-        _vm = new EditTimelineViewModel(repository, settingsService, notificationService, filePickerService, navigationService, null);
+        _vm = new EditTimelineViewModel(repository, lessonRepository, settingsService, notificationService,
+            filePickerService, navigationService, serviceProvider, null);
         BindingContext = _vm;
         _vm.ImportRequested += OnImportRequested;
 
@@ -50,23 +53,26 @@ public partial class EditTimelinePage : ContentPage
             var services = Application.Current!.Handler!.MauiContext!.Services;
             _vm = new EditTimelineViewModel(
                 services.GetRequiredService<ITimelineRepository>(),
+                services.GetRequiredService<ILessonRepository>(),
                 services.GetRequiredService<ISettingsService>(),
                 services.GetRequiredService<INotificationService>(),
                 services.GetRequiredService<IFilePickerService>(),
                 services.GetRequiredService<INavigationService>(),
+                services,
                 timeline);
             BindingContext = _vm;
             _vm.ImportRequested += OnImportRequested;
         }
     }
 
-    private void OnImportRequested(string filePath, Timeline timeline, bool timelineExists)
+    private void OnImportRequested(string filePath, string sourceFileName, Timeline timeline, bool timelineExists)
     {
         SafeFireAndForget.Run(async () =>
         {
             var services = Application.Current!.Handler!.MauiContext!.Services;
             var groupPage = new GroupSelectionPage(
                 filePath,
+                sourceFileName,
                 timelineExists,
                 timeline,
                 services.GetRequiredService<ILessonRepository>(),

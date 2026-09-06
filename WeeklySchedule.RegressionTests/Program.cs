@@ -116,7 +116,7 @@ var tests = new (string Name, Func<Task> Run)[]
         var page = new Page();
         Application.Current = new Application();
         Application.Current.Windows.Add(new Window { Page = page });
-        var vm = new EditTimelineViewModel(repo, new TestSettings(), null!, null!, null!, null) { Name = "New" };
+        var vm = new EditTimelineViewModel(repo, null!, new TestSettings(), null!, null!, null!, null, null) { Name = "New" };
         vm.SaveCommand.Execute(null);
         vm.SaveCommand.Execute(null);
         Check(repo.Writes == 1);
@@ -128,7 +128,7 @@ var tests = new (string Name, Func<Task> Run)[]
     {
         var settings = new TestSettings();
         var timeline = new Timeline();
-        var vm = new EditTimelineViewModel(new DelayedRepository(), settings, null!, null!, null!, timeline)
+        var vm = new EditTimelineViewModel(new DelayedRepository(), null!, settings, null!, null!, null!, null, timeline)
             { IsStartupTimeline = true };
         vm.ApplyStartupSelection();
         Check(settings.StartupTimelineId == timeline.Id && !settings.OpenLastTimeline);
@@ -151,7 +151,8 @@ var tests = new (string Name, Func<Task> Run)[]
     })
 };
 
-tests = [.. tests, .. NavigationRegression.Tests, .. InteractionRegression.Tests, .. TimelineMetricsRegression.Tests];
+tests = [.. tests, .. NavigationRegression.Tests, .. InteractionRegression.Tests, .. TimelineMetricsRegression.Tests,
+    .. ImportSourceRegression.Tests];
 var root = Directory.CreateTempSubdirectory("WeeklySchedule-regression-").FullName;
 var failed = 0;
 foreach (var (name, run) in tests)

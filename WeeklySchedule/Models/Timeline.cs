@@ -6,4 +6,7 @@ public class Timeline
     public string Name { get; set; } = string.Empty;
     public List<BaseDay> BaseDays { get; set; } = [];
     public bool NotificationsEnabled { get; set; } = true; // Новое свойство
+
+    /// <summary>Заполнен, если расписание пришло из xlsx и файл сохранен рядом.</summary>
+    public ImportSource? Source { get; set; }
 }

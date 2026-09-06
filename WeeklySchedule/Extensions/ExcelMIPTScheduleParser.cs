@@ -6,6 +6,7 @@ using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
 using System.Text.RegularExpressions;
 using WeeklySchedule.Models;
+using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Extensions;
 
@@ -74,7 +75,17 @@ public class ExcelMIPTScheduleParser
         using var workbook = WorkbookFactory.Create(fs);
         var sheet = workbook.GetSheetAt(0);
 
-        for (int r = 0; r <= Math.Min(15, sheet.LastRowNum); r++)
+        // Только строка шапки. Раньше просматривались первые 16 строк, а данные
+        // начинаются с четвертой: в тексте пар перечислены группы потока, и в
+        // список попадали обрывки вроде «Б01-403)- 123 ГК» и «Б01-404, б01-405,»
+        // — на реальном файле МФТИ семь фантомов рядом с 78 настоящими группами.
+        // Если шапку найти не удалось, ведем себя как раньше: лучше список с
+        // мусором, чем пустой
+        int headerRow = FindHeaderRow(sheet);
+        int firstScanRow = headerRow >= 0 ? headerRow : 0;
+        int lastScanRow = headerRow >= 0 ? headerRow : Math.Min(15, sheet.LastRowNum);
+
+        for (int r = firstScanRow; r <= lastScanRow; r++)
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
@@ -115,9 +126,18 @@ public class ExcelMIPTScheduleParser
         return groupNames.ToList();
     }
 
-    public List<Lesson> ParseGroupSchedule(string filePath, string groupName, out List<BaseDay> baseDays)
+    public List<Lesson> ParseGroupSchedule(string filePath, string groupName, out List<BaseDay> baseDays) =>
+        ParseGroupSchedule(filePath, groupName, out baseDays, out _);
+
+    /// <param name="skippedRows">
+    /// Строки с текстом пары, у которых не удалось определить время. Их видно в отчете
+    /// об импорте: молчаливый пропуск и был причиной "иногда парсинг ломается".
+    /// </param>
+    public List<Lesson> ParseGroupSchedule(string filePath, string groupName,
+        out List<BaseDay> baseDays, out int skippedRows)
     {
         baseDays = [];
+        skippedRows = 0;
         _logger.LogInformation("Парсинг группы: {GroupName} из {FilePath}", groupName, Path.GetFileName(filePath));
         var lessons = new List<Lesson>();
 
@@ -137,12 +157,19 @@ public class ExcelMIPTScheduleParser
 
         var timeSlots = BuildTimeSlotsMap(sheet, startDataRow, lastRow);
 
+        // Ниже последнего слота расписания уже нет: в файле МФТИ там лежит
+        // объединенная на всю ширину сноска «В расписании возможны изменения…».
+        // Строкой пары она никогда не была, но попадала в цикл и с введением
+        // счетчика стала давать пользователю ложное «строк с нераспознанным
+        // временем: 2» — на реальном файле 106 таких у 53 групп из 78
+        int lastLessonRow = timeSlots.Count > 0 ? timeSlots[^1].LastRow : lastRow;
+
         DayOfWeek currentDay = DayOfWeek.Monday;
 
         // HashSet для отслеживания уже добавленных пар (для предотвращения дубликатов)
         var addedLessons = new HashSet<string>();
 
-        for (int r = startDataRow; r <= lastRow; r++)
+        for (int r = startDataRow; r <= lastLessonRow; r++)
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
@@ -185,10 +212,15 @@ public class ExcelMIPTScheduleParser
             {
                 var bounds = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
                 var dayRegion = GetMergedRegionForCell(sheet, r, 0);
+                // Пометка на весь день — либо по объединению в колонке дня, либо когда
+                // время не распозналось: подпись "00:00–00:00" врала бы о границах
+                bool allDay =
+                    (dayRegion != null && firstRow <= dayRegion.FirstRow && lastRowOfLesson >= dayRegion.LastRow)
+                    || !LessonTimeRange.IsValid(bounds.Start, bounds.End);
                 var marker = new BaseDay
                 {
                     Day = currentDay,
-                    AllDay = dayRegion != null && firstRow <= dayRegion.FirstRow && lastRowOfLesson >= dayRegion.LastRow,
+                    AllDay = allDay,
                     StartTime = bounds.Start,
                     EndTime = bounds.End,
                     Text = "Базовый день" + normalizedText["Базовый день".Length..]
@@ -206,7 +238,19 @@ public class ExcelMIPTScheduleParser
             if (string.IsNullOrWhiteSpace(name)) continue;
 
             var (startTime, endTime) = CalculateRealTimeBounds(firstRow, lastRowOfLesson, timeSlots);
-            if (startTime == TimeSpan.Zero && endTime == TimeSpan.Zero) continue;
+            // Условие было через &&, то есть отсекались только пары, у которых не
+            // распозналась НИ ОДНА граница. Пара с одной границей уходила в хранилище
+            // с EndTime = 00:00, а WeekLayout отбрасывает такие пары — на экране
+            // пропадал целый день. Повторный импорт не помогал: разбор давал тот же
+            // испорченный ключ, и AddMissingAsync считал пару уже существующей
+            if (!LessonTimeRange.IsValid(startTime, endTime))
+            {
+                skippedRows++;
+                _logger.LogWarning(
+                    "Строка {Row} ({Day}, «{Name}») пропущена: время не определено ({Start}–{End})",
+                    r, currentDay, name, startTime, endTime);
+                continue;
+            }
 
             // Создаем уникальный ключ для проверки дубликатов
             string lessonKey = $"{currentDay}_{startTime}_{endTime}_{name}_{description}_{lessonType}";
@@ -226,7 +270,8 @@ public class ExcelMIPTScheduleParser
             }
         }
 
-        _logger.LogInformation("Найдено пар для {GroupName}: {Count}", groupName, lessons.Count);
+        _logger.LogInformation("Найдено пар для {GroupName}: {Count}, пропущено строк: {Skipped}",
+            groupName, lessons.Count, skippedRows);
         return lessons;
     }
 
@@ -267,48 +312,53 @@ public class ExcelMIPTScheduleParser
         return slots.OrderBy(ts => ts.FirstRow).ToList();
     }
 
+    /// <summary>
+    /// Время пары по строкам, которые занимает ее объединенная ячейка: границы
+    /// прилипают к границам слотов из колонки "Часы".
+    ///
+    /// Прилипание, а не пропорциональный пересчет внутри слота: объединения в
+    /// исходнике регулярно на строку выше или ниже размеченного слота, и
+    /// интерполяция превращала эту неаккуратность в время, которого в расписании
+    /// нет вовсе — 14:37, 16:12, 11:17. На реальном файле МФТИ так получались
+    /// 67 пар из 1646, у половины групп. Каждая такая граница вдобавок становится
+    /// строкой общей сетки недели и разъезжается по всем семи дням.
+    ///
+    /// Слот попадает в пару, если пара покрывает больше его половины. Если такого
+    /// слота нет (пара уже слота), берем слот с наибольшим перекрытием: время
+    /// целого слота — все равно лучшая догадка, чем его доля.
+    /// </summary>
     private (TimeSpan Start, TimeSpan End) CalculateRealTimeBounds(
         int firstRow, int lastRow,
         List<(int FirstRow, int LastRow, TimeSpan Start, TimeSpan End)> timeSlots)
     {
-        TimeSpan start = TimeSpan.Zero;
-        TimeSpan end = TimeSpan.Zero;
+        int startIndex = -1, endIndex = -1;
+        int bestIndex = -1, bestOverlap = 0;
 
-        // Раньше "слот найден" проверялось сравнением полей кортежа с нулем: слот,
-        // который начинается в первой строке листа, считался бы ненайденным
-        int startIndex = timeSlots.FindIndex(ts => firstRow >= ts.FirstRow && firstRow <= ts.LastRow);
-        if (startIndex >= 0)
+        // Список отсортирован по FirstRow, поэтому первый и последний подошедшие
+        // слоты и есть внешние границы пары
+        for (int i = 0; i < timeSlots.Count; i++)
         {
-            var slot = timeSlots[startIndex];
-            start = firstRow == slot.FirstRow
-                ? slot.Start
-                : InterpolateSlotTime(slot, firstRow - slot.FirstRow);
+            var slot = timeSlots[i];
+            int overlap = Math.Min(lastRow, slot.LastRow) - Math.Max(firstRow, slot.FirstRow) + 1;
+            if (overlap <= 0) continue;
+
+            if (overlap > bestOverlap)
+            {
+                bestOverlap = overlap;
+                bestIndex = i;
+            }
+
+            int slotRows = slot.LastRow - slot.FirstRow + 1;
+            if (overlap * 2 <= slotRows) continue;
+
+            if (startIndex < 0) startIndex = i;
+            endIndex = i;
         }
 
-        int endIndex = timeSlots.FindIndex(ts => lastRow >= ts.FirstRow && lastRow <= ts.LastRow);
-        if (endIndex >= 0)
-        {
-            var slot = timeSlots[endIndex];
-            end = lastRow == slot.LastRow
-                ? slot.End
-                : InterpolateSlotTime(slot, lastRow - slot.FirstRow + 1);
-        }
+        if (startIndex < 0) startIndex = endIndex = bestIndex;
+        if (startIndex < 0) return (TimeSpan.Zero, TimeSpan.Zero);
 
-        return (start, end);
-    }
-
-    /// <summary>
-    /// Время границы пары, которая занимает слот не целиком: делим слот на строки
-    /// пропорционально. Для обычной пары (слот из двух строк по 80 минут) это дает
-    /// ровно те 40 минут, которые раньше были захардкожены, но не ломается на
-    /// слотах другой длины и другого числа строк.
-    /// </summary>
-    private static TimeSpan InterpolateSlotTime(
-        (int FirstRow, int LastRow, TimeSpan Start, TimeSpan End) slot, int rowOffset)
-    {
-        int rows = slot.LastRow - slot.FirstRow + 1;
-        if (rows <= 0) return slot.Start;
-        return slot.Start + (slot.End - slot.Start) * rowOffset / rows;
+        return (timeSlots[startIndex].Start, timeSlots[endIndex].End);
     }
 
     #endregion
@@ -317,7 +367,14 @@ public class ExcelMIPTScheduleParser
 
     private int FindGroupColumn(ISheet sheet, string groupName)
     {
-        for (int r = 0; r <= Math.Min(15, sheet.LastRowNum); r++)
+        // Тот же диапазон строк, что и у ExtractAllGroupNames: список групп для
+        // выбора и поиск колонки обязаны понимать «шапку» одинаково, иначе
+        // выбранная группа не найдется при разборе
+        int headerRow = FindHeaderRow(sheet);
+        int firstScanRow = headerRow >= 0 ? headerRow : 0;
+        int lastScanRow = headerRow >= 0 ? headerRow : Math.Min(15, sheet.LastRowNum);
+
+        for (int r = firstScanRow; r <= lastScanRow; r++)
         {
             var row = sheet.GetRow(r);
             if (row == null) continue;
@@ -343,7 +400,11 @@ public class ExcelMIPTScheduleParser
         return -1;
     }
 
-    private int FindStartDataRow(ISheet sheet)
+    /// <summary>
+    /// Строка с названиями групп: та, где в первых двух колонках стоят «Дни» и «Часы».
+    /// -1, если такой строки нет.
+    /// </summary>
+    private int FindHeaderRow(ISheet sheet)
     {
         for (int r = 0; r <= Math.Min(20, sheet.LastRowNum); r++)
         {
@@ -351,9 +412,15 @@ public class ExcelMIPTScheduleParser
             if (row == null) continue;
             string col1 = GetEffectiveCellText(sheet, r, 0);
             string col2 = GetEffectiveCellText(sheet, r, 1);
-            if (col1 == "Дни" && col2 == "Часы") return r + 1;
+            if (col1 == "Дни" && col2 == "Часы") return r;
         }
-        return 5;
+        return -1;
+    }
+
+    private int FindStartDataRow(ISheet sheet)
+    {
+        int header = FindHeaderRow(sheet);
+        return header >= 0 ? header + 1 : 5;
     }
 
     /// <summary>
@@ -525,8 +592,8 @@ public class ExcelMIPTScheduleParser
     {
         if (string.IsNullOrWhiteSpace(rawText)) return (string.Empty, string.Empty);
 
-        // Сценарий 0: Разделение по первой запятой
-        int commaIndex = rawText.IndexOf(',');
+        // Сценарий 0: Разделение по первой запятой вне скобок
+        int commaIndex = IndexOfTopLevelComma(rawText);
         if (commaIndex > 0)
         {
             string potentialName = CleanText(rawText.Substring(0, commaIndex));
@@ -604,6 +671,26 @@ public class ExcelMIPTScheduleParser
 
         // Fallback
         return (CleanText(rawText), string.Empty);
+    }
+
+    /// <summary>
+    /// Первая запятая вне скобок, -1 если такой нет. Резать по любой первой запятой
+    /// нельзя: в исходнике сплошь перечисления в скобках, и «Прикладная статистика
+    /// (МТС, Декарт)» разрывалось на «…(МТС» и «Декарт)».
+    /// </summary>
+    private static int IndexOfTopLevelComma(string text)
+    {
+        int depth = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c == '(') depth++;
+            // Не уходим в минус: лишняя закрывающая скобка не должна открывать
+            // запятым дорогу обратно
+            else if (c == ')') depth = Math.Max(0, depth - 1);
+            else if (c == ',' && depth == 0) return i;
+        }
+        return -1;
     }
 
     private string CleanText(string text)

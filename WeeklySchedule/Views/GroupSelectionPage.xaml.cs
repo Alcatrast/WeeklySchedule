@@ -10,6 +10,7 @@ public partial class GroupSelectionPage : ContentPage
 {
     public GroupSelectionPage(
         string filePath,
+        string sourceFileName,
         bool timelineExists,
         Timeline timeline,
         ILessonRepository lessonRepo,
@@ -19,7 +20,7 @@ public partial class GroupSelectionPage : ContentPage
         Action? onImported = null)
     {
         InitializeComponent();
-        BindingContext = new GroupSelectionViewModel(filePath, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider, onImported);
+        BindingContext = new GroupSelectionViewModel(filePath, sourceFileName, timelineExists, timeline, lessonRepo, timelineRepo, navigationService, serviceProvider, onImported);
     }
 
     protected override void OnAppearing()
@@ -36,6 +37,8 @@ public partial class GroupSelectionPage : ContentPage
         if (BindingContext is GroupSelectionViewModel vm)
         {
             if (vm.IsLoadingGroups || vm.IsProcessing) return true;
+            // Уходим, не выбрав группу: сохраненная копия файла осталась бы сиротой
+            vm.DiscardUnfinishedSource();
         }
         return base.OnBackButtonPressed();
     }

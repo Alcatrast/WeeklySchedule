@@ -10,4 +10,7 @@ public interface ILessonRepository
     Task AddAsync(Lesson lesson);
     Task UpdateAsync(Lesson lesson);
     Task DeleteAsync(Guid id);
+
+    /// <summary>Удаляет пары одного таймлайна пачкой — для повторного разбора xlsx.</summary>
+    Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids);
 }

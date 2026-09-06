@@ -1,5 +1,8 @@
 ﻿using System.Windows.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using WeeklySchedule.Data.Repositories;
+using WeeklySchedule.Extensions;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
@@ -10,15 +13,24 @@ namespace WeeklySchedule.ViewModels;
 public partial class EditTimelineViewModel : BaseViewModel
 {
     private readonly ITimelineRepository _repository;
+    private readonly ILessonRepository _lessonRepository;
     private readonly ISettingsService _settingsService;
     private readonly INotificationService _notificationService;
     private readonly IFilePickerService _filePickerService;
     private readonly INavigationService _navigationService;
+    private readonly ILogger<ExcelMIPTScheduleParser> _logger;
     private readonly Timeline _timeline;
     private readonly bool _isEditMode;
     private bool _isProcessing;
 
     public string ImportSectionTitle => _isEditMode ? "Дополнить импортом" : "Импорт";
+
+    // Повторный разбор возможен, только если исходник сохранен и лежит на месте.
+    // У расписаний, заведенных до появления копии файла, кнопки не будет
+    public bool CanReimport => _timeline.Source != null && ScheduleSourceStore.Exists(_timeline.Id);
+    public string ReimportLabel => _timeline.Source is { } source
+        ? $"Перечитать файл · {source.GroupName} · {source.ImportedAt:dd.MM.yyyy}"
+        : string.Empty;
 
     private bool _isImporting;
     public bool IsImporting
@@ -28,6 +40,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     }
 
     public ICommand SelectExcelFileCommand { get; }
+    public ICommand ReimportCommand { get; }
     public ICommand ToggleIsStartupCommand { get; }
     public string Title => _isEditMode ? "Редактирование таймлайна" : "Новый таймлайн";
     public bool IsEditMode => _isEditMode;
@@ -63,17 +76,24 @@ public partial class EditTimelineViewModel : BaseViewModel
 
     public EditTimelineViewModel(
         ITimelineRepository repository,
+        ILessonRepository lessonRepository,
         ISettingsService settingsService,
         INotificationService notificationService,
         IFilePickerService filePickerService,
         INavigationService navigationService,
+        IServiceProvider? serviceProvider,
         Timeline? timeline)
     {
         _repository = repository;
+        _lessonRepository = lessonRepository;
         _settingsService = settingsService;
         _notificationService = notificationService;
         _filePickerService = filePickerService;
         _navigationService = navigationService;
+        // Через необобщенный GetService: обобщенный живет в пакете DI, которого нет
+        // в тестовом проекте, а этот файл компилируется и там
+        _logger = serviceProvider?.GetService(typeof(ILogger<ExcelMIPTScheduleParser>))
+            as ILogger<ExcelMIPTScheduleParser> ?? NullLogger<ExcelMIPTScheduleParser>.Instance;
 
         _isEditMode = timeline != null;
         _timeline = timeline ?? new Timeline();
@@ -89,6 +109,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         _notificationsEnabled = _timeline.NotificationsEnabled;
         ToggleNotificationsCommand = new Command(() => NotificationsEnabled = !NotificationsEnabled);
         SelectExcelFileCommand = new Command(() => RunOperation(HandleImportAsync));
+        ReimportCommand = new Command(() => RunOperation(HandleReimportAsync));
     }
 
     private void RunOperation(Func<Task> operation) => SafeFireAndForget.Run(async () =>
@@ -125,9 +146,60 @@ public partial class EditTimelineViewModel : BaseViewModel
             // сам объект: в режиме создания он еще не сохранен в репозитории
             _timeline.Name = (Name ?? string.Empty).Trim();
 
+            // Разбираем не то, что отдал пикер, а свою копию: его путь ведет во
+            // временную папку, и на Android ОС вправе ее вычистить прямо посреди
+            // работы. Id у таймлайна есть с момента создания объекта, поэтому копия
+            // ложится по адресу и до сохранения в репозиторий
+            string path;
+            using (var stream = await file.OpenReadAsync())
+                path = await ScheduleSourceStore.SaveAsync(_timeline.Id, stream);
+
             // Передаем управление в View, так как создание страниц с DI лучше делать там
             // Или можно использовать IPageFactory. Для простоты вызываем событие.
-            ImportRequested?.Invoke(file.FullPath, _timeline, _isEditMode);
+            ImportRequested?.Invoke(path, file.FileName, _timeline, _isEditMode);
+        }
+        finally
+        {
+            IsImporting = false;
+        }
+    }
+
+    private async Task HandleReimportAsync()
+    {
+        if (IsImporting || !CanReimport) return;
+        IsImporting = true;
+        try
+        {
+            var result = await ScheduleReimportService.ReimportAsync(
+                _lessonRepository, _repository, _timeline, _logger);
+
+            string group = _timeline.Source?.GroupName ?? string.Empty;
+            var (title, message) = result.Status switch
+            {
+                ReimportStatus.Success => ("Файл перечитан",
+                    $"Пар в файле: {result.Parsed}. Добавлено новых: {result.Added}. " +
+                    $"Убрано устаревших: {result.Removed}." +
+                    (result.Repaired > 0 ? $"\nУбрано нечитаемых записей: {result.Repaired}." : string.Empty) +
+                    (result.Skipped > 0 ? $"\nСтрок с нераспознанным временем: {result.Skipped} — они пропущены." : string.Empty) +
+                    "\nПары, заведённые вручную, остались на месте."),
+                ReimportStatus.GroupNotFound => ("Группа не найдена",
+                    $"В сохранённом файле больше нет группы «{group}». Расписание не изменено — " +
+                    "выберите файл заново через импорт."),
+                ReimportStatus.NoLessons => ("Пары не найдены",
+                    $"Для группы «{group}» в файле не нашлось ни одной пары. Расписание не изменено." +
+                    (result.Skipped > 0
+                        ? $" Строк с нераспознанным временем: {result.Skipped}."
+                        : string.Empty)),
+                _ => ("Файл недоступен", "Сохранённая копия файла не найдена. Импортируйте расписание заново.")
+            };
+
+            if (result.Status == ReimportStatus.Success)
+            {
+                OnPropertyChanged(nameof(ReimportLabel));
+                AppEvents.NotifyDataChanged();
+            }
+            var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+            if (page != null) await page.DisplayAlertAsync(title, message, "ОК");
         }
         finally
         {
@@ -136,9 +208,10 @@ public partial class EditTimelineViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// filePath, редактируемый таймлайн, признак того что таймлайн уже есть в репозитории.
+    /// Путь к сохраненной копии, исходное имя файла, редактируемый таймлайн,
+    /// признак того что таймлайн уже есть в репозитории.
     /// </summary>
-    public event Action<string, Timeline, bool>? ImportRequested;
+    public event Action<string, string, Timeline, bool>? ImportRequested;
 
     private async Task SaveAsync()
     {

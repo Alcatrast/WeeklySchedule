@@ -23,6 +23,9 @@
     <Compile Include="../WeeklySchedule/Models/LessonType.cs" Link="Source/LessonType.cs" />
     <Compile Include="../WeeklySchedule/Models/Timeline.cs" Link="Source/Timeline.cs" />
     <Compile Include="../WeeklySchedule/Models/BaseDay.cs" Link="Source/BaseDay.cs" />
+    <Compile Include="../WeeklySchedule/Models/ImportSource.cs" Link="Source/ImportSource.cs" />
+    <Compile Include="../WeeklySchedule/Services/ScheduleSourceStore.cs" Link="Source/ScheduleSourceStore.cs" />
+    <Compile Include="../WeeklySchedule/Services/ScheduleReimportService.cs" Link="Source/ScheduleReimportService.cs" />
     <Compile Include="../WeeklySchedule/Models/NotificationReminder.cs" Link="Source/NotificationReminder.cs" />
     <Compile Include="../WeeklySchedule/Services/IActiveScheduleService.cs" Link="Source/IActiveScheduleService.cs" />
     <Compile Include="../WeeklySchedule/Services/ItemDeletionService.cs" Link="Source/ItemDeletionService.cs" />
