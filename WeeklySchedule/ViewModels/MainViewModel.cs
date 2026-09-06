@@ -31,15 +31,15 @@ public partial class MainViewModel : BaseViewModel
     }
 
     private List<Lesson> _allLessons = [];
-    private List<BaseDay> _baseDays = [];
-    public string BaseDayText => string.Join("\n", _baseDays
-        .Where(d => d.Day == SelectedDayVM?.DayOfWeek).Select(d => d.DisplayText));
-    public bool HasBaseDay => !string.IsNullOrEmpty(BaseDayText);
-    private void UpdateBaseDay()
-    {
-        OnPropertyChanged(nameof(BaseDayText));
-        OnPropertyChanged(nameof(HasBaseDay));
-    }
+
+    // Сетка общая для всех семи дней, поэтому строится здесь, а не в каждом дне.
+    // Экземпляр держится до реальной смены данных: DayView отличает перестройку
+    // от обновления состояния по ReferenceEquals, и лишний новый объект стоил бы
+    // полной перерисовки с прыжком прокрутки на каждое переименование таймлайна
+    private WeekLayout _weekLayout = WeekLayout.Build([], []);
+    private (LessonState[] Lessons, BaseDay[] Markers)? _weekSnapshot;
+    private sealed record LessonState(Guid Id, DayOfWeek Day, string Name, string Description,
+        TimeSpan Start, TimeSpan End, LessonType Type);
 
     // Один проход инициализации за раз: OnAppearing может прийти повторно,
     // не дождавшись предыдущего
@@ -67,9 +67,8 @@ public partial class MainViewModel : BaseViewModel
         {
             if (SetProperty(ref _selectedDayVM, value))
             {
-                UpdateBaseDay();
                 _selectedDayVM?.UpdateTitle(TimeContext.Now);
-                _selectedDayVM?.UpdateLayout(TimeContext.Now, _allLessons);
+                _selectedDayVM?.UpdateLayout(TimeContext.Now, _weekLayout);
                 _selectedDayVM?.RequestScroll();
             }
         }
@@ -104,7 +103,7 @@ public partial class MainViewModel : BaseViewModel
             // Пара началась или закончилась: пересобираем сегодняшний день, иначе
             // подсветка текущей пары остается такой, какой была на прошлом пересчете
             var todayVM = Days.FirstOrDefault(d => d.Date == now.Date);
-            todayVM?.UpdateLayout(now, _allLessons);
+            todayVM?.UpdateLayout(now, _weekLayout);
         };
         _scheduler.OnDayChanged += () =>
         {
@@ -241,8 +240,7 @@ public partial class MainViewModel : BaseViewModel
         // Название, пары и таймер публикуются вместе, только для актуального запроса.
         CurrentTimelineName = timeline?.Name ?? "Расписание";
         _allLessons = lessons;
-        _baseDays = timeline?.BaseDays ?? [];
-        UpdateBaseDay();
+        RebuildWeekLayoutIfChanged(timeline?.BaseDays ?? []);
         _loadedTimelineId = timelineId;
         _loadedRevision = revision;
         if (_monitorEnabled) _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
@@ -395,7 +393,29 @@ public partial class MainViewModel : BaseViewModel
     private void UpdateAllDays()
     {
         var now = TimeContext.Now;
-        foreach (var dayVM in Days) dayVM.UpdateLayout(now, _allLessons);
+        foreach (var dayVM in Days) dayVM.UpdateLayout(now, _weekLayout);
+    }
+
+    /// <summary>
+    /// Пересобирает общую сетку недели, только если содержимое пар или пометок
+    /// действительно изменилось. Переименование таймлайна и возврат на экран
+    /// приходят сюда постоянно, а каждая новая раскладка стоит DayView полной
+    /// перерисовки: он сравнивает экземпляры по ссылке.
+    /// </summary>
+    private void RebuildWeekLayoutIfChanged(List<BaseDay> baseDays)
+    {
+        var snapshot = (
+            Lessons: _allLessons.OrderBy(l => l.Id)
+                .Select(l => new LessonState(l.Id, l.Day, l.Name, l.Description,
+                    l.StartTime, l.EndTime, l.Type)).ToArray(),
+            Markers: baseDays.OrderBy(b => b.Day).ThenBy(b => b.StartTime).ThenBy(b => b.Text).ToArray());
+
+        if (_weekSnapshot is { } previous &&
+            previous.Lessons.SequenceEqual(snapshot.Lessons) &&
+            previous.Markers.SequenceEqual(snapshot.Markers)) return;
+
+        _weekLayout = WeekLayout.Build(_allLessons, baseDays);
+        _weekSnapshot = snapshot;
     }
 
     public void StopMonitor()

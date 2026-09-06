@@ -1,4 +1,4 @@
-using System.Globalization;
+using Microsoft.Maui.Controls.Shapes;
 using WeeklySchedule.Core;
 using WeeklySchedule.Models;
 using WeeklySchedule.Utilities;
@@ -8,18 +8,30 @@ namespace WeeklySchedule.Views;
 
 public partial class DayView : ContentView
 {
+    // Отступ надписи свободного дня от верха ленты. Сетка теперь общая для недели,
+    // поэтому свободный день такой же высокий, как заполненный, и надпись по центру
+    // всей высоты пришлось бы искать прокруткой.
+    private const double EmptyLabelTopMargin = 48;
+
     private readonly DayViewSubscription _subscription;
     private readonly Dictionary<Guid, LessonCardView> _cards = [];
-    private readonly List<BoxView> _separators = [];
+    private readonly List<BaseDayCardView> _markers = [];
     private readonly List<Label> _gapLabels = [];
     private readonly Label _empty = new()
     {
         Text = "Свободный день", FontSize = 24, FontAttributes = FontAttributes.Italic,
         TextColor = Colors.Gray, HorizontalOptions = LayoutOptions.Center,
-        VerticalOptions = LayoutOptions.Center, InputTransparent = true
+        VerticalOptions = LayoutOptions.Start, InputTransparent = true
     };
-    private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
-    private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
+    // Метка текущего времени: маленький треугольник у левого края, только на сегодня.
+    private readonly Polygon _nowMarker = new()
+    {
+        Points = [new Point(0, 0), new Point(7, 4.5), new Point(0, 9)],
+        Fill = new SolidColorBrush(Color.FromArgb("#E04A4A")),
+        WidthRequest = 7, HeightRequest = 9,
+        HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start,
+        InputTransparent = true, IsVisible = false
+    };
     private TimelineLayout? _renderedLayout;
     private double[] _rowHeights = [];
     private double _totalHeight;
@@ -53,14 +65,16 @@ public partial class DayView : ContentView
     {
         if (BindingContext is not DayViewModel day) return;
         var layout = day.Layout;
-        // Геометрия больше не зависит от размера экрана: масштаб общий для всех дней.
+        // Геометрия общая для всей недели: и масштаб, и разметка строк приходят
+        // из WeekLayout, поэтому от размера экрана и от состава дня не зависят.
         bool structureChanged = !ReferenceEquals(_renderedLayout, layout);
 
         if (structureChanged)
         {
             _restoreY = MainScroll.ScrollY;
             _renderedLayout = layout;
-            _rowHeights = TimelineMetrics.RowHeights(layout);
+            _rowHeights = layout.RowHeights;
+            _totalHeight = TimelineMetrics.TotalHeight(_rowHeights);
 
             var ids = layout.Lessons.Select(p => p.Lesson.Id).ToHashSet();
             foreach (var id in _cards.Keys.Where(id => !ids.Contains(id)).ToArray())
@@ -69,23 +83,26 @@ public partial class DayView : ContentView
                 _cards.Remove(id);
             }
 
-            bool empty = layout.TotalMinutes == 0 || layout.Segments.Count == 0;
-            TimelineGrid.VerticalOptions = empty ? LayoutOptions.Center : LayoutOptions.Start;
+            // «Пусто» — это пустая НЕДЕЛЯ, а не пустой день: день без пар внутри
+            // непустой недели строит те же строки, что и все остальные, и занимает
+            // столько же места
+            bool weekEmpty = layout.Segments.Count == 0;
+            TimelineGrid.VerticalOptions = weekEmpty ? LayoutOptions.Center : LayoutOptions.Start;
             TimelineGrid.MinimumHeightRequest = -1;
-            if (empty)
+            int columns;
+            if (weekEmpty)
             {
                 TimelineGrid.RowDefinitions.Clear();
                 TimelineGrid.ColumnDefinitions.Clear();
                 TimelineGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-                if (!TimelineGrid.Children.Contains(_empty)) TimelineGrid.Children.Add(_empty);
                 TimelineGrid.HeightRequest = -1;
+                columns = 1;
                 _totalHeight = 0;
                 _restoreY = 0;
             }
             else
             {
-                TimelineGrid.Children.Remove(_empty);
                 // Строк на одну больше, чем сегментов: последняя — распорка Star.
                 // Если MAUI когда-нибудь растянет содержимое ScrollView до высоты
                 // вьюпорта, избыток уйдет в нее, а не размажется по строкам пар.
@@ -94,14 +111,10 @@ public partial class DayView : ContentView
                     TimelineGrid.RowDefinitions.RemoveAt(TimelineGrid.RowDefinitions.Count - 1);
                 while (TimelineGrid.RowDefinitions.Count < rows)
                     TimelineGrid.RowDefinitions.Add(new RowDefinition());
-                _totalHeight = 0;
                 for (int i = 0; i < layout.Segments.Count; i++)
-                {
                     TimelineGrid.RowDefinitions[i].Height = new GridLength(_rowHeights[i]);
-                    _totalHeight += _rowHeights[i];
-                }
                 TimelineGrid.RowDefinitions[rows - 1].Height = GridLength.Star;
-                int columns = Math.Max(1, layout.TotalColumns);
+                columns = Math.Max(1, layout.TotalColumns);
                 while (TimelineGrid.ColumnDefinitions.Count > columns)
                     TimelineGrid.ColumnDefinitions.RemoveAt(TimelineGrid.ColumnDefinitions.Count - 1);
                 while (TimelineGrid.ColumnDefinitions.Count < columns)
@@ -128,41 +141,98 @@ public partial class DayView : ContentView
                     Grid.SetColumnSpan(card, placement.ColumnSpan);
                 }
             }
-            UpdateGapLabels(layout);
+
+            UpdateMarkers(layout, columns);
+            UpdateGapLabels(layout, weekEmpty);
+            UpdateEmptyLabel(layout, weekEmpty, columns);
+            if (!TimelineGrid.Children.Contains(_nowMarker)) TimelineGrid.Children.Add(_nowMarker);
+            Grid.SetRow(_nowMarker, 0);
+            Grid.SetRowSpan(_nowMarker, Math.Max(1, layout.Segments.Count));
         }
 
         var now = TimeContext.Now;
         foreach (var placement in layout.Lessons)
             if (_cards.TryGetValue(placement.Lesson.Id, out var card)) card.Update(placement, day, now);
-        UpdateBreaks(layout);
+        UpdateNowMarker(layout);
         if (structureChanged) QueueScroll();
     }
 
-    // Подписи длинных «окон». От текущего времени не зависят, поэтому живут рядом
-    // с геометрией, а не в UpdateBreaks.
-    private void UpdateGapLabels(TimelineLayout layout)
+    // Базовые дни рисуются под карточками пар: пометка на весь день накрывает всю
+    // сетку, и поверх нее должны читаться пары. Порядок детей в Grid и есть z-order,
+    // поэтому новые блоки вставляются в начало списка, а не добавляются в конец.
+    private void UpdateMarkers(TimelineLayout layout, int columns)
     {
         int used = 0;
-        for (int row = 0; row < layout.Segments.Count; row++)
+        foreach (var placement in layout.Markers)
         {
-            int minutes = layout.Segments[row].DurationMinutes;
-            if (minutes < TimelineMetrics.GapLabelThreshold || !TimelineMetrics.IsGapRow(layout, row)) continue;
-            if (used == _gapLabels.Count)
+            if (used == _markers.Count)
             {
-                var created = new Label
-                {
-                    FontSize = 11, TextColor = Colors.Gray, InputTransparent = true,
-                    HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
-                };
-                _gapLabels.Add(created);
-                TimelineGrid.Children.Add(created);
+                var created = new BaseDayCardView();
+                _markers.Add(created);
+                TimelineGrid.Children.Insert(0, created);
             }
-            var label = _gapLabels[used++];
-            label.Text = TimelineMetrics.FormatGap(minutes);
-            Grid.SetRow(label, row);
-            Grid.SetRowSpan(label, 1);
-            Grid.SetColumn(label, 0);
-            Grid.SetColumnSpan(label, Math.Max(1, layout.TotalColumns));
+            var block = _markers[used++];
+            block.Update(placement);
+            Grid.SetRow(block, placement.StartRow);
+            Grid.SetRowSpan(block, placement.RowSpan);
+            Grid.SetColumn(block, 0);
+            Grid.SetColumnSpan(block, columns);
+        }
+        while (_markers.Count > used)
+        {
+            TimelineGrid.Children.Remove(_markers[^1]);
+            _markers.RemoveAt(_markers.Count - 1);
+        }
+    }
+
+    // Надпись показывается, только когда в дне нет ни пар, ни пометок: базовый день —
+    // не свободный день, и раньше он получал обе подписи сразу.
+    private void UpdateEmptyLabel(TimelineLayout layout, bool weekEmpty, int columns)
+    {
+        bool show = layout.Lessons.Count == 0 && layout.Markers.Count == 0;
+        if (!show)
+        {
+            TimelineGrid.Children.Remove(_empty);
+            return;
+        }
+        if (!TimelineGrid.Children.Contains(_empty)) TimelineGrid.Children.Add(_empty);
+        Grid.SetRow(_empty, 0);
+        Grid.SetRowSpan(_empty, Math.Max(1, layout.Segments.Count));
+        Grid.SetColumn(_empty, 0);
+        Grid.SetColumnSpan(_empty, columns);
+        _empty.VerticalOptions = weekEmpty ? LayoutOptions.Center : LayoutOptions.Start;
+        _empty.Margin = weekEmpty ? default : new Thickness(0, EmptyLabelTopMargin, 0, 0);
+    }
+
+    // Подписи длинных «окон». От текущего времени не зависят, поэтому живут рядом
+    // с геометрией. Окно берется из общего для недели GapRows: по одному дню каждая
+    // строка свободного дня оказалась бы «окном».
+    private void UpdateGapLabels(TimelineLayout layout, bool weekEmpty)
+    {
+        int used = 0;
+        if (!weekEmpty)
+        {
+            for (int row = 0; row < layout.Segments.Count; row++)
+            {
+                int minutes = layout.Segments[row].DurationMinutes;
+                if (minutes < TimelineMetrics.GapLabelThreshold || !layout.GapRows[row]) continue;
+                if (used == _gapLabels.Count)
+                {
+                    var created = new Label
+                    {
+                        FontSize = 11, TextColor = Colors.Gray, InputTransparent = true,
+                        HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
+                    };
+                    _gapLabels.Add(created);
+                    TimelineGrid.Children.Add(created);
+                }
+                var label = _gapLabels[used++];
+                label.Text = TimelineMetrics.FormatGap(minutes);
+                Grid.SetRow(label, row);
+                Grid.SetRowSpan(label, 1);
+                Grid.SetColumn(label, 0);
+                Grid.SetColumnSpan(label, Math.Max(1, layout.TotalColumns));
+            }
         }
         while (_gapLabels.Count > used)
         {
@@ -171,30 +241,18 @@ public partial class DayView : ContentView
         }
     }
 
-    private void UpdateBreaks(TimelineLayout layout)
+    // Треугольник стоит в строке 0 с рядами на всю сетку и сдвигается отступом:
+    // так не нужно считать положение внутри своей строки и нельзя промахнуться
+    // мимо ее границы.
+    private void UpdateNowMarker(TimelineLayout layout)
     {
-        while (_separators.Count > layout.Breaks.Count)
+        if (layout.CurrentTimeOffset is not double offset)
         {
-            TimelineGrid.Children.Remove(_separators[^1]);
-            _separators.RemoveAt(_separators.Count - 1);
+            _nowMarker.IsVisible = false;
+            return;
         }
-        for (int i = 0; i < layout.Breaks.Count; i++)
-        {
-            if (i == _separators.Count)
-            {
-                var line = new BoxView { VerticalOptions = LayoutOptions.Start, InputTransparent = true };
-                _separators.Add(line);
-                TimelineGrid.Children.Add(line);
-            }
-            var br = layout.Breaks[i];
-            var separator = _separators[i];
-            separator.Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent);
-            separator.HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0);
-            separator.Margin = new Thickness(10, TimelineMetrics.SpanHeight(_rowHeights, br.StartRow, br.RowSpan) / 2 - 1, 10, 0);
-            Grid.SetRow(separator, br.StartRow);
-            Grid.SetRowSpan(separator, br.RowSpan);
-            Grid.SetColumnSpan(separator, Math.Max(1, layout.TotalColumns));
-        }
+        _nowMarker.IsVisible = true;
+        _nowMarker.Margin = new Thickness(0, offset - 4.5, 0, 0);
     }
 
     private void OnScrollToCurrentRequested()

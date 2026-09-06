@@ -1,4 +1,4 @@
-﻿namespace WeeklySchedule.Models;
+namespace WeeklySchedule.Models;
 
 public class TimeSegment
 {
@@ -18,18 +18,30 @@ public class LessonPlacement
     public bool IsCurrent { get; set; }
 }
 
-public class BreakPlacement
+// Пометка расписания в сетке: базовый день. Занимает строки, но не колонки —
+// рисуется во всю ширину под карточками пар.
+public class MarkerPlacement
 {
+    public BaseDay Marker { get; set; } = null!;
     public int StartRow { get; set; }
     public int RowSpan { get; set; }
-    public int TotalMinutes { get; set; }
-    public SeparatorType Type { get; set; } = SeparatorType.None;
+    public string Text { get; set; } = string.Empty;
 }
+
+// Раскладка одного дня. Segments и RowHeights общие для всей недели: их держит
+// WeekLayout и раздает всем дням один и тот же экземпляр, иначе одно и то же
+// время оказывалось бы на разной высоте в разных днях.
 public class TimelineLayout
 {
-    public int TotalMinutes { get; set; }
     public int TotalColumns { get; set; }
     public List<LessonPlacement> Lessons { get; set; } = [];
-    public List<BreakPlacement> Breaks { get; set; } = [];
+    public List<MarkerPlacement> Markers { get; set; } = [];
     public List<TimeSegment> Segments { get; set; } = [];
+    public double[] RowHeights { get; set; } = [];
+
+    // Строки, свободные во всех днях недели — их и подписываем «окно».
+    public bool[] GapRows { get; set; } = [];
+
+    // Смещение метки текущего времени от верха сетки; null — день не сегодняшний.
+    public double? CurrentTimeOffset { get; set; }
 }

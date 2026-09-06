@@ -20,9 +20,6 @@ public partial class DayViewModel : BaseViewModel
     }
 
     public TimelineLayout Layout { get; private set; } = new();
-    private LessonState[]? _snapshot;
-    private sealed record LessonState(Guid Id, Guid TimelineId, string Name, string Description,
-        TimeSpan Start, TimeSpan End, LessonType Type);
     public event Action? LayoutUpdated;
     public event Action? ScrollToCurrentRequested;
     public ICommand ViewLessonCommand { get; }
@@ -69,16 +66,14 @@ public partial class DayViewModel : BaseViewModel
             : $"{dayOfWeekRu}, {prefix}, {dateStr}";
     }
 
-    public void UpdateLayout(DateTime now, List<Lesson> allLessons)
+    // Раскладку держит WeekLayout: он общий для всех дней и пересобирается только
+    // при смене данных, поэтому здесь достаточно взять свой день и обновить состояние.
+    // Сравнение снимка пар переехало в MainViewModel — оно делается раз на неделю,
+    // а не семь раз подряд.
+    public void UpdateLayout(DateTime now, WeekLayout week)
     {
-        var snapshot = allLessons.Where(l => l.Day == DayOfWeek).OrderBy(l => l.Id)
-            .Select(l => new LessonState(l.Id, l.TimelineId, l.Name, l.Description, l.StartTime, l.EndTime, l.Type)).ToArray();
-        if (_snapshot == null || !_snapshot.SequenceEqual(snapshot))
-        {
-            Layout = TimelineLayoutBuilder.Build(Date, allLessons, now);
-            _snapshot = snapshot;
-        }
-        else TimelineLayoutBuilder.RefreshState(Layout, Date, now);
+        Layout = week.For(DayOfWeek);
+        TimelineLayoutBuilder.RefreshState(Layout, Date, now);
         LayoutUpdated?.Invoke();
     }
 }

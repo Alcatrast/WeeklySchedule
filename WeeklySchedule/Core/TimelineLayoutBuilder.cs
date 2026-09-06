@@ -1,4 +1,4 @@
-﻿using WeeklySchedule.Models;
+using WeeklySchedule.Models;
 
 namespace WeeklySchedule.Core;
 
@@ -10,29 +10,18 @@ public static class TimelineLayoutBuilder
 
     private static long Gcd(long a, long b) => b == 0 ? a : Gcd(b, a % b);
 
-    public static TimelineLayout Build(DateTime date, List<Lesson> allLessons, DateTime now)
+    /// <summary>
+    /// Размещения одного дня в общей сетке недели. Строки не считаются от пар этого
+    /// дня: их индексы берутся из карт общей сетки, поэтому одно и то же время лежит
+    /// на одной строке во всех днях.
+    /// </summary>
+    public static TimelineLayout BuildDay(
+        List<Lesson> dayLessons,
+        IReadOnlyDictionary<TimeSpan, int> rowByStart,
+        IReadOnlyDictionary<TimeSpan, int> rowByEnd)
     {
-        var dayLessons = allLessons.Where(l => l.Day == date.DayOfWeek).ToList();
-        if (dayLessons.Count == 0)
-            return new TimelineLayout { TotalMinutes = 0, TotalColumns = 1 };
+        if (dayLessons.Count == 0) return new TimelineLayout { TotalColumns = 1 };
 
-        var minStart = dayLessons.Min(l => l.StartTime);
-        var maxEnd = dayLessons.Max(l => l.EndTime);
-        int totalMinutes = (int)(maxEnd - minStart).TotalMinutes;
-
-        var timePoints = new SortedSet<TimeSpan>();
-        foreach (var l in dayLessons)
-        {
-            timePoints.Add(l.StartTime);
-            timePoints.Add(l.EndTime);
-        }
-
-        var segments = new List<TimeSegment>();
-        var points = timePoints.ToList();
-        for (int i = 0; i < points.Count - 1; i++)
-        {
-            segments.Add(new TimeSegment { Start = points[i], End = points[i + 1] });
-        }
         var islands = new List<List<Lesson>>();
         var assigned = new HashSet<Lesson>();
 
@@ -136,11 +125,12 @@ public static class TimelineLayoutBuilder
                 }
                 colEndTimes[colIndex] = lesson.EndTime;
 
-                int startRow = segments.FindIndex(s => s.Start == lesson.StartTime);
-                int endRow = segments.FindIndex(s => s.End == lesson.EndTime);
+                // Границы пары всегда входят в точки общей сетки, поэтому промах
+                // невозможен; запасной ноль оставлен на случай испорченных данных
+                int startRow = rowByStart.TryGetValue(lesson.StartTime, out var s) ? s : 0;
+                int endRow = rowByEnd.TryGetValue(lesson.EndTime, out var e) ? e : startRow;
                 int rowSpan = Math.Max(1, endRow - startRow + 1);
                 int lessonMinutes = (int)(lesson.EndTime - lesson.StartTime).TotalMinutes;
-                bool isCurrent = now.TimeOfDay >= lesson.StartTime && now.TimeOfDay < lesson.EndTime && now.Date == date;
 
                 // Границы колонки считаем от краев сетки, а не как colIndex * span:
                 // если НОК уперся в потолок, totalColumns может не делиться на c,
@@ -155,68 +145,32 @@ public static class TimelineLayoutBuilder
                     RowSpan = rowSpan,
                     TotalMinutes = lessonMinutes,
                     Column = colStart,
-                    ColumnSpan = Math.Max(1, colEnd - colStart),
-                    IsCurrent = isCurrent
+                    ColumnSpan = Math.Max(1, colEnd - colStart)
                 });
             }
         }
 
-        var layout = new TimelineLayout
-        {
-            TotalMinutes = totalMinutes,
-            TotalColumns = totalColumns,
-            Lessons = placements,
-            Segments = segments
-        };
-        RefreshState(layout, date, now);
-        return layout;
+        return new TimelineLayout { TotalColumns = totalColumns, Lessons = placements };
     }
 
-    // Геометрия не зависит от текущего времени. Меняем только состояние карточек
-    // и маркер перерыва, сохраняя объекты размещения.
+    /// <summary>
+    /// Геометрия не зависит от текущего времени. Меняем только подсветку текущей пары
+    /// и положение метки времени, сохраняя объекты размещения.
+    /// </summary>
     public static void RefreshState(TimelineLayout layout, DateTime date, DateTime now)
     {
+        bool today = date.Date == now.Date;
         foreach (var placement in layout.Lessons)
-            placement.IsCurrent = date.Date == now.Date && now.TimeOfDay >= placement.Lesson.StartTime &&
+            placement.IsCurrent = today && now.TimeOfDay >= placement.Lesson.StartTime &&
                 now.TimeOfDay < placement.Lesson.EndTime;
+
         var segments = layout.Segments;
-        var dayLessons = layout.Lessons.Select(p => p.Lesson).ToList();
-        // Рисуется ровно один разделитель — маркер текущего времени в перерыве.
-        // Прошедшие перерывы в список не попадают, поэтому и флага "перерыв
-        // в прошлом" здесь больше нет: он не мог стать true ни у одного элемента
-        var breaks = new List<BreakPlacement>();
-        if (date.Date == now.Date)
-        {
-            for (int i = 0; i < segments.Count; i++)
-            {
-                var seg = segments[i];
-
-                bool isBreak = !dayLessons.Any(l => l.StartTime < seg.End && l.EndTime > seg.Start);
-                if (!isBreak) continue;
-
-                bool isCurrentBreak = now.TimeOfDay >= seg.Start && now.TimeOfDay <= seg.End;
-                if (!isCurrentBreak) continue;
-
-                // Перерыв может состоять из нескольких подряд идущих сегментов
-                var last = breaks.Count > 0 ? breaks[^1] : null;
-                if (last != null && last.StartRow + last.RowSpan == i)
-                {
-                    last.RowSpan++;
-                    last.TotalMinutes += seg.DurationMinutes;
-                }
-                else
-                {
-                    breaks.Add(new BreakPlacement
-                    {
-                        StartRow = i,
-                        RowSpan = 1,
-                        TotalMinutes = seg.DurationMinutes,
-                        Type = SeparatorType.ThickWhite
-                    });
-                }
-            }
-        }
-
-        layout.Breaks = breaks;
+        // Метка живет только внутри сетки: до первой пары недели и после последней
+        // ее прижимало бы к краю, и она врала бы о том, где сейчас время
+        bool inside = today && segments.Count > 0 &&
+            now.TimeOfDay >= segments[0].Start && now.TimeOfDay <= segments[^1].End;
+        layout.CurrentTimeOffset = inside
+            ? TimelineMetrics.OffsetAt(layout.RowHeights, segments, now.TimeOfDay)
+            : null;
     }
 }

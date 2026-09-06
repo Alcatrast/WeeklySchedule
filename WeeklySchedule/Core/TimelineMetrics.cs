@@ -25,20 +25,24 @@ public static class TimelineMetrics
 
     // Строка сетки — это сегмент, а не пара: пара может занимать несколько сегментов,
     // а в одном сегменте могут лежать несколько параллельных пар.
-    public static double[] RowHeights(TimelineLayout layout)
+    //
+    // Считается по размещениям ВСЕЙ недели, а не одного дня. Пол MinLessonHeight
+    // раздувает строки под конкретную пару, поэтому день, в котором этой пары нет,
+    // получил бы другие высоты — и выравнивание «строчка в строчку» рассыпалось бы.
+    public static double[] RowHeights(IReadOnlyList<TimeSegment> segments,
+        IReadOnlyList<LessonPlacement> weekPlacements, bool[] gapRows)
     {
-        var segments = layout.Segments;
         var heights = new double[segments.Count];
         if (heights.Length == 0) return heights;
 
         for (int i = 0; i < heights.Length; i++)
-            heights[i] = IsGapRow(layout, i) ? GapHeight(segments[i].DurationMinutes) : 0;
+            heights[i] = gapRows[i] ? GapHeight(segments[i].DurationMinutes) : 0;
 
         // Целевая высота пары зависит только от ее длительности. Раскладываем ее по
         // строкам пропорционально сегментам, а занятая строка берет максимум из долей
         // всех пар, которые ее покрывают: тогда сумма строк пары равна ее высоте
         // (для одиночной пары точно, для параллельных — не меньше).
-        foreach (var placement in layout.Lessons)
+        foreach (var placement in weekPlacements)
         {
             int startRow = Math.Clamp(placement.StartRow, 0, heights.Length - 1);
             int endRow = Math.Clamp(startRow + Math.Max(1, placement.RowSpan) - 1, startRow, heights.Length - 1);
@@ -73,8 +77,55 @@ public static class TimelineMetrics
         return total;
     }
 
-    public static bool IsGapRow(TimelineLayout layout, int rowIndex) =>
-        !layout.Lessons.Any(p => p.StartRow <= rowIndex && rowIndex < p.StartRow + Math.Max(1, p.RowSpan));
+    public static double TotalHeight(double[] rows)
+    {
+        double total = 0;
+        foreach (var height in rows) total += height;
+        return total;
+    }
+
+    // Смещение момента времени от верха сетки. Внутри сегмента интерполируем:
+    // сетка сжимает «окна» до MaxGapHeight, поэтому пересчет «минуты × dp»
+    // промахнулся бы мимо реальной высоты.
+    public static double OffsetAt(double[] rows, IReadOnlyList<TimeSegment> segments, TimeSpan time)
+    {
+        if (segments.Count == 0 || rows.Length == 0) return 0;
+        if (time <= segments[0].Start) return 0;
+        if (time >= segments[^1].End) return TotalHeight(rows);
+
+        double offset = 0;
+        for (int i = 0; i < segments.Count && i < rows.Length; i++)
+        {
+            var segment = segments[i];
+            if (time < segment.End)
+            {
+                double minutes = (segment.End - segment.Start).TotalMinutes;
+                if (minutes <= 0) return offset;
+                return offset + rows[i] * (time - segment.Start).TotalMinutes / minutes;
+            }
+            offset += rows[i];
+        }
+        return offset;
+    }
+
+    /// <summary>
+    /// Строки, которые не покрыты ни одной парой ЗА ВСЮ НЕДЕЛЮ. Считать по одному дню
+    /// нельзя: в свободном дне пустой оказалась бы каждая строка, и он покрылся бы
+    /// подписями «окно», хотя в это время просто идут пары других дней.
+    /// </summary>
+    public static bool[] GapRows(IReadOnlyList<TimeSegment> segments,
+        IReadOnlyList<LessonPlacement> weekPlacements)
+    {
+        var gaps = new bool[segments.Count];
+        Array.Fill(gaps, true);
+        foreach (var placement in weekPlacements)
+        {
+            int startRow = Math.Max(0, placement.StartRow);
+            int endRow = Math.Min(gaps.Length - 1, placement.StartRow + Math.Max(1, placement.RowSpan) - 1);
+            for (int i = startRow; i <= endRow; i++) gaps[i] = false;
+        }
+        return gaps;
+    }
 
     public static string FormatGap(int minutes)
     {

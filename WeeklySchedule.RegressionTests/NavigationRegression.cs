@@ -1,3 +1,4 @@
+using WeeklySchedule.Core;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
@@ -157,14 +158,14 @@ static class NavigationRegression
         subscription.SetSource(a);
         subscription.SetSource(b);
         subscription.SetSource(b);
-        a.UpdateLayout(DateTime.Now, []);
+        a.UpdateLayout(DateTime.Now, WeekLayout.Build([], []));
         a.RequestScroll();
         Check(layouts == 0 && scrolls == 0);
-        b.UpdateLayout(DateTime.Now, []);
+        b.UpdateLayout(DateTime.Now, WeekLayout.Build([], []));
         b.RequestScroll();
         Check(layouts == 1 && scrolls == 1);
         subscription.Dispose();
-        b.UpdateLayout(DateTime.Now, []);
+        b.UpdateLayout(DateTime.Now, WeekLayout.Build([], []));
         b.RequestScroll();
         Check(layouts == 1 && scrolls == 1);
         subscription.SetSource(a); // Повторная загрузка того же View.
@@ -243,6 +244,7 @@ static class NavigationRegression
         public Task AddAsync(Lesson lesson) => Task.CompletedTask;
         public Task UpdateAsync(Lesson lesson) => Task.CompletedTask;
         public Task DeleteAsync(Guid id) => Task.CompletedTask;
+        public Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids) => Task.CompletedTask;
     }
 
     private sealed class AlwaysCorruptTimelines : ITimelineRepository
@@ -313,6 +315,7 @@ static class NavigationRegression
         public Task AddAsync(Lesson lesson) => throw new NotSupportedException();
         public Task UpdateAsync(Lesson lesson) => throw new NotSupportedException();
         public Task DeleteAsync(Guid id) => throw new NotSupportedException();
+        public Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids) => throw new NotSupportedException();
     }
 
     private sealed class TestSeeder : IDataSeeder

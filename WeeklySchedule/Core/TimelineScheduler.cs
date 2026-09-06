@@ -5,6 +5,8 @@ namespace WeeklySchedule.Core;
 
 public class TimelineScheduler
 {
+    private static readonly TimeSpan MarkerTick = TimeSpan.FromMinutes(1);
+
     private readonly Lock _lock = new();
     private CancellationTokenSource? _cts;
     private List<DateTime> _markers = [];
@@ -81,6 +83,11 @@ public class TimelineScheduler
 
                     if (delay < TimeSpan.FromMilliseconds(50))
                         delay = TimeSpan.FromMilliseconds(50);
+                    // Метка текущего времени должна ползти, а не прыгать по границам
+                    // пар, поэтому просыпаемся хотя бы раз в минуту. Пробуждение без
+                    // наступившего маркера просто обновит состояние дня. Расхода
+                    // в фоне нет: OnDisappearing останавливает планировщик
+                    else if (delay > MarkerTick) delay = MarkerTick;
 
                     await Task.Delay(delay, token);
 

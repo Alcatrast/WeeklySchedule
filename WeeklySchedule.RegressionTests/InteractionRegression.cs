@@ -1,3 +1,4 @@
+using WeeklySchedule.Core;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
@@ -16,7 +17,7 @@ static class InteractionRegression
         ("Theme and duration settings do not rebuild notifications", UnrelatedSettings),
         ("Returning after midnight and a week keeps the day window current", ResumeAfterMidnight),
         ("Time-only update retains layout and lesson placements", StableLayout),
-        ("Lesson edits rebuild geometry and preserve unchanged days", ChangedLayout),
+        ("Lesson edits rebuild the shared grid, unchanged data does not", ChangedLayout),
         ("Lesson tap and menu dispatch distinct commands", Commands),
         ("Cancel and repeated deletion do not write twice", DeleteConfirmation),
         ("Timeline confirmation names the schedule and all its lessons", DeleteTimeline),
@@ -30,7 +31,7 @@ static class InteractionRegression
         ("Unchanged settings preserve collection items and emit no UI changes", StableSettings),
         ("Repeated and concurrent imports do not duplicate lessons", RepeatedImport),
         ("Import preserves overlapping variants and other timelines", ImportVariants),
-        ("Base-day badge follows selection without adding lessons", BaseDayBadge),
+        ("Base day is a block in the timeline, not a free day", BaseDayBlock),
         ("Base-day metadata survives storage and legacy catalogues", BaseDayStorage),
         ("Excel imports base-day blocks separately from lessons", BaseDayImport),
         ("Cached timeline editors retain updated base-day metadata", BaseDayCache)
@@ -54,23 +55,31 @@ static class InteractionRegression
     }
     private sealed class EmptyProvider : IServiceProvider { public object? GetService(Type type) => null; }
 
-    private static async Task BaseDayBadge()
+    // Раньше пометка рисовалась плашкой над каруселью, а тело дня о ней не знало и
+    // независимо писало «Свободный день»: базовый день выглядел свободным.
+    private static async Task BaseDayBlock()
     {
         var f = new Fixture();
         try
         {
-            var date = TimeContext.Now;
-            f.Repo.Timelines[0].BaseDays.Add(new BaseDay { Day = date.DayOfWeek, AllDay = true });
+            // Пометка ставится в день без пар — именно он и показывал «Свободный день»
+            var free = TimeContext.Now.AddDays(1).DayOfWeek;
+            f.Repo.Timelines[0].BaseDays.Add(new BaseDay { Day = free, AllDay = true });
             await f.Main.InitializeDataAsync();
-            f.Main.SelectedDayVM = f.Main.Days.Single(d => d.DayOfWeek == date.DayOfWeek);
-            Check(f.Main.HasBaseDay && f.Main.BaseDayText == "Базовый день");
-            Check(f.Main.SelectedDayVM.Layout.Lessons.Count == 1);
-            f.Main.SelectedDayVM = f.Main.Days.First(d => d.DayOfWeek != date.DayOfWeek);
-            Check(!f.Main.HasBaseDay);
-            f.Main.SelectedDayVM = f.Main.Days.Single(d => d.DayOfWeek == date.DayOfWeek);
+
+            var freeDay = f.Main.Days.Single(d => d.DayOfWeek == free);
+            var marker = freeDay.Layout.Markers.Single();
+            Check(marker.Text == "Базовый день");
+            Check(freeDay.Layout.Lessons.Count == 0);   // пометка не стала парой
+            // «На весь день» — значит на всю сетку
+            Check(marker.StartRow == 0 && marker.RowSpan == freeDay.Layout.Segments.Count);
+
+            var busy = f.Main.Days.Single(d => d.DayOfWeek == TimeContext.Now.DayOfWeek);
+            Check(busy.Layout.Markers.Count == 0 && busy.Layout.Lessons.Count == 1);
+
             f.Repo.Timelines[0].BaseDays.Clear();
             await f.Main.ReloadActiveTimelineAsync();
-            Check(!f.Main.HasBaseDay);
+            Check(f.Main.Days.All(d => d.Layout.Markers.Count == 0));
         }
         finally { f.Main.StopMonitor(); }
     }
@@ -131,7 +140,8 @@ static class InteractionRegression
         var stored = (await repo.GetByTimelineIdAsync(timeline)).ToList();
         Check(stored.Count == 2 && stored.Any(l => l.Id == first.Id));
         var day = new DayViewModel(new DateTime(2026, 9, 8));
-        day.UpdateLayout(new DateTime(2026, 9, 6), stored.Where(l => l.Description == "Teacher").ToList());
+        day.UpdateLayout(new DateTime(2026, 9, 6),
+            WeekLayout.Build([.. stored.Where(l => l.Description == "Teacher")], []));
         Check(day.Layout.Lessons.Count == 1 && day.Layout.TotalColumns == 1);
     }
 
@@ -304,15 +314,19 @@ static class InteractionRegression
         var day = new DayViewModel(new DateTime(2026, 9, 7));
         var lesson = new Lesson { Day = DayOfWeek.Monday, StartTime = TimeSpan.FromHours(10), EndTime = TimeSpan.FromHours(11) };
         var next = new Lesson { Day = DayOfWeek.Monday, StartTime = TimeSpan.FromHours(12), EndTime = TimeSpan.FromHours(13) };
-        day.UpdateLayout(day.Date.AddHours(9), [lesson, next]);
+        var week = WeekLayout.Build([lesson, next], []);
+        day.UpdateLayout(day.Date.AddHours(9), week);
         var layout = day.Layout;
         var placement = layout.Lessons[0];
-        day.UpdateLayout(day.Date.AddHours(10.5), [lesson, next]);
+        day.UpdateLayout(day.Date.AddHours(10.5), week);
         Check(ReferenceEquals(layout, day.Layout) && ReferenceEquals(placement, day.Layout.Lessons[0]) && placement.IsCurrent);
-        day.UpdateLayout(day.Date.AddHours(11.5), [lesson, next]);
-        Check(!placement.IsCurrent && ReferenceEquals(layout, day.Layout) && layout.Breaks.Count == 1);
-        day.UpdateLayout(day.Date.AddDays(1), [lesson, next]);
-        Check(!placement.IsCurrent && layout.Breaks.Count == 0);
+        day.UpdateLayout(day.Date.AddHours(11.5), week);
+        // Метка времени стоит в перерыве и не привязана к границам пар: раньше на ее
+        // месте была полоска BreakPlacement по центру всего перерыва
+        Check(!placement.IsCurrent && ReferenceEquals(layout, day.Layout));
+        Check(layout.CurrentTimeOffset > TimelineMetrics.SpanHeight(layout.RowHeights, 0, 1));
+        day.UpdateLayout(day.Date.AddDays(1), week);
+        Check(!placement.IsCurrent && layout.CurrentTimeOffset == null);
         day.RequestScroll();
         Check(day.ScrollRequested);
         day.AcknowledgeScroll();
@@ -320,21 +334,30 @@ static class InteractionRegression
         return Task.CompletedTask;
     }
 
-    private static Task ChangedLayout()
+    // Сетка общая для недели, поэтому пересборкой заведует MainViewModel: лишняя
+    // раскладка стоила бы DayView полной перерисовки, он сравнивает их по ссылке.
+    private static async Task ChangedLayout()
     {
-        var day = new DayViewModel(DateTime.Today);
-        var other = new DayViewModel(DateTime.Today.AddDays(1));
-        var lesson = new Lesson { Day = day.DayOfWeek, Name = "Before", StartTime = TimeSpan.FromHours(10), EndTime = TimeSpan.FromHours(11) };
-        day.UpdateLayout(DateTime.Now, [lesson]);
-        other.UpdateLayout(DateTime.Now, [lesson]);
-        var layout = day.Layout;
-        var otherLayout = other.Layout;
-        lesson.Name = "After"; lesson.StartTime = TimeSpan.FromHours(9);
-        day.UpdateLayout(DateTime.Now, [lesson]);
-        other.UpdateLayout(DateTime.Now, [lesson]);
-        Check(!ReferenceEquals(layout, day.Layout) && day.Layout.Lessons.Single().TotalMinutes == 120);
-        Check(ReferenceEquals(otherLayout, other.Layout));
-        return Task.CompletedTask;
+        var f = new Fixture();
+        try
+        {
+            await f.Main.InitializeDataAsync();
+            var day = f.Main.Days.Single(d => d.DayOfWeek == TimeContext.Now.DayOfWeek);
+            var other = f.Main.Days.First(d => d.DayOfWeek != TimeContext.Now.DayOfWeek);
+            var layout = day.Layout;
+            var otherLayout = other.Layout;
+
+            await f.Main.ReloadActiveTimelineAsync();
+            Check(ReferenceEquals(layout, day.Layout) && ReferenceEquals(otherLayout, other.Layout));
+
+            var lesson = f.Repo.Lessons[0];
+            lesson.Name = "After"; lesson.StartTime = TimeSpan.FromHours(9);
+            await f.Main.ReloadActiveTimelineAsync();
+            Check(!ReferenceEquals(layout, day.Layout) && day.Layout.Lessons.Single().TotalMinutes == 120);
+            // Новая граница времени меняет разметку всех дней, а не только своего
+            Check(!ReferenceEquals(otherLayout, other.Layout));
+        }
+        finally { f.Main.StopMonitor(); }
     }
 
     private static Task Commands()
@@ -493,6 +516,12 @@ static class InteractionRegression
         public Task AddAsync(Lesson lesson) { Lessons.Add(lesson); return Task.CompletedTask; }
         public Task UpdateAsync(Lesson lesson) => Task.CompletedTask;
         Task ILessonRepository.DeleteAsync(Guid id) { Deletions++; Lessons.RemoveAll(l => l.Id == id); return Task.CompletedTask; }
+        public Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids)
+        {
+            var set = ids.ToHashSet();
+            Deletions += Lessons.RemoveAll(l => l.TimelineId == timelineId && set.Contains(l.Id));
+            return Task.CompletedTask;
+        }
         public Task<IEnumerable<Timeline>> GetAllAsync() { TimelineReads++; return Task.FromResult<IEnumerable<Timeline>>(Timelines.ToList()); }
         Task<Timeline?> ITimelineRepository.GetByIdAsync(Guid id) { TimelineReads++; return Task.FromResult(Timelines.FirstOrDefault(t => t.Id == id)); }
         public Task AddAsync(Timeline timeline) { Timelines.Add(timeline); return Task.CompletedTask; }

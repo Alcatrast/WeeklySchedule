@@ -10,7 +10,10 @@
         <ToolbarItem Text="+" Clicked="OnAddLessonClicked" AutomationId="AddLesson" />
     </ContentPage.ToolbarItems>
 
-    <Grid RowDefinitions="Auto, Auto, *" RowSpacing="10" Padding="10, 0, 10, 10">
+    <!-- Плашка базового дня жила здесь, над каруселью, и была Auto-высоты: при свайпе
+         между днями с пометкой и без нее менялась высота карусели и лента съезжала.
+         Теперь базовый день — блок внутри самой ленты (WeekLayout.Markers) -->
+    <Grid RowDefinitions="Auto, *" RowSpacing="10" Padding="10, 0, 10, 10">
         <Label Grid.Row="0"
            Text="{Binding SelectedDayVM.DayTitle}"
            FontSize="20"
@@ -20,16 +23,7 @@
            Margin="0,10,0,0">
         </Label>
 
-        <Border Grid.Row="1" IsVisible="{Binding HasBaseDay}"
-                HorizontalOptions="Center" Padding="12,6" Margin="5,0"
-                StrokeThickness="0" StrokeShape="RoundRectangle 10"
-                BackgroundColor="{AppThemeBinding Light=#EEE9FA, Dark=#342C48}">
-            <Label Text="{Binding BaseDayText}" FontSize="13"
-                   TextColor="{AppThemeBinding Light=#51406E, Dark=#E4D8FF}"
-                   HorizontalTextAlignment="Center" LineBreakMode="WordWrap" />
-        </Border>
-
-        <CarouselView Grid.Row="2"
+        <CarouselView Grid.Row="1"
                       ItemsSource="{Binding Days}"
                       CurrentItem="{Binding SelectedDayVM, Mode=TwoWay}"
                       Loop="True"

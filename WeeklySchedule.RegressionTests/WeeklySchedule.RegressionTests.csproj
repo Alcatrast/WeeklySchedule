@@ -43,7 +43,6 @@
     <Compile Include="../WeeklySchedule/ViewModels/DayViewSubscription.cs" Link="Source/DayViewSubscription.cs" />
     <Compile Include="../WeeklySchedule/Core/*.cs" Link="Source/Core/%(Filename)%(Extension)" />
     <Compile Include="../WeeklySchedule/Models/TimelineLayout.cs" Link="Source/TimelineLayout.cs" />
-    <Compile Include="../WeeklySchedule/Models/SeparatorType.cs" Link="Source/SeparatorType.cs" />
     <Compile Include="../WeeklySchedule/Data/IDataSeeder.cs" Link="Source/IDataSeeder.cs" />
     <Compile Include="../WeeklySchedule/Data/EmptyDataSeeder.cs" Link="Source/EmptyDataSeeder.cs" />
     <Compile Include="../WeeklySchedule/Utilities/TimeContext.cs" Link="Source/TimeContext.cs" />
