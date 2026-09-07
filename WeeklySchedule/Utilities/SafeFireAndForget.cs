@@ -1,3 +1,4 @@
+﻿using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -12,6 +13,13 @@ namespace WeeklySchedule.Utilities;
 public static class SafeFireAndForget
 {
     /// <summary>
+    /// Логгер приложения; ставится один раз при сборке контейнера. Пока его нет
+    /// (тесты, ранний старт), остается Debug.WriteLine — а он в Release вырезается
+    /// компилятором, и упавшая операция не оставляла вообще никакого следа.
+    /// </summary>
+    public static ILogger? Logger { get; set; }
+
+    /// <summary>
     /// Выполняет асинхронную операцию, не пропуская исключение наружу.
     /// Имя вызывающего метода подставляется само и попадает в лог.
     /// </summary>
@@ -23,7 +31,8 @@ public static class SafeFireAndForget
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[{caller}] необработанное исключение: {ex}");
+            if (Logger != null) Logger.LogError(ex, "[{Caller}] необработанное исключение", caller);
+            else Debug.WriteLine($"[{caller}] необработанное исключение: {ex}");
         }
     }
 }

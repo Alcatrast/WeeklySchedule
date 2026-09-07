@@ -2,6 +2,7 @@
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Services;
+using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
@@ -63,6 +64,12 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
-        return builder.Build();
+        var app = builder.Build();
+
+        // Единственное место, где ловятся исключения из async void. Писал он только
+        // в Debug.WriteLine, поэтому в Release упавшая операция исчезала бесследно
+        SafeFireAndForget.Logger = app.Services.GetService<ILoggerFactory>()
+            ?.CreateLogger(nameof(SafeFireAndForget));
+        return app;
     }
 }
