@@ -41,6 +41,21 @@ public class ExcelMIPTScheduleParser
     private static readonly Regex InitialsRegex = new(@"[А-Я]\.\s*[А-Я]\.\s*[А-Яа-я]+", RegexOptions.Compiled);
     private static readonly Regex InitialsWordRegex = new(@"\b[А-Я]\.\s*[А-Я]\.\s*[А-Яа-яё]+", RegexOptions.Compiled);
 
+    // Пороги разбора текста пары: аудитория или инициалы у самого начала ячейки
+    // принадлежат названию, а не описанию. Резать по ним значило бы оставить пару
+    // без названия, поэтому разделитель ищется только дальше по строке
+    private const int MinNameLengthBeforeRoom = 10;
+    private const int MinNameLengthBeforeInitials = 15;
+
+    // Первая строка данных, когда строку «Дни | Часы» найти не удалось: прежнее
+    // поведение разбора файла МФТИ
+    private const int FallbackStartDataRow = 5;
+
+    // Цвета заливки вне палитры, встреченные за разбор. Тип пары держится только
+    // на заливке, так что перекрашенный файл разъехался бы по типам без единой
+    // жалобы — здесь копятся цвета для итогового предупреждения
+    private readonly HashSet<string> _unknownFillColors = new(StringComparer.OrdinalIgnoreCase);
+
     // Объединенные ячейки листа, разложенные по строкам. Раньше здесь был плоский
     // список, и поиск региона для ячейки перебирал его целиком — а этот поиск идет
     // на каждое обращение к ячейке во вложенных циклах, то есть выходило
@@ -152,6 +167,7 @@ public class ExcelMIPTScheduleParser
     {
         baseDays = [];
         skippedRows = 0;
+        _unknownFillColors.Clear();
         _logger.LogInformation("Парсинг группы: {GroupName} из {FilePath}", groupName, Path.GetFileName(filePath));
         var lessons = new List<Lesson>();
 
@@ -169,7 +185,7 @@ public class ExcelMIPTScheduleParser
 
         var (dayCol, hourCol) = FindBlockColumns(sheet, headerRow, groupCols.First);
 
-        int startDataRow = headerRow >= 0 ? headerRow + 1 : 5;
+        int startDataRow = headerRow >= 0 ? headerRow + 1 : FallbackStartDataRow;
         int lastRow = sheet.LastRowNum;
 
         var timeSlots = BuildTimeSlotsMap(sheet, startDataRow, lastRow, hourCol);
@@ -191,11 +207,7 @@ public class ExcelMIPTScheduleParser
             var row = sheet.GetRow(r);
             if (row == null) continue;
 
-            string dayStr = GetEffectiveCellText(sheet, r, dayCol);
-            if (!string.IsNullOrWhiteSpace(dayStr) && IsDayOfWeekValue(dayStr))
-            {
-                currentDay = ParseDayOfWeek(dayStr);
-            }
+            if (ParseDayOfWeek(GetEffectiveCellText(sheet, r, dayCol)) is DayOfWeek day) currentDay = day;
 
             // Все колонки группы, а не только первая: в правых лежат пары подгрупп
             // и альтернативы. Повторы снимает ключ addedLessons — объединение,
@@ -303,6 +315,13 @@ public class ExcelMIPTScheduleParser
             }
         }
 
+        if (_unknownFillColors.Count > 0)
+        {
+            _logger.LogWarning(
+                "Цвета заливки вне палитры: {Colors}. Пары в таких ячейках помечены как лабораторные",
+                string.Join(", ", _unknownFillColors.Order()));
+        }
+
         _logger.LogInformation("Найдено пар для {GroupName}: {Count}, пропущено строк: {Skipped}",
             groupName, lessons.Count, skippedRows);
         return lessons;
@@ -318,16 +337,11 @@ public class ExcelMIPTScheduleParser
 
         foreach (var cr in GetMergedRegions(sheet))
         {
-            if (cr.FirstColumn == hourCol && cr.LastColumn == hourCol)
-            {
-                var text = GetEffectiveCellText(sheet, cr.FirstRow, hourCol);
-                var (s, e) = ParseTimeRange(text);
-                if (s != TimeSpan.Zero && e != TimeSpan.Zero)
-                {
-                    slots.Add((cr.FirstRow, cr.LastRow, s, e));
-                    for (int r = cr.FirstRow; r <= cr.LastRow; r++) covered.Add(r);
-                }
-            }
+            if (cr.FirstColumn != hourCol || cr.LastColumn != hourCol) continue;
+            if (ParseTimeRange(GetEffectiveCellText(sheet, cr.FirstRow, hourCol)) is not { } slot) continue;
+
+            slots.Add((cr.FirstRow, cr.LastRow, slot.Start, slot.End));
+            for (int r = cr.FirstRow; r <= cr.LastRow; r++) covered.Add(r);
         }
 
         // Раньше принадлежность строки уже найденному слоту проверялась перебором
@@ -336,11 +350,7 @@ public class ExcelMIPTScheduleParser
         {
             if (covered.Contains(r)) continue;
 
-            var (s, e) = ParseTimeRange(GetEffectiveCellText(sheet, r, hourCol));
-            if (s != TimeSpan.Zero && e != TimeSpan.Zero)
-            {
-                slots.Add((r, r, s, e));
-            }
+            if (ParseTimeRange(GetEffectiveCellText(sheet, r, hourCol)) is { } slot) slots.Add((r, r, slot.Start, slot.End));
         }
 
         return slots.OrderBy(ts => ts.FirstRow).ToList();
@@ -550,18 +560,6 @@ public class ExcelMIPTScheduleParser
         return null;
     }
 
-    private bool IsDayOfWeekValue(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        string lower = value.ToLowerInvariant();
-        return lower.Contains("понедельник") || lower.Contains("вторник") ||
-               lower.Contains("среда") || lower.Contains("четверг") ||
-               lower.Contains("пятница") || lower.Contains("суббота") ||
-               lower.Contains("воскресенье") ||
-               lower == "пн" || lower == "вт" || lower == "ср" ||
-               lower == "чт" || lower == "пт" || lower == "сб" || lower == "вс";
-    }
-
     #endregion
 
     #region Цвет и тип пары
@@ -634,26 +632,35 @@ public class ExcelMIPTScheduleParser
 
         // Fallback: если цвет не распознан, но ячейка содержит текст — считаем Лабораторной
         string rawText = _formatter.FormatCellValue(cell).Trim();
-        if (!string.IsNullOrWhiteSpace(rawText)) return LessonType.Lab;
+        if (string.IsNullOrWhiteSpace(rawText)) return null;
 
-        return null;
+        _unknownFillColors.Add(hex);
+        return LessonType.Lab;
     }
 
     #endregion
 
     #region Время и День недели
 
-    private (TimeSpan Start, TimeSpan End) ParseTimeRange(string timeStr)
+    /// <summary>Границы слота из колонки «Часы». null, если прочитать их не удалось.</summary>
+    private static (TimeSpan Start, TimeSpan End)? ParseTimeRange(string timeStr)
     {
-        if (string.IsNullOrWhiteSpace(timeStr)) return (TimeSpan.Zero, TimeSpan.Zero);
+        if (string.IsNullOrWhiteSpace(timeStr)) return null;
         var parts = TimeRangeSplitRegex.Split(timeStr.Trim());
-        if (parts.Length < 2) return (TimeSpan.Zero, TimeSpan.Zero);
-        return (ParseSingleTime(parts[0].Trim()), ParseSingleTime(parts[1].Trim()));
+        if (parts.Length < 2) return null;
+        if (ParseSingleTime(parts[0]) is not TimeSpan start) return null;
+        if (ParseSingleTime(parts[1]) is not TimeSpan end) return null;
+        return (start, end);
     }
 
-    private TimeSpan ParseSingleTime(string timeStr)
+    /// <summary>
+    /// «900», «9:00», «18-40» → время дня. null, если прочитать не удалось: здесь
+    /// стоял TimeSpan.Zero, и нераспознанное время было не отличить от полуночи —
+    /// ошибка молча превращалась в правдоподобные данные.
+    /// </summary>
+    private static TimeSpan? ParseSingleTime(string timeStr)
     {
-        if (string.IsNullOrWhiteSpace(timeStr)) return TimeSpan.Zero;
+        if (string.IsNullOrWhiteSpace(timeStr)) return null;
         timeStr = timeStr.Replace(" ", "").Replace(":", "").Replace(".", "");
         if (timeStr.Length == 3) timeStr = "0" + timeStr;
         if (timeStr.Length == 4 && int.TryParse(timeStr, out int minutes))
@@ -663,12 +670,17 @@ public class ExcelMIPTScheduleParser
             if (hours >= 0 && hours <= 23 && mins >= 0 && mins <= 59)
                 return new TimeSpan(hours, mins, 0);
         }
-        return TimeSpan.Zero;
+        return null;
     }
 
-    private DayOfWeek ParseDayOfWeek(string value)
+    /// <summary>
+    /// День недели из колонки «Дни». null, если это не подпись дня: метод отдавал
+    /// понедельник на любой текст, и отличить его от настоящего понедельника было
+    /// нельзя — приходилось держать рядом вторую проверку с тем же списком слов.
+    /// </summary>
+    private static DayOfWeek? ParseDayOfWeek(string value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return DayOfWeek.Monday;
+        if (string.IsNullOrWhiteSpace(value)) return null;
         string lower = value.ToLowerInvariant().Trim();
         if (lower.Contains("понедельник") || lower == "пн") return DayOfWeek.Monday;
         if (lower.Contains("вторник") || lower == "вт") return DayOfWeek.Tuesday;
@@ -677,7 +689,7 @@ public class ExcelMIPTScheduleParser
         if (lower.Contains("пятница") || lower == "пт") return DayOfWeek.Friday;
         if (lower.Contains("суббота") || lower == "сб") return DayOfWeek.Saturday;
         if (lower.Contains("воскресенье") || lower == "вс") return DayOfWeek.Sunday;
-        return DayOfWeek.Monday;
+        return null;
     }
 
     #endregion
@@ -700,40 +712,8 @@ public class ExcelMIPTScheduleParser
             }
         }
 
-        // Сценарий 1: RichText
-        if (cell.CellType == CellType.String && cell.RichStringCellValue is HSSFRichTextString hssfRts)
-        {
-            if (hssfRts.NumFormattingRuns > 1)
-            {
-                var nameParts = new List<string>();
-                var descParts = new List<string>();
-                bool isDescription = false;
-                var workbook = cell.Sheet.Workbook;
-                string fullText = hssfRts.String;
-
-                for (int i = 0; i < hssfRts.NumFormattingRuns; i++)
-                {
-                    int start = hssfRts.GetIndexOfFormattingRun(i);
-                    int end = (i + 1 < hssfRts.NumFormattingRuns) ? hssfRts.GetIndexOfFormattingRun(i + 1) : hssfRts.Length;
-                    string runText = fullText.Substring(start, end - start).Trim();
-                    if (string.IsNullOrEmpty(runText)) continue;
-
-                    short fontIndex = hssfRts.GetFontOfFormattingRun(i);
-                    var font = workbook.GetFontAt(fontIndex);
-                    bool isBold = font != null && font.IsBold;
-
-                    if (!isDescription && isBold) nameParts.Add(runText);
-                    else
-                    {
-                        isDescription = true;
-                        descParts.Add(runText);
-                    }
-                }
-
-                if (nameParts.Count > 0 && descParts.Count > 0)
-                    return (CleanText(string.Join(" ", nameParts)), CleanText(string.Join(" ", descParts)));
-            }
-        }
+        // Сценарий 1: разметка шрифтом внутри ячейки
+        if (cell.CellType == CellType.String && TrySplitByBoldRuns(cell) is { } byFont) return byFont;
 
         // Сценарий 2: Разделитель " - "
         int dashIndex = rawText.IndexOf(" - ");
@@ -744,7 +724,7 @@ public class ExcelMIPTScheduleParser
 
         // Сценарий 3: Поиск номера аудитории
         var roomMatch = RoomRegex.Match(rawText);
-        if (roomMatch.Success && roomMatch.Index > 10)
+        if (roomMatch.Success && roomMatch.Index > MinNameLengthBeforeRoom)
         {
             string beforeRoom = CleanText(rawText.Substring(0, roomMatch.Index));
             string roomAndAfter = CleanText(rawText.Substring(roomMatch.Index));
@@ -760,7 +740,7 @@ public class ExcelMIPTScheduleParser
 
         // Сценарий 4: Поиск инициалов
         var initialsOnlyMatch = InitialsWordRegex.Match(rawText);
-        if (initialsOnlyMatch.Success && initialsOnlyMatch.Index > 15)
+        if (initialsOnlyMatch.Success && initialsOnlyMatch.Index > MinNameLengthBeforeInitials)
         {
             return (CleanText(rawText.Substring(0, initialsOnlyMatch.Index)), CleanText(rawText.Substring(initialsOnlyMatch.Index)));
         }
@@ -768,6 +748,57 @@ public class ExcelMIPTScheduleParser
         // Fallback
         return (CleanText(rawText), string.Empty);
     }
+
+    /// <summary>
+    /// Делит текст ячейки по разметке шрифтом: жирное начало — название пары,
+    /// остальное — описание. null, если ячейка размечена одним шрифтом или
+    /// жирного начала в ней нет, — тогда работают сценарии ниже.
+    ///
+    /// Прогоны форматирования одинаковы у обоих форматов книги, а вот шрифт
+    /// прогона NPOI отдает по-разному, и разобран был только .xls. В .xlsx —
+    /// а именно его и присылают — приписка кафедры оставалась внутри названия.
+    /// </summary>
+    private static (string Name, string Description)? TrySplitByBoldRuns(ICell cell)
+    {
+        var rich = cell.RichStringCellValue;
+        if (rich == null || rich.NumFormattingRuns <= 1) return null;
+
+        var nameParts = new List<string>();
+        var descParts = new List<string>();
+        bool isDescription = false;
+
+        for (int i = 0; i < rich.NumFormattingRuns; i++)
+        {
+            int start = rich.GetIndexOfFormattingRun(i);
+            int end = i + 1 < rich.NumFormattingRuns ? rich.GetIndexOfFormattingRun(i + 1) : rich.Length;
+            if (start < 0 || end <= start) continue;
+
+            string runText = rich.String.Substring(start, end - start).Trim();
+            if (string.IsNullOrEmpty(runText)) continue;
+
+            if (!isDescription && IsBoldRun(cell, rich, i)) nameParts.Add(runText);
+            else
+            {
+                isDescription = true;
+                descParts.Add(runText);
+            }
+        }
+
+        if (nameParts.Count == 0 || descParts.Count == 0) return null;
+        return (CleanText(string.Join(" ", nameParts)), CleanText(string.Join(" ", descParts)));
+    }
+
+    /// <summary>
+    /// Жирный ли прогон форматирования. В .xls шрифт прогона — индекс в книге,
+    /// в .xlsx — сам шрифт; отсутствие шрифта у прогона означает шрифт ячейки.
+    /// </summary>
+    private static bool IsBoldRun(ICell cell, IRichTextString rich, int runIndex) => rich switch
+    {
+        HSSFRichTextString hssf =>
+            cell.Sheet.Workbook.GetFontAt(hssf.GetFontOfFormattingRun(runIndex))?.IsBold == true,
+        XSSFRichTextString xssf => xssf.GetFontOfFormattingRun(runIndex)?.IsBold == true,
+        _ => false
+    };
 
     /// <summary>
     /// Первая запятая вне скобок, -1 если такой нет. Резать по любой первой запятой
@@ -789,7 +820,7 @@ public class ExcelMIPTScheduleParser
         return -1;
     }
 
-    private string CleanText(string text)
+    private static string CleanText(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
         return text.Trim().TrimEnd('-', '–', '—', ',', ' ', '\t', '\n', '\r')

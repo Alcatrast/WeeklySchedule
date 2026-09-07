@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using WeeklySchedule.Core;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Extensions;
@@ -26,7 +26,8 @@ static class ImportSourceRegression
         ("A group takes the time column of its own block", GroupUsesItsOwnBlockTimes),
         ("An explicit time in the lesson text wins over merge geometry", ExplicitTimeInTextWins),
         ("Room and index numbers in the text are not read as times", NumbersInTextAreNotTimes),
-        ("An ordinary Russian word is not a building code", OrdinaryWordIsNotARoom)
+        ("An ordinary Russian word is not a building code", OrdinaryWordIsNotARoom),
+        ("Bold runs split the name from the note in both workbook formats", BoldRunsSplitNameAndNote)
     ];
 
     private static void Check(bool condition) { if (!condition) throw new Exception("Assertion failed"); }
@@ -420,6 +421,54 @@ static class ImportSourceRegression
         using var stream = File.Create(path);
         workbook.Write(stream);
         return path;
+    }
+
+    /// <summary>
+    /// Лист из одного блока, где текст пары размечен шрифтом: жирное начало —
+    /// название, остальное — приписка. Формат книги выбирается флагом: разбор
+    /// разметки был написан только под .xls, а присылают .xlsx.
+    /// </summary>
+    private static string WriteWorkbookWithBoldName(string name, bool xlsx, string bold, string note)
+    {
+        NPOI.SS.UserModel.IWorkbook workbook = xlsx
+            ? new NPOI.XSSF.UserModel.XSSFWorkbook()
+            : new NPOI.HSSF.UserModel.HSSFWorkbook();
+        var sheet = workbook.CreateSheet("Schedule");
+        NPOI.SS.UserModel.ICell Cell(int row, int column) =>
+            (sheet.GetRow(row) ?? sheet.CreateRow(row)).CreateCell(column);
+
+        Cell(0, 0).SetCellValue("Дни"); Cell(0, 1).SetCellValue("Часы"); Cell(0, 2).SetCellValue("Б03-401");
+        Cell(1, 0).SetCellValue("Понедельник"); Cell(1, 1).SetCellValue("900 - 1025");
+
+        var boldFont = workbook.CreateFont(); boldFont.IsBold = true;
+        var rich = workbook.GetCreationHelper().CreateRichTextString(bold + note);
+        rich.ApplyFont(0, bold.Length, boldFont);
+        rich.ApplyFont(bold.Length, rich.Length, workbook.CreateFont());
+        Cell(1, 2).SetCellValue(rich);
+
+        var path = Path.Combine(FileSystem.AppDataDirectory, name);
+        using (var stream = File.Create(path)) workbook.Write(stream);
+        workbook.Close();
+        return path;
+    }
+
+    // Разметка шрифтом разбиралась только у .xls, а присылают .xlsx: длинная
+    // приписка кафедры оставалась внутри названия пары
+    private static Task BoldRunsSplitNameAndNote()
+    {
+        const string bold = "Компьютерное зрение";
+        const string note = " (базовая кафедра и её представители)";
+
+        foreach (var xlsx in new[] { false, true })
+        {
+            var path = WriteWorkbookWithBoldName(xlsx ? "bold.xlsx" : "bold.xls", xlsx, bold, note);
+            var parser = new ExcelMIPTScheduleParser(Logger);
+            var lesson = parser.ParseGroupSchedule(path, "Б03-401", out _, out _).Single();
+
+            Check(lesson.Name == bold);
+            Check(lesson.Description == note.Trim());
+        }
+        return Task.CompletedTask;
     }
 
     /// <summary>Лист из одного блока с одной парой: для проверок разбора текста.</summary>
