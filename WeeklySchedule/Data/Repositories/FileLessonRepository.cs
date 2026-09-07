@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using WeeklySchedule.Models;
 using WeeklySchedule.Utilities;
 
@@ -7,6 +8,7 @@ namespace WeeklySchedule.Data.Repositories;
 public class FileLessonRepository : ILessonRepository
 {
     private readonly string _baseDirectoryPath;
+    private readonly ILogger<FileLessonRepository>? _logger;
     private readonly Lock _lock = new();
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -14,9 +16,11 @@ public class FileLessonRepository : ILessonRepository
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public FileLessonRepository()
+    // Логгер необязателен: репозиторий создают и вне контейнера
+    public FileLessonRepository(ILogger<FileLessonRepository>? logger = null)
     {
         _baseDirectoryPath = Path.Combine(FileSystem.AppDataDirectory, "Timelines");
+        _logger = logger;
     }
 
     private string GetDirectoryPath(Guid timelineId) =>
@@ -43,6 +47,40 @@ public class FileLessonRepository : ILessonRepository
         }
     }
 
+    /// <summary>
+    /// Читает пары из папки, пропуская нечитаемые файлы, но называя каждый из них.
+    /// Раньше здесь стоял пустой catch: файл, который не открылся, исчезал из недели
+    /// молча — расписание оставалось в списке, пары из него пропадали, и сказать,
+    /// что именно не прочиталось, было нечем. Вызывать под _lock.
+    /// </summary>
+    private void ReadLessonsInto(string lessonsDir, List<Lesson> lessons)
+    {
+        int unreadable = 0;
+        foreach (var file in Directory.GetFiles(lessonsDir, "*.json"))
+        {
+            try
+            {
+                var json = File.ReadAllText(file);
+                var lesson = JsonSerializer.Deserialize<Lesson>(json, _jsonOptions);
+                if (lesson != null)
+                {
+                    lessons.Add(lesson);
+                    continue;
+                }
+                unreadable++;
+                _logger?.LogError("Файл пары {File}: вместо пары null", file);
+            }
+            catch (Exception ex)
+            {
+                unreadable++;
+                _logger?.LogError(ex, "Файл пары {File} не прочитан", file);
+            }
+        }
+
+        if (unreadable > 0)
+            _logger?.LogError("Не прочитано пар в {Directory}: {Unreadable}", lessonsDir, unreadable);
+    }
+
     public async Task<IEnumerable<Lesson>> GetAllAsync()
     {
         var lessons = new List<Lesson>();
@@ -54,19 +92,7 @@ public class FileLessonRepository : ILessonRepository
                 foreach (var timelineDir in Directory.GetDirectories(_baseDirectoryPath))
                 {
                     var lessonsDir = Path.Combine(timelineDir, "Lessons");
-                    if (Directory.Exists(lessonsDir))
-                    {
-                        foreach (var file in Directory.GetFiles(lessonsDir, "*.json"))
-                        {
-                            try
-                            {
-                                var json = File.ReadAllText(file);
-                                var lesson = JsonSerializer.Deserialize<Lesson>(json, _jsonOptions);
-                                if (lesson != null) lessons.Add(lesson);
-                            }
-                            catch { }
-                        }
-                    }
+                    if (Directory.Exists(lessonsDir)) ReadLessonsInto(lessonsDir, lessons);
                 }
             }
         });
@@ -81,17 +107,7 @@ public class FileLessonRepository : ILessonRepository
             lock (_lock)
             {
                 var dir = GetDirectoryPath(timelineId);
-                if (!Directory.Exists(dir)) return;
-                foreach (var file in Directory.GetFiles(dir, "*.json"))
-                {
-                    try
-                    {
-                        var json = File.ReadAllText(file);
-                        var lesson = JsonSerializer.Deserialize<Lesson>(json, _jsonOptions);
-                        if (lesson != null) lessons.Add(lesson);
-                    }
-                    catch { }
-                }
+                if (Directory.Exists(dir)) ReadLessonsInto(dir, lessons);
             }
         });
         return lessons;

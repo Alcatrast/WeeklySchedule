@@ -1,4 +1,4 @@
-using WeeklySchedule.Core;
+﻿using WeeklySchedule.Core;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
@@ -31,6 +31,7 @@ static class InteractionRegression
         ("Unchanged settings preserve collection items and emit no UI changes", StableSettings),
         ("Repeated and concurrent imports do not duplicate lessons", RepeatedImport),
         ("Import preserves overlapping variants and other timelines", ImportVariants),
+        ("A damaged lesson file does not empty the rest of the schedule", DamagedLessonFile),
         ("Base day is a block in the timeline, not a free day", BaseDayBlock),
         ("Base-day metadata survives storage and legacy catalogues", BaseDayStorage),
         ("Excel imports base-day blocks separately from lessons", BaseDayImport),
@@ -143,6 +144,22 @@ static class InteractionRegression
         day.UpdateLayout(new DateTime(2026, 9, 6),
             WeekLayout.Build([.. stored.Where(l => l.Description == "Teacher")], []));
         Check(day.Layout.Lessons.Count == 1 && day.Layout.TotalColumns == 1);
+    }
+
+    // Нечитаемый файл пары пропускался пустым catch: расписание оставалось в списке,
+    // а неделя выходила пустой, и назвать потерю было нечем
+    private static async Task DamagedLessonFile()
+    {
+        var repo = new FileLessonRepository(); var timeline = Guid.NewGuid();
+        var kept = Imported();
+        kept.TimelineId = timeline;
+        await repo.AddAsync(kept);
+
+        var lessonsDir = Path.Combine(FileSystem.AppDataDirectory, "Timelines", timeline.ToString(), "Lessons");
+        File.WriteAllText(Path.Combine(lessonsDir, $"{Guid.NewGuid()}.json"), "broken-json");
+
+        Check((await repo.GetByTimelineIdAsync(timeline)).Single().Id == kept.Id);
+        Check((await repo.GetAllAsync()).Count(l => l.TimelineId == timeline) == 1);
     }
 
     private static async Task ImportVariants()
