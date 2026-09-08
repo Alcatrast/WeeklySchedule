@@ -46,7 +46,11 @@ public partial class DayView : ContentView
         {
             _scrollToCurrent = false;
             _restoreY = null;
-            if (IsLoaded) BindDay();
+            // Карусель назначает день до подключения View к нативному дереву.
+            // Создаём содержимое уже здесь: ожидание Loaded оставляло первый
+            // показ пустым до повторного свайпа. Только прокрутке нужны размер
+            // и IsLoaded; построение сетки от них не зависит.
+            BindDay();
         };
         Loaded += (_, _) => BindDay();
         Unloaded += (_, _) => _subscription.Dispose();

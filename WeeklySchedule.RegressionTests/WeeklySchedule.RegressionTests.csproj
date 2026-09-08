@@ -46,6 +46,7 @@
     <Compile Include="../WeeklySchedule/ViewModels/DayViewModel.cs" Link="Source/DayViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/LessonDetailsViewModel.cs" Link="Source/LessonDetailsViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/DayViewSubscription.cs" Link="Source/DayViewSubscription.cs" />
+    <Compile Include="../WeeklySchedule/Views/DayView.xaml.cs" Link="Source/DayView.xaml.cs" />
     <Compile Include="../WeeklySchedule/Core/*.cs" Link="Source/Core/%(Filename)%(Extension)" />
     <Compile Include="../WeeklySchedule/Models/TimelineLayout.cs" Link="Source/TimelineLayout.cs" />
     <Compile Include="../WeeklySchedule/Data/IDataSeeder.cs" Link="Source/IDataSeeder.cs" />

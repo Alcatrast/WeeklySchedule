@@ -19,6 +19,14 @@ Navigation checks also delay old timeline/notification responses, switch A-B-A,
 deliver notification requests during startup, refresh settings after timeline changes,
 and detach/rebind both day-view event handlers.
 
+Day-view lifecycle checks link the actual `DayView.xaml.cs` against a small managed
+visual-tree stub. They verify lessons, base-day markers and the free-day label are
+created when the binding arrives, before `Loaded`; data updates before loading and
+recycling/unloading must also work. These checks do not simulate Android measurement.
+On Android Release, close and reopen the app, then swipe through all seven days:
+content must appear on the first pass, including base and free days, without needing
+a second loop. Repeat after returning from the background.
+
 UI lifecycle still needs manual verification: cancel group selection and import
 again; restart after choosing a theme; import with the startup toggle enabled.
 On Android, verify notification delivery after reboot, APK replacement and timezone
