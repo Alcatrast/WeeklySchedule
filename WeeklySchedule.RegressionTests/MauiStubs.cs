@@ -24,13 +24,22 @@ public class Window
 }
 public class Page
 {
+    public List<(string Title, string Message)> Messages { get; } = [];
+    public bool ConfirmationResult { get; set; } = true;
+    public int Confirmations { get; private set; }
     public TaskCompletionSource Alert { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task DisplayAlertAsync(string title, string message, string cancel)
     {
+        Messages.Add((title, message));
         Alert.TrySetResult();
         return Task.CompletedTask;
     }
-    public Task<bool> DisplayAlertAsync(string title, string message, string accept, string cancel) => Task.FromResult(true);
+    public Task<bool> DisplayAlertAsync(string title, string message, string accept, string cancel)
+    {
+        Messages.Add((title, message));
+        Confirmations++;
+        return Task.FromResult(ConfirmationResult);
+    }
 }
 public class Command(Action execute) : ICommand
 {
@@ -52,6 +61,7 @@ public class Shell
 }
 public class TestNavigation
 {
+    public List<object> ModalStack { get; } = [];
     public Task PushModalAsync(object page) => throw new NotSupportedException("UI is not under test");
 }
 public static class ServiceExtensions

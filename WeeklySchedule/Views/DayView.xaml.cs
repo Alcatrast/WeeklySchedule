@@ -63,6 +63,18 @@ public partial class DayView : ContentView
 
     private void OnLayoutUpdated()
     {
+        try { RenderLayout(); }
+        catch
+        {
+            // Незавершённую отрисовку нельзя переиспользовать по ReferenceEquals:
+            // при следующем показе необходимо заново построить карточки и сетку.
+            _renderedLayout = null;
+            throw;
+        }
+    }
+
+    private void RenderLayout()
+    {
         if (BindingContext is not DayViewModel day) return;
         var layout = day.Layout;
         // Геометрия общая для всей недели: и масштаб, и разметка строк приходят

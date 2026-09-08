@@ -57,9 +57,23 @@ Manual Android Release acceptance (use the same device and data before/after):
   department notes, swiping to an ordinary day, switching schedules, restarting,
   and adding a real lesson on the base day. Existing imports need reimporting
   once to populate the new metadata; existing lessons must not be duplicated.
-- Import the same group into the same schedule twice: the second import must
-  report zero additions. Overlapping lessons with different descriptions or
-  types must remain separate. Existing stored duplicates are not deleted.
+- Import the same group into the same schedule twice: each successful import
+  replaces all previous lessons, including manual edits, without accumulating
+  duplicates. Overlapping variants within the file remain separate.
+- Pick another file and cancel group selection or decline replacement: the
+  previous saved source, lessons and metadata must remain unchanged.
+- Retry after a failed first import, including selecting another group or an
+  empty group. The next reimport must use the last successfully committed group.
+- A known time-parsing error or an unreadable stored lesson must stop replacement.
+  Verify the error message, preservation of old data and retry after correction.
+
+The console suite also links GroupSelectionViewModel. ImportSafetyRegression
+checks these paths with real file repositories and isolated Excel fixtures,
+including write, delete and metadata failures, data-change notifications, cached
+source references and legacy source.xlsx compatibility. Picked files are separate
+copies; Source.StoredFileName is committed after successful lesson replacement.
+An interrupted multi-file replacement can still leave partial changes: atomic
+replacement of the complete schedule remains separate work.
 
 No device installation or device-side performance measurement is performed by
 the console suite. Record observed delays/frame timings separately if measured.

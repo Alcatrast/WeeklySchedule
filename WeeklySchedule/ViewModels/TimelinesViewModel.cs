@@ -61,7 +61,11 @@ public partial class TimelinesViewModel : BaseViewModel
         if (Timelines.Select(t => (t.Id, t.Name, t.NotificationsEnabled))
             .SequenceEqual(all.Select(t => (t.Id, t.Name, t.NotificationsEnabled))))
         {
-            for (int i = 0; i < all.Count; i++) Timelines[i].BaseDays = all[i].BaseDays ?? [];
+            for (int i = 0; i < all.Count; i++)
+            {
+                Timelines[i].BaseDays = all[i].BaseDays ?? [];
+                Timelines[i].Source = all[i].Source;
+            }
             return;
         }
         Timelines.Clear();

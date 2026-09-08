@@ -53,7 +53,7 @@ public class FileLessonRepository : ILessonRepository
     /// молча — расписание оставалось в списке, пары из него пропадали, и сказать,
     /// что именно не прочиталось, было нечем. Вызывать под _lock.
     /// </summary>
-    private void ReadLessonsInto(string lessonsDir, List<Lesson> lessons)
+    private void ReadLessonsInto(string lessonsDir, List<Lesson> lessons, bool requireComplete = false)
     {
         int unreadable = 0;
         foreach (var file in Directory.GetFiles(lessonsDir, "*.json"))
@@ -61,19 +61,18 @@ public class FileLessonRepository : ILessonRepository
             try
             {
                 var json = File.ReadAllText(file);
-                var lesson = JsonSerializer.Deserialize<Lesson>(json, _jsonOptions);
-                if (lesson != null)
-                {
-                    lessons.Add(lesson);
-                    continue;
-                }
-                unreadable++;
-                _logger?.LogError("Файл пары {File}: вместо пары null", file);
+                var lesson = JsonSerializer.Deserialize<Lesson>(json, _jsonOptions)
+                    ?? throw new JsonException("Вместо пары записан null.");
+                if (requireComplete && (!Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var id)
+                    || id != lesson.Id || lesson.TimelineId.ToString() != new DirectoryInfo(lessonsDir).Parent!.Name))
+                    throw new JsonException("Идентификаторы пары не соответствуют её файлу.");
+                lessons.Add(lesson);
             }
             catch (Exception ex)
             {
                 unreadable++;
                 _logger?.LogError(ex, "Файл пары {File} не прочитан", file);
+                if (requireComplete) throw new IncompleteLessonReadException(file, ex);
             }
         }
 
@@ -99,7 +98,11 @@ public class FileLessonRepository : ILessonRepository
         return lessons;
     }
 
-    public async Task<IEnumerable<Lesson>> GetByTimelineIdAsync(Guid timelineId)
+    public Task<IEnumerable<Lesson>> GetByTimelineIdAsync(Guid timelineId) => ReadTimelineAsync(timelineId, false);
+
+    public Task<IEnumerable<Lesson>> GetByTimelineIdForReplacementAsync(Guid timelineId) => ReadTimelineAsync(timelineId, true);
+
+    private async Task<IEnumerable<Lesson>> ReadTimelineAsync(Guid timelineId, bool requireComplete)
     {
         var lessons = new List<Lesson>();
         await Task.Run(() =>
@@ -107,7 +110,14 @@ public class FileLessonRepository : ILessonRepository
             lock (_lock)
             {
                 var dir = GetDirectoryPath(timelineId);
-                if (Directory.Exists(dir)) ReadLessonsInto(dir, lessons);
+                // В отличие от Directory.Exists перечисление не маскирует отказ в доступе
+                // под пустое расписание. Отсутствие каталога допустимо при первом импорте.
+                if (requireComplete)
+                {
+                    try { ReadLessonsInto(dir, lessons, true); }
+                    catch (DirectoryNotFoundException) { }
+                }
+                else if (Directory.Exists(dir)) ReadLessonsInto(dir, lessons);
             }
         });
         return lessons;

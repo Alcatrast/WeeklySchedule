@@ -1,6 +1,5 @@
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
-using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Services;
 
@@ -8,45 +7,56 @@ public static class LessonImportService
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
-    /// <summary>
-    /// Сносит пары, которые невозможно показать: конец не позже начала. Такие оставлял
-    /// разбор xlsx, когда распознавал только одну границу времени. В хранилище они
-    /// лежали и даже поднимали уведомления, а WeekLayout их отбрасывает — день выглядел
-    /// пустым. Сами по себе они бы не ушли: у них нет признака импорта, а разбор давал
-    /// тот же испорченный ключ, и <see cref="AddMissingAsync"/> считал пару уже добавленной.
-    /// Вызывается на обоих путях импорта, до добавления разобранных пар.
-    /// </summary>
-    public static async Task<int> RemoveUnrenderableAsync(ILessonRepository repository, Guid timelineId)
-    {
-        var broken = (await repository.GetByTimelineIdAsync(timelineId))
-            .Where(l => !LessonTimeRange.IsValid(l.StartTime, l.EndTime))
-            .Select(l => l.Id).ToList();
-        if (broken.Count == 0) return 0;
-        await repository.DeleteManyAsync(timelineId, broken);
-        return broken.Count;
-    }
-
-    // Сравниваем все содержательные поля, а не случайный Id из нового разбора Excel.
-    // Разные преподаватели, описания и типы в одно время остаются отдельными парами.
+    // Одна пара приезжает из разбора дважды, когда соседние колонки группы делят
+    // объединенную ячейку. Сравниваем содержимое, а не случайный Id из разбора
     private static object Key(Lesson lesson) =>
         (lesson.Day, lesson.StartTime, lesson.EndTime, lesson.Name, lesson.Description, lesson.Type);
 
-    public static async Task<int> AddMissingAsync(ILessonRepository repository, Guid timelineId,
-        IEnumerable<Lesson> lessons)
+    /// <summary>
+    /// Расписание становится тем, что в файле: разобранные пары записываются, все
+    /// прежние удаляются.
+    ///
+    /// Накопительный импорт двоил расписание при каждом обновлении файла. Уже
+    /// существующей считалась пара с точно тем же днем, временем, названием,
+    /// описанием и типом, а обновленный разбор дает другие слова — и рядом со
+    /// старой парой вставала новая. Отличить пару прежнего импорта от заведенной
+    /// руками нечем, поэтому замена полная: так решено 07.09.2026.
+    ///
+    /// Порядок шагов — часть смысла. Сначала пишутся новые пары и только потом
+    /// удаляются прежние: обрыв посередине (исключение, снятие процесса Android'ом)
+    /// оставит расписание с лишними парами, а не пустым. Лишнее видно и чинится
+    /// повторным импортом, пустое расписание неотличимо от пропажи данных.
+    /// </summary>
+    /// <returns>Сколько пар записано и сколько прежних удалено.</returns>
+    public static async Task<(int Stored, int Removed)> ReplaceAllAsync(ILessonRepository repository,
+        Guid timelineId, IEnumerable<Lesson> lessons, Action? onMutation = null)
     {
         await Gate.WaitAsync();
         try
         {
-            var existing = (await repository.GetByTimelineIdAsync(timelineId)).Select(Key).ToHashSet();
-            int added = 0;
+            // Прежние пары запоминаем по Id до записи: удалить нужно ровно их, а не
+            // все, что окажется в папке после добавления новых
+            var stale = (await repository.GetByTimelineIdForReplacementAsync(timelineId)).Select(l => l.Id).ToList();
+
+            var written = new HashSet<object>();
+            int stored = 0;
             foreach (var lesson in lessons)
             {
-                if (!existing.Add(Key(lesson))) continue;
+                if (!written.Add(Key(lesson))) continue;
+                // Даже бросившая запись могла успеть изменить файл. Вызывающий код
+                // должен перечитать данные при ошибке, а не оставить старый кэш.
+                onMutation?.Invoke();
                 lesson.TimelineId = timelineId;
                 await repository.AddAsync(lesson);
-                added++;
+                stored++;
             }
-            return added;
+
+            if (stale.Count > 0)
+            {
+                onMutation?.Invoke();
+                await repository.DeleteManyAsync(timelineId, stale);
+            }
+            return (stored, stale.Count);
         }
         finally { Gate.Release(); }
     }

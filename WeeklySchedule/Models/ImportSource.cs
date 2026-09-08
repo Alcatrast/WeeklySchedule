@@ -10,6 +10,8 @@ public sealed class ImportSource
 {
     /// <summary>Исходное имя файла — только для показа пользователю.</summary>
     public string FileName { get; set; } = string.Empty;
+    /// <summary>Имя собственной копии. У старых записей null означает source.xlsx.</summary>
+    public string? StoredFileName { get; set; }
     public string GroupName { get; set; } = string.Empty;
     public DateTime ImportedAt { get; set; }
 }

@@ -1,4 +1,4 @@
-namespace WeeklySchedule.Models;
+﻿namespace WeeklySchedule.Models;
 
 public class Lesson
 {
@@ -10,10 +10,4 @@ public class Lesson
     public TimeSpan EndTime { get; set; }
     public LessonType Type { get; set; }
     public DayOfWeek Day { get; set; }
-
-    /// <summary>
-    /// Пара пришла из разбора xlsx. Повторный разбор сносит только такие пары:
-    /// заведенные руками переживают обновление расписания.
-    /// </summary>
-    public bool FromImport { get; set; }
 }

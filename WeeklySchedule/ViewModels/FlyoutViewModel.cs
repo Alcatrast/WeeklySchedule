@@ -19,6 +19,7 @@ public partial class TimelineFlyoutItem(Timeline timeline) : BaseViewModel
         Timeline.Name = timeline.Name;
         Timeline.NotificationsEnabled = timeline.NotificationsEnabled;
         Timeline.BaseDays = timeline.BaseDays ?? [];
+        Timeline.Source = timeline.Source;
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(NotificationsEnabled));
     }

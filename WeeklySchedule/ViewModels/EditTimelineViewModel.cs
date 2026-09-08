@@ -23,11 +23,12 @@ public partial class EditTimelineViewModel : BaseViewModel
     private readonly bool _isEditMode;
     private bool _isProcessing;
 
-    public string ImportSectionTitle => _isEditMode ? "Дополнить импортом" : "Импорт";
+    // Не "дополнить": импорт в существующее расписание заменяет его содержимое
+    public string ImportSectionTitle => _isEditMode ? "Заменить импортом" : "Импорт";
 
     // Повторный разбор возможен, только если исходник сохранен и лежит на месте.
     // У расписаний, заведенных до появления копии файла, кнопки не будет
-    public bool CanReimport => _timeline.Source != null && ScheduleSourceStore.Exists(_timeline.Id);
+    public bool CanReimport => _timeline.Source != null && ScheduleSourceStore.Exists(_timeline.Id, _timeline.Source);
     public string ReimportLabel => _timeline.Source is { } source
         ? $"Перечитать файл · {source.GroupName} · {source.ImportedAt:dd.MM.yyyy}"
         : string.Empty;
@@ -119,10 +120,11 @@ public partial class EditTimelineViewModel : BaseViewModel
         try { await operation(); }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine(ex);
+            _logger.LogError(ex, "Ошибка операции редактора расписания {TimelineId}", _timeline.Id);
             var page = Application.Current?.Windows.FirstOrDefault()?.Page;
             if (page != null)
-                await page.DisplayAlertAsync("Ошибка", "Не удалось завершить операцию. Проверьте доступ к файлам и повторите попытку.", "ОК");
+                await page.DisplayAlertAsync("Ошибка", ex is IncompleteLessonReadException ? ex.Message
+                    : "Не удалось завершить операцию. Проверьте доступ к файлам и повторите попытку.", "ОК");
         }
         finally { _isProcessing = false; }
     });
@@ -148,15 +150,25 @@ public partial class EditTimelineViewModel : BaseViewModel
 
             // Разбираем не то, что отдал пикер, а свою копию: его путь ведет во
             // временную папку, и на Android ОС вправе ее вычистить прямо посреди
-            // работы. Id у таймлайна есть с момента создания объекта, поэтому копия
-            // ложится по адресу и до сохранения в репозиторий
+            // работы. Для каждой попытки отдельная копия: отмена не меняет исходник
+            // действующего расписания
             string path;
             using (var stream = await file.OpenReadAsync())
-                path = await ScheduleSourceStore.SaveAsync(_timeline.Id, stream);
+                path = await ScheduleSourceStore.StageAsync(_timeline.Id, stream);
 
             // Передаем управление в View, так как создание страниц с DI лучше делать там
             // Или можно использовать IPageFactory. Для простоты вызываем событие.
-            ImportRequested?.Invoke(path, file.FileName, _timeline, _isEditMode);
+            try
+            {
+                if (ImportRequested is { } requested)
+                    requested(path, file.FileName, _timeline, _isEditMode);
+                else ScheduleSourceStore.DiscardPending(_timeline.Id, path);
+            }
+            catch
+            {
+                ScheduleSourceStore.DiscardPending(_timeline.Id, path);
+                throw;
+            }
         }
         finally
         {
@@ -168,20 +180,19 @@ public partial class EditTimelineViewModel : BaseViewModel
     {
         if (IsImporting || !CanReimport) return;
         IsImporting = true;
+        bool dataMayHaveChanged = false;
         try
         {
             var result = await ScheduleReimportService.ReimportAsync(
-                _lessonRepository, _repository, _timeline, _logger);
+                _lessonRepository, _repository, _timeline, _logger, () => dataMayHaveChanged = true);
 
             string group = _timeline.Source?.GroupName ?? string.Empty;
             var (title, message) = result.Status switch
             {
                 ReimportStatus.Success => ("Файл перечитан",
-                    $"Пар в файле: {result.Parsed}. Добавлено новых: {result.Added}. " +
-                    $"Убрано устаревших: {result.Removed}." +
-                    (result.Repaired > 0 ? $"\nУбрано нечитаемых записей: {result.Repaired}." : string.Empty) +
-                    (result.Skipped > 0 ? $"\nСтрок с нераспознанным временем: {result.Skipped} — они пропущены." : string.Empty) +
-                    "\nПары, заведённые вручную, остались на месте."),
+                    $"Пар в файле: {result.Parsed}. Записано: {result.Stored}. " +
+                    $"Заменено прежних: {result.Removed}." +
+                    "\nРасписание теперь совпадает с файлом."),
                 ReimportStatus.GroupNotFound => ("Группа не найдена",
                     $"В сохранённом файле больше нет группы «{group}». Расписание не изменено — " +
                     "выберите файл заново через импорт."),
@@ -190,12 +201,16 @@ public partial class EditTimelineViewModel : BaseViewModel
                     (result.Skipped > 0
                         ? $" Строк с нераспознанным временем: {result.Skipped}."
                         : string.Empty)),
+                ReimportStatus.IncompleteParse => ("Файл разобран не полностью",
+                    $"Строк с нераспознанным временем: {result.Skipped}. " +
+                    "Расписание не изменено. Исправьте время в файле и повторите импорт."),
                 _ => ("Файл недоступен", "Сохранённая копия файла не найдена. Импортируйте расписание заново.")
             };
 
             if (result.Status == ReimportStatus.Success)
             {
                 OnPropertyChanged(nameof(ReimportLabel));
+                dataMayHaveChanged = false;
                 AppEvents.NotifyDataChanged();
             }
             var page = Application.Current?.Windows.FirstOrDefault()?.Page;
@@ -204,6 +219,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         finally
         {
             IsImporting = false;
+            if (dataMayHaveChanged) AppEvents.NotifyDataChanged();
         }
     }
 

@@ -1,4 +1,4 @@
-using WeeklySchedule.Models;
+﻿using WeeklySchedule.Models;
 
 namespace WeeklySchedule.Core;
 
@@ -45,8 +45,8 @@ public sealed class WeekLayout
         {
             // Пара с концом не позже начала не дает строки сетки, и показать ее негде.
             // Это инвариант, а не фильтр данных: такие пары не должны доезжать сюда —
-            // разбор их отбрасывает, а осевшие в хранилище убирает
-            // LessonImportService.RemoveUnrenderableAsync на обоих путях импорта
+            // разбор их отбрасывает, а осевшие в хранилище уходят вместе со всем
+            // прежним содержимым на любом из двух путей импорта
             if (lesson.EndTime <= lesson.StartTime) continue;
             timePoints.Add(lesson.StartTime);
             timePoints.Add(lesson.EndTime);

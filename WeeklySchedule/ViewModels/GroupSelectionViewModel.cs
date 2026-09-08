@@ -18,9 +18,9 @@ public partial class GroupSelectionViewModel : BaseViewModel
     // этому моменту могла быть вычищена системой
     private readonly string _filePath;
     private readonly string _sourceFileName;
-    private bool _imported;
-    // Таймлайн уже сохранен в репозитории (режим "дополнить импортом")
-    private readonly bool _timelineExists;
+    // Состояние меняется и при незавершённой попытке: повтор уже обновляет каталог.
+    private bool _timelineSaved;
+    private bool _sourceCommitted;
     private readonly Timeline _timeline;
     private readonly ILessonRepository _lessonRepo;
     private readonly ITimelineRepository _timelineRepo;
@@ -60,15 +60,15 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         _filePath = filePath;
         _sourceFileName = sourceFileName;
-        _timelineExists = timelineExists;
+        _timelineSaved = timelineExists;
         _timeline = timeline;
         _lessonRepo = lessonRepo;
         _timelineRepo = timelineRepo;
         _navigationService = navigationService;
         // Раньше парсер получал NullLogger, и при разборе чужого файла не оставалось
         // никакой диагностики — ни ненайденной группы, ни числа прочитанных пар
-        _logger = serviceProvider?.GetService<ILogger<ExcelMIPTScheduleParser>>()
-            ?? NullLogger<ExcelMIPTScheduleParser>.Instance;
+        _logger = serviceProvider?.GetService(typeof(ILogger<ExcelMIPTScheduleParser>))
+            as ILogger<ExcelMIPTScheduleParser> ?? NullLogger<ExcelMIPTScheduleParser>.Instance;
         _onImported = onImported;
 
         ToggleCategoryCommand = new Command<GroupCategory>(ToggleCategory);
@@ -131,15 +131,15 @@ public partial class GroupSelectionViewModel : BaseViewModel
         }
     }
 
-    private void ToggleCategory(GroupCategory category)
+    private void ToggleCategory(GroupCategory? category)
     {
-        if (IsProcessing || IsLoadingGroups) return;
+        if (category == null || IsProcessing || IsLoadingGroups) return;
         foreach (var c in Categories) c.IsExpanded = (c == category);
     }
 
-    private void SelectGroup(GroupItem group)
+    private void SelectGroup(GroupItem? group)
     {
-        if (IsProcessing || IsLoadingGroups) return;
+        if (group == null || IsProcessing || IsLoadingGroups) return;
         if (_selectedGroup == group)
             SafeFireAndForget.Run(() => ImportGroupAsync(group));
         else
@@ -154,8 +154,15 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         if (IsProcessing) return;
         IsProcessing = true;
+        bool dataMayHaveChanged = false;
         try
         {
+            // Импорт заменяет содержимое расписания, а кнопка называется импортом:
+            // без вопроса пары, заведенные руками, исчезли бы молча
+            _timelineSaved |= await _timelineRepo.GetByIdAsync(_timeline.Id) != null;
+            int existing = (await _lessonRepo.GetByTimelineIdForReplacementAsync(_timeline.Id)).Count();
+            if (existing > 0 && !await ConfirmReplaceAsync(group.FullGroupName, existing)) return;
+
             var parsed = await Task.Run(() =>
             {
                 var parser = new ExcelMIPTScheduleParser(_logger);
@@ -164,52 +171,100 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 return (Lessons: lessons, BaseDays: baseDays, Skipped: skipped);
             });
             var lessons = parsed.Lessons;
-            foreach (var lesson in lessons) lesson.FromImport = true;
-            _timeline.BaseDays = (_timeline.BaseDays ?? []).Concat(parsed.BaseDays).Distinct().ToList();
-            // Чем разобрали — запоминаем: по этому же файлу и группе работает кнопка
-            // повторного разбора, когда расписание в файле поменяется
-            _timeline.Source = new ImportSource
+            if (parsed.Skipped > 0)
             {
-                FileName = _sourceFileName,
-                GroupName = group.FullGroupName,
-                ImportedAt = DateTime.Now
+                await ShowAlertAsync("Файл разобран не полностью",
+                    $"Строк с нераспознанным временем: {parsed.Skipped}. " +
+                    "Расписание не изменено. Исправьте время в файле и повторите импорт.");
+                return;
+            }
+            // Пустой разбор при выбранной группе — поломка формата куда чаще, чем
+            // настоящее пустое расписание. Пока импорт копил пары, такой разбор был
+            // безобиден; замена стерла бы расписание им же. Та же проверка стоит на
+            // пути повторного разбора — ScheduleReimportService, ReimportStatus.NoLessons
+            if (lessons.Count == 0 && existing > 0)
+            {
+                await ShowAlertAsync("Пары не найдены",
+                    $"Для группы «{group.FullGroupName}» в файле не нашлось ни одной пары. " +
+                    "Расписание не изменено.");
+                return;
+            }
+
+            // Метаданные и ссылка на новую копию публикуются после записи пар.
+            // При ошибке объект родительского редактора сохраняет прежний источник.
+            var updated = new Timeline
+            {
+                Id = _timeline.Id, Name = _timeline.Name,
+                NotificationsEnabled = _timeline.NotificationsEnabled, BaseDays = parsed.BaseDays,
+                Source = new ImportSource
+                {
+                    FileName = _sourceFileName, StoredFileName = Path.GetFileName(_filePath),
+                    GroupName = group.FullGroupName, ImportedAt = DateTime.Now
+                }
             };
 
-            if (!_timelineExists)
+            if (!_timelineSaved)
             {
                 // Имя, введенное пользователем, приоритетнее автоматического
                 if (string.IsNullOrWhiteSpace(_timeline.Name))
                     _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
+                updated.Name = _timeline.Name;
+                dataMayHaveChanged = true;
                 await _timelineRepo.AddAsync(_timeline);
+                _timelineSaved = true;
             }
 
-            // Невидимые пары от прежних импортов: разбор вернет для них исправленное
-            // время, но старые записи сами не исчезнут — они не помечены как
-            // импортированные и продолжали бы поднимать уведомления
-            int repaired = await LessonImportService.RemoveUnrenderableAsync(_lessonRepo, _timeline.Id);
-            var added = await LessonImportService.AddMissingAsync(_lessonRepo, _timeline.Id, lessons);
+            var (stored, removed) = await LessonImportService.ReplaceAllAsync(
+                _lessonRepo, _timeline.Id, lessons, () => dataMayHaveChanged = true);
 
-            if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
-            _imported = true;
+            var previousPath = ScheduleSourceStore.PathFor(_timeline.Id, _timeline.Source);
+            dataMayHaveChanged = true;
+            await _timelineRepo.UpdateAsync(updated);
+            _timeline.BaseDays = updated.BaseDays;
+            _timeline.Source = updated.Source;
+            _sourceCommitted = true;
+            if (!string.Equals(previousPath, _filePath, StringComparison.OrdinalIgnoreCase))
+                ScheduleSourceStore.DiscardPending(_timeline.Id, previousPath);
             _onImported?.Invoke();
+            dataMayHaveChanged = false;
             AppEvents.NotifyDataChanged();
 
-            var report = $"Добавлено пар: {added}. Уже есть в расписании: {lessons.Count - added}.";
-            if (repaired > 0) report += $"\nУбрано нечитаемых записей: {repaired}.";
-            if (parsed.Skipped > 0)
-                report += $"\nСтрок с нераспознанным временем: {parsed.Skipped} — они пропущены.";
+            var report = $"Пар в расписании: {stored}.";
+            if (removed > 0) report += $"\nЗаменено прежних: {removed}.";
             await ShowAlertAsync("Импорт завершён", $"{report}\nПроверьте корректность данных.");
 
             await SafeClosePagesAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            await ShowAlertAsync("Ошибка", "Не удалось импортировать расписание.");
+            _logger.LogError(ex, "Ошибка импорта группы {Group} в {TimelineId}", group.FullGroupName, _timeline.Id);
+            if (dataMayHaveChanged)
+            {
+                dataMayHaveChanged = false;
+                AppEvents.NotifyDataChanged();
+            }
+            await ShowAlertAsync("Ошибка", ex is IncompleteLessonReadException ? ex.Message
+                : "Не удалось импортировать расписание.");
         }
         finally
         {
             IsProcessing = false;
+            if (dataMayHaveChanged) AppEvents.NotifyDataChanged();
         }
+    }
+
+    /// <summary>
+    /// Спрашивает перед заменой непустого расписания. Если показать вопрос негде,
+    /// импорт продолжается: пользователь нажал группу сам, и молчаливый отказ
+    /// выглядел бы поломкой кнопки.
+    /// </summary>
+    private static async Task<bool> ConfirmReplaceAsync(string group, int existing)
+    {
+        var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+        if (page == null) return true;
+        return await page.DisplayAlertAsync("Заменить расписание",
+            $"В расписании пар: {existing}. Импорт группы «{group}» заменит их тем, что в файле.",
+            "Заменить", "Отмена");
     }
 
     // Application.MainPage и Page.DisplayAlert объявлены устаревшими в MAUI 10
@@ -244,14 +299,13 @@ public partial class GroupSelectionViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Уход с экрана без выбора группы. В режиме создания таймлайн в репозиторий еще
-    /// не попал, и удалять его папку с сохраненной копией файла будет уже некому.
+    /// Уход без успешного импорта: удаляется только временная копия этой попытки.
     /// Вызывается только с явных путей отмены: OnDisappearing не годится, на Android
     /// он приходит и при сворачивании приложения.
     /// </summary>
     public void DiscardUnfinishedSource()
     {
-        if (_imported || _timelineExists) return;
-        ScheduleSourceStore.DiscardOrphan(_timeline.Id);
+        if (IsProcessing || _sourceCommitted) return;
+        ScheduleSourceStore.DiscardPending(_timeline.Id, _filePath);
     }
 }

@@ -24,6 +24,7 @@
     <Compile Include="../WeeklySchedule/Models/Timeline.cs" Link="Source/Timeline.cs" />
     <Compile Include="../WeeklySchedule/Models/BaseDay.cs" Link="Source/BaseDay.cs" />
     <Compile Include="../WeeklySchedule/Models/ImportSource.cs" Link="Source/ImportSource.cs" />
+    <Compile Include="../WeeklySchedule/Models/GroupCategory.cs" Link="Source/GroupCategory.cs" />
     <Compile Include="../WeeklySchedule/Services/ScheduleSourceStore.cs" Link="Source/ScheduleSourceStore.cs" />
     <Compile Include="../WeeklySchedule/Services/ScheduleReimportService.cs" Link="Source/ScheduleReimportService.cs" />
     <Compile Include="../WeeklySchedule/Models/NotificationReminder.cs" Link="Source/NotificationReminder.cs" />
@@ -36,6 +37,7 @@
     <Compile Include="../WeeklySchedule/Services/INavigationService.cs" Link="Source/INavigationService.cs" />
     <Compile Include="../WeeklySchedule/Messaging/AppEvents.cs" Link="Source/AppEvents.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/EditTimelineViewModel.cs" Link="Source/EditTimelineViewModel.cs" />
+    <Compile Include="../WeeklySchedule/ViewModels/GroupSelectionViewModel.cs" Link="Source/GroupSelectionViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/BaseViewModel.cs" Link="Source/BaseViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/TimelinesViewModel.cs" Link="Source/TimelinesViewModel.cs" />
     <Compile Include="../WeeklySchedule/ViewModels/FlyoutViewModel.cs" Link="Source/FlyoutViewModel.cs" />

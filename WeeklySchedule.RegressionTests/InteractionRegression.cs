@@ -16,6 +16,8 @@ static class InteractionRegression
         ("Save and return share one data refresh", SaveAndReturn),
         ("Theme and duration settings do not rebuild notifications", UnrelatedSettings),
         ("Returning after midnight and a week keeps the day window current", ResumeAfterMidnight),
+        ("Cold reload restores every weekday and leaves saved lesson files unchanged", ColdReloadWholeWeek),
+        ("A day render failure does not leave the remaining days unloaded", FailedDayRender),
         ("Time-only update retains layout and lesson placements", StableLayout),
         ("Lesson edits rebuild the shared grid, unchanged data does not", ChangedLayout),
         ("Lesson tap and menu dispatch distinct commands", Commands),
@@ -38,6 +40,83 @@ static class InteractionRegression
         ("Cached timeline editors retain updated base-day metadata", BaseDayCache)
     ];
     private static void Check(bool condition) { if (!condition) throw new Exception("Assertion failed"); }
+
+    private static async Task FailedDayRender()
+    {
+        var f = new Fixture();
+        try
+        {
+            foreach (var day in f.Main.Days.Skip(1))
+                f.Repo.Lessons.Add(new Lesson
+                {
+                    TimelineId = f.Repo.Timelines[0].Id, Day = day.DayOfWeek,
+                    StartTime = TimeSpan.FromHours(10), EndTime = TimeSpan.FromHours(11)
+                });
+            var failure = new InvalidOperationException("Injected day rendering failure");
+            Action fail = () => throw failure;
+            f.Main.Days[0].LayoutUpdated += fail;
+            Exception? caught = null;
+            try { await f.Main.InitializeDataAsync(); }
+            catch (Exception ex) { caught = ex; }
+            Check(caught != null);
+            Check(f.Main.Days.All(d => d.Layout.Lessons.Count == 1));
+            f.Main.Days[0].LayoutUpdated -= fail;
+            int reads = f.Repo.LessonReads;
+            await f.Main.InitializeDataAsync();
+            Check(f.Repo.LessonReads > reads);
+            Check(f.Main.Days.All(d => d.Layout.Lessons.Count == 1));
+            Check(f.Notifications.Cancellations == 1);
+        }
+        finally { f.Main.StopMonitor(); }
+    }
+
+    private static async Task ColdReloadWholeWeek()
+    {
+        TimeContext.Now = new DateTime(2026, 9, 8, 12, 0, 0);
+        var timelines = new FileTimelineRepository();
+        var lessons = new FileLessonRepository();
+        var timeline = new Timeline { Name = "Whole week" };
+        await timelines.AddAsync(timeline);
+        var expected = Enum.GetValues<DayOfWeek>().Select(day => new Lesson
+        {
+            TimelineId = timeline.Id, Day = day, Name = $"Lesson {day}",
+            StartTime = TimeSpan.FromHours(9), EndTime = TimeSpan.FromHours(10)
+        }).ToList();
+        await LessonImportService.ReplaceAllAsync(lessons, timeline.Id, expected);
+        var savedIds = (await lessons.GetByTimelineIdAsync(timeline.Id))
+            .ToDictionary(l => l.Day, l => l.Id);
+        var before = Directory.GetFiles(FileSystem.AppDataDirectory, "*.json", SearchOption.AllDirectories)
+            .ToDictionary(path => path, File.ReadAllText);
+
+        // Новые репозитории и VM читают только файлы; нативная карусель здесь не проверяется.
+        foreach (var elapsedDays in new[] { 0, 1, 8 })
+        {
+            TimeContext.Now = new DateTime(2026, 9, 8, 12, 0, 0).AddDays(elapsedDays);
+            typeof(AppEvents).GetField("DataChanged",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.SetValue(null, null);
+            Application.Current = new Application();
+            var main = new MainViewModel(new FileLessonRepository(), new FileTimelineRepository(),
+                new EmptyDataSeeder(), new TestActiveSchedule { ActiveTimelineId = timeline.Id }, new TestSettings(),
+                new NotificationNavigationService(), new Notifications());
+            try
+            {
+                await main.InitializeDataAsync();
+                Check(main.ActiveTimelineId == timeline.Id && main.Days.Count == 7);
+                Check(main.Days.Select(d => d.DayOfWeek).Distinct().Count() == 7);
+                foreach (var day in main.Days)
+                {
+                    main.SelectedDayVM = day;
+                    Check(day.Layout.Lessons.Single().Lesson.Id == savedIds[day.DayOfWeek]);
+                }
+                main.StopMonitor();
+                await main.InitializeDataAsync();
+                Check(main.Days.All(d => d.Layout.Lessons.Count == 1));
+                Check(before.All(file => File.ReadAllText(file.Key) == file.Value));
+                Check(Directory.GetFiles(FileSystem.AppDataDirectory, "*.json", SearchOption.AllDirectories).Length == before.Count);
+            }
+            finally { main.StopMonitor(); }
+        }
+    }
 
     private static async Task BaseDayCache()
     {
@@ -132,14 +211,21 @@ static class InteractionRegression
     private static async Task RepeatedImport()
     {
         var repo = new FileLessonRepository(); var timeline = Guid.NewGuid();
-        var first = Imported();
-        Check(await LessonImportService.AddMissingAsync(repo, timeline, [first, Imported()]) == 1);
-        var results = await Task.WhenAll(
-            LessonImportService.AddMissingAsync(repo, timeline, [Imported(), Imported("Other")]),
-            LessonImportService.AddMissingAsync(repo, timeline, [Imported(), Imported("Other")]));
-        Check(results.Sum() == 1);
+        // Соседние колонки группы описывают один слот: в расписание он ложится один раз
+        var first = await LessonImportService.ReplaceAllAsync(repo, timeline, [Imported(), Imported()]);
+        Check(first.Stored == 1 && first.Removed == 0);
+
+        // Тот же файл во второй раз не копит, а заменяет
+        var second = await LessonImportService.ReplaceAllAsync(repo, timeline, [Imported(), Imported("Other")]);
+        Check(second.Stored == 2 && second.Removed == 1);
+
+        // Два одновременных импорта тоже не оставляют четырех пар
+        await Task.WhenAll(
+            LessonImportService.ReplaceAllAsync(repo, timeline, [Imported(), Imported("Other")]),
+            LessonImportService.ReplaceAllAsync(repo, timeline, [Imported(), Imported("Other")]));
         var stored = (await repo.GetByTimelineIdAsync(timeline)).ToList();
-        Check(stored.Count == 2 && stored.Any(l => l.Id == first.Id));
+        Check(stored.Count == 2);
+
         var day = new DayViewModel(new DateTime(2026, 9, 8));
         day.UpdateLayout(new DateTime(2026, 9, 6),
             WeekLayout.Build([.. stored.Where(l => l.Description == "Teacher")], []));
@@ -165,9 +251,10 @@ static class InteractionRegression
     private static async Task ImportVariants()
     {
         var repo = new FileLessonRepository(); var timeline = Guid.NewGuid(); var other = Guid.NewGuid();
-        Check(await LessonImportService.AddMissingAsync(repo, other, [Imported()]) == 1);
-        Check(await LessonImportService.AddMissingAsync(repo, timeline,
-            [Imported(), Imported("Other"), Imported(type: LessonType.Practice)]) == 3);
+        Check((await LessonImportService.ReplaceAllAsync(repo, other, [Imported()])).Stored == 1);
+        Check((await LessonImportService.ReplaceAllAsync(repo, timeline,
+            [Imported(), Imported("Other"), Imported(type: LessonType.Practice)])).Stored == 3);
+        // Замена не выходит за свой таймлайн
         Check((await repo.GetByTimelineIdAsync(other)).Count() == 1);
         Check((await repo.GetByTimelineIdAsync(timeline)).Count() == 3);
     }

@@ -10,7 +10,8 @@ static class ImportSourceRegression
     public static (string, Func<Task>)[] Tests =>
     [
         ("Imported file is copied into app storage and survives a cache wipe", SourceIsKept),
-        ("Reimport replaces imported lessons and keeps manual ones", ReimportReplacesImported),
+        ("Reimport makes the schedule match the file instead of doubling it", ReimportReplacesEverything),
+        ("A replace interrupted halfway keeps the previous lessons", FailedReplaceKeepsPrevious),
         ("Missing group does not wipe the schedule", MissingGroupKeepsLessons),
         ("Empty parse result does not wipe the schedule", EmptyParseKeepsLessons),
         ("Reimport without a stored source reports it instead of clearing", NoSourceIsReported),
@@ -71,8 +72,7 @@ static class ImportSourceRegression
         var parser = new ExcelMIPTScheduleParser(Logger);
         var lessons = parser.ParseGroupSchedule(ScheduleSourceStore.PathFor(timeline.Id), "Б03-401", out var baseDays);
         Check(lessons.Count == 2);
-        foreach (var lesson in lessons) lesson.FromImport = true;
-        await LessonImportService.AddMissingAsync(repo, timeline.Id, lessons);
+        await LessonImportService.ReplaceAllAsync(repo, timeline.Id, lessons);
         timeline.BaseDays = baseDays;
         timeline.Source = new ImportSource
         {
@@ -96,13 +96,23 @@ static class ImportSourceRegression
         var parser = new ExcelMIPTScheduleParser(Logger);
         Check(parser.ExtractAllGroupNames(ScheduleSourceStore.PathFor(timeline.Id)).Contains("Б03-401"));
 
-        // Копия лежит внутри папки таймлайна, чтобы уходить вместе с ним
+        // Отмена другой попытки убирает только её копию, не исходник и пары.
         Check(ScheduleSourceStore.PathFor(timeline.Id).Contains(timeline.Id.ToString()));
-        ScheduleSourceStore.DiscardOrphan(timeline.Id);
-        Check(!ScheduleSourceStore.Exists(timeline.Id));
+        string pending;
+        using (var stream = File.OpenRead(ScheduleSourceStore.PathFor(timeline.Id)))
+            pending = await ScheduleSourceStore.StageAsync(timeline.Id, stream);
+        ScheduleSourceStore.DiscardPending(timeline.Id, pending);
+        Check(!File.Exists(pending));
+        Check(ScheduleSourceStore.Exists(timeline.Id));
     }
 
-    private static async Task ReimportReplacesImported()
+    /// <summary>
+    /// Прежнее содержимое уходило только с пометкой об импорте, а пометки не было ни
+    /// у старых расписаний, ни у отредактированных пар. Обновленный разбор дает
+    /// другие слова, дедупликация по содержимому их не ловила — и каждое
+    /// перечитывание удваивало неделю.
+    /// </summary>
+    private static async Task ReimportReplacesEverything()
     {
         var (repo, timeline) = await ImportedTimelineAsync();
         var manual = new Lesson
@@ -119,14 +129,43 @@ static class ImportSourceRegression
 
         var result = await ScheduleReimportService.ReimportAsync(repo, repo, timeline, Logger);
         Check(result.Status == ReimportStatus.Success);
-        Check(result.Parsed == 2 && result.Removed == 2 && result.Added == 2);
+        Check(result.Parsed == 2 && result.Stored == 2 && result.Removed == 3);
 
+        // В расписании ровно то, что в файле: ни прежнего разбора, ни ручной пары
         var stored = repo.Lessons.Where(l => l.TimelineId == timeline.Id).ToList();
-        // Ручная пара на месте, устаревшая импортированная — нет
-        Check(stored.Any(l => l.Id == manual.Id && !l.FromImport));
-        Check(!stored.Any(l => l.FromImport && l.StartTime == new TimeSpan(10, 35, 0)));
-        Check(stored.Count(l => l.FromImport && l.StartTime == new TimeSpan(11, 0, 0)) == 1);
-        Check(stored.Count == 3);
+        Check(stored.Count == 2);
+        Check(!stored.Any(l => l.Id == manual.Id));
+        Check(!stored.Any(l => l.StartTime == new TimeSpan(10, 35, 0)));
+        Check(stored.Count(l => l.StartTime == new TimeSpan(11, 0, 0)) == 1);
+    }
+
+    /// <summary>
+    /// Замена пишет новые пары раньше, чем удаляет прежние. Обратный порядок
+    /// оставлял окно, в котором расписание пусто: исключение или снятие процесса
+    /// Android'ом внутри него стирало неделю насовсем.
+    /// </summary>
+    private static async Task FailedReplaceKeepsPrevious()
+    {
+        var (repo, timeline) = await ImportedTimelineAsync();
+        var before = repo.Lessons.Where(l => l.TimelineId == timeline.Id).Select(l => l.Id).ToList();
+        Check(before.Count == 2);
+
+        repo.FailAddAfter = 1;   // вторая запись падает
+        var replacement = new List<Lesson>
+        {
+            new() { Name = "Первая", Day = DayOfWeek.Monday,
+                StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(10, 25, 0) },
+            new() { Name = "Вторая", Day = DayOfWeek.Monday,
+                StartTime = new TimeSpan(11, 0, 0), EndTime = new TimeSpan(12, 25, 0) }
+        };
+
+        bool threw = false;
+        try { await LessonImportService.ReplaceAllAsync(repo, timeline.Id, replacement); }
+        catch (IOException) { threw = true; }
+
+        Check(threw && repo.Deletions == 0);
+        var stored = repo.Lessons.Where(l => l.TimelineId == timeline.Id).ToList();
+        Check(before.All(id => stored.Any(l => l.Id == id)));
     }
 
     // Парсер на ненайденной группе молча отдает пустой список: без отдельной
@@ -266,7 +305,7 @@ static class ImportSourceRegression
         });
 
         var result = await ScheduleReimportService.ReimportAsync(repo, repo, timeline, Logger);
-        Check(result.Status == ReimportStatus.Success && result.Repaired == 1);
+        Check(result.Status == ReimportStatus.Success && result.Removed == 3);
 
         var stored = repo.Lessons.Where(l => l.TimelineId == timeline.Id).ToList();
         Check(stored.Count == 2);
@@ -589,7 +628,15 @@ static class ImportSourceRegression
         public Task<IEnumerable<Lesson>> GetByTimelineIdAsync(Guid id) =>
             Task.FromResult<IEnumerable<Lesson>>(Lessons.Where(l => l.TimelineId == id).ToList());
         Task<Lesson?> ILessonRepository.GetByIdAsync(Guid id) => Task.FromResult(Lessons.FirstOrDefault(l => l.Id == id));
-        public Task AddAsync(Lesson lesson) { Lessons.Add(lesson); return Task.CompletedTask; }
+        // Обрыв записи посреди замены: -1 значит "не падать"
+        public int FailAddAfter = -1;
+        public Task AddAsync(Lesson lesson)
+        {
+            if (FailAddAfter == 0) throw new IOException("нет места");
+            if (FailAddAfter > 0) FailAddAfter--;
+            Lessons.Add(lesson);
+            return Task.CompletedTask;
+        }
         public Task UpdateAsync(Lesson lesson) => Task.CompletedTask;
         Task ILessonRepository.DeleteAsync(Guid id) { Deletions++; Lessons.RemoveAll(l => l.Id == id); return Task.CompletedTask; }
         public Task DeleteManyAsync(Guid timelineId, IEnumerable<Guid> ids)

@@ -10,17 +10,21 @@ public enum ReimportStatus
     Success,
     NoSource,       // исходник не сохранен или пропал с диска
     GroupNotFound,  // группы больше нет в файле — формат или название изменились
-    NoLessons       // группа есть, но пар не нашлось: похоже на поломку разбора
+    NoLessons,      // группа есть, но пар не нашлось: похоже на поломку разбора
+    IncompleteParse // известные ошибки разбора: заменять прежние пары нельзя
 }
 
-/// <param name="Repaired">Невидимые пары от прежних разборов, убранные заодно.</param>
+/// <param name="Parsed">Пар нашлось в файле.</param>
+/// <param name="Stored">Пар записано: разбор мог описать один слот дважды.</param>
+/// <param name="Removed">Прежних пар удалено, включая заведенные вручную.</param>
 /// <param name="Skipped">Строки файла, у которых не удалось определить время.</param>
-public sealed record ReimportResult(ReimportStatus Status, int Parsed = 0, int Added = 0,
-    int Removed = 0, int Repaired = 0, int Skipped = 0);
+public sealed record ReimportResult(ReimportStatus Status, int Parsed = 0, int Stored = 0,
+    int Removed = 0, int Skipped = 0);
 
 /// <summary>
-/// Повторный разбор сохраненного xlsx. Сносит только пары с <see cref="Lesson.FromImport"/>:
-/// заведенные руками переживают обновление расписания.
+/// Повторный разбор сохраненного xlsx. Расписание после него совпадает с файлом:
+/// прежнее содержимое уходит целиком, включая пары, заведенные руками. Раньше
+/// уцелевшие пары вставали рядом с новыми, и каждое перечитывание удваивало неделю.
 /// </summary>
 public static class ScheduleReimportService
 {
@@ -28,13 +32,14 @@ public static class ScheduleReimportService
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         Timeline timeline,
-        ILogger<ExcelMIPTScheduleParser> logger)
+        ILogger<ExcelMIPTScheduleParser> logger,
+        Action? onMutation = null)
     {
         var source = timeline.Source;
-        if (source == null || !ScheduleSourceStore.Exists(timeline.Id))
+        if (source == null || !ScheduleSourceStore.Exists(timeline.Id, source))
             return new ReimportResult(ReimportStatus.NoSource);
 
-        var path = ScheduleSourceStore.PathFor(timeline.Id);
+        var path = ScheduleSourceStore.PathFor(timeline.Id, source);
         var parsed = await Task.Run(() =>
         {
             var parser = new ExcelMIPTScheduleParser(logger);
@@ -50,32 +55,34 @@ public static class ScheduleReimportService
         });
 
         if (!parsed.Found) return new ReimportResult(ReimportStatus.GroupNotFound);
+        if (parsed.Skipped > 0)
+            return new ReimportResult(ReimportStatus.IncompleteParse, Parsed: parsed.Lessons.Count, Skipped: parsed.Skipped);
         // Пустой разбор при существующей группе — тоже повод остановиться, а не
         // удалять все пары: настоящее пустое расписание встречается куда реже
         // поломки формата
         if (parsed.Lessons.Count == 0)
             return new ReimportResult(ReimportStatus.NoLessons, Skipped: parsed.Skipped);
 
-        var existing = (await lessonRepo.GetByTimelineIdAsync(timeline.Id)).ToList();
-        var stale = existing.Where(l => l.FromImport).Select(l => l.Id).ToList();
-        await lessonRepo.DeleteManyAsync(timeline.Id, stale);
+        var (stored, removed) = await LessonImportService.ReplaceAllAsync(
+            lessonRepo, timeline.Id, parsed.Lessons, onMutation);
 
-        // Пары без признака импорта, оставшиеся невидимыми от прежних разборов:
-        // ручными они не являются, а перечитывание — единственный момент, когда
-        // есть чем их заменить
-        int repaired = await LessonImportService.RemoveUnrenderableAsync(lessonRepo, timeline.Id);
+        // Объект редактора меняется только после успешной записи метаданных.
+        var updated = new Timeline
+        {
+            Id = timeline.Id, Name = timeline.Name, NotificationsEnabled = timeline.NotificationsEnabled,
+            BaseDays = parsed.BaseDays,
+            Source = new ImportSource
+            {
+                FileName = source.FileName, StoredFileName = source.StoredFileName,
+                GroupName = source.GroupName, ImportedAt = DateTime.Now
+            }
+        };
+        onMutation?.Invoke();
+        await timelineRepo.UpdateAsync(updated);
+        timeline.BaseDays = updated.BaseDays;
+        timeline.Source = updated.Source;
 
-        foreach (var lesson in parsed.Lessons) lesson.FromImport = true;
-        // AddMissingAsync сверяется с тем, что осталось, то есть с ручными парами:
-        // совпавшую по содержимому пару он не задвоит
-        int added = await LessonImportService.AddMissingAsync(lessonRepo, timeline.Id, parsed.Lessons);
-
-        // Пометки заменяем, а не копим: устаревший базовый день оставался бы навсегда
-        timeline.BaseDays = parsed.BaseDays;
-        source.ImportedAt = DateTime.Now;
-        await timelineRepo.UpdateAsync(timeline);
-
-        return new ReimportResult(ReimportStatus.Success, parsed.Lessons.Count, added, stale.Count,
-            repaired, parsed.Skipped);
+        return new ReimportResult(ReimportStatus.Success, parsed.Lessons.Count, stored, removed,
+            parsed.Skipped);
     }
 }

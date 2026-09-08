@@ -241,12 +241,15 @@ public partial class MainViewModel : BaseViewModel
         CurrentTimelineName = timeline?.Name ?? "Расписание";
         _allLessons = lessons;
         RebuildWeekLayoutIfChanged(timeline?.BaseDays ?? []);
-        _loadedTimelineId = timelineId;
-        _loadedRevision = revision;
         if (_monitorEnabled) _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
         RollDaysWindow();
         UpdateAllTitles();
         UpdateAllDays();
+        // Обработчик LayoutUpdated может упасть в нативной отрисовке. Такой
+        // проход не завершён: следующий вход должен повторить загрузку.
+        if (version != _loadVersion || revision != _dataRevision || timelineId != ActiveTimelineId) return;
+        _loadedTimelineId = timelineId;
+        _loadedRevision = revision;
         await ScheduleAllNotificationsAsync();
     }
 
@@ -393,7 +396,15 @@ public partial class MainViewModel : BaseViewModel
     private void UpdateAllDays()
     {
         var now = TimeContext.Now;
-        foreach (var dayVM in Days) dayVM.UpdateLayout(now, _weekLayout);
+        List<Exception>? errors = null;
+        foreach (var dayVM in Days)
+        {
+            try { dayVM.UpdateLayout(now, _weekLayout); }
+            catch (Exception ex) { (errors ??= []).Add(ex); }
+        }
+        // Ошибка первого видимого дня не должна оставлять остальные шесть с
+        // пустой раскладкой. Ошибки сохраняем для вызывающего кода и логгера.
+        if (errors != null) throw new AggregateException("Не удалось отобразить дни расписания.", errors);
     }
 
     /// <summary>

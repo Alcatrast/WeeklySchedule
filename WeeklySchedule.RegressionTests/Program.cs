@@ -152,7 +152,7 @@ var tests = new (string Name, Func<Task> Run)[]
 };
 
 tests = [.. tests, .. NavigationRegression.Tests, .. InteractionRegression.Tests, .. TimelineMetricsRegression.Tests,
-    .. ImportSourceRegression.Tests];
+    .. ImportSourceRegression.Tests, .. ImportSafetyRegression.Tests];
 var root = Directory.CreateTempSubdirectory("WeeklySchedule-regression-").FullName;
 var failed = 0;
 foreach (var (name, run) in tests)
