@@ -131,7 +131,9 @@ public partial class EditTimelineViewModel : BaseViewModel
 
     public async Task CheckPermissionsAsync()
     {
-        var granted = await _notificationService.CheckAllPermissionsAsync();
+        // Только право показывать уведомления: точность будильника предупреждения
+        // на этом экране не стоит, без нее уведомления все равно приходят
+        var granted = await _notificationService.CheckPermissionAsync();
         ShowPermissionWarning = !granted;
     }
 

@@ -337,8 +337,8 @@ static class NavigationRegression
             Moments.Add((day, startTime, minutes));
         }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
-        public Task<bool> CheckAllPermissionsAsync() => Task.FromResult(true);
+        public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
         public Task RequestPermissionAsync() => Task.CompletedTask;
-        public Task RequestAllPermissionsAsync() => Task.CompletedTask;
+        public Task RequestExactAlarmsAsync() => Task.CompletedTask;
     }
 }

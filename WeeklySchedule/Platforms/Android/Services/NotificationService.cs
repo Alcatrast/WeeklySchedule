@@ -1,6 +1,5 @@
 ﻿using global::Android.App;
 using global::Android.Content;
-using global::Android.OS;
 using global::AndroidX.Core.App;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
@@ -61,62 +60,40 @@ public class NotificationService : INotificationService
     }
     #endregion
 
-    #region Комплексная проверка и запрос всех 3 разрешений
-    public async Task<bool> CheckAllPermissionsAsync()
+    #region Точность будильников (SCHEDULE_EXACT_ALARM)
+    /// <summary>
+    /// Приложение не просит ни исключения из оптимизации батареи, ни права работать
+    /// в фоне, и не держит ни сервиса, ни цикла: расписание будильников хранит сама
+    /// система, процесс до срабатывания не живет. Doze будильникам не помеха —
+    /// оба Set*AndAllowWhileIdle в <see cref="SetAlarm"/> пробивают простой по
+    /// определению, исключение из оптимизации к доставке ничего не добавляло, только
+    /// показывало пугающий системный диалог.
+    ///
+    /// Точность же нужна не для доставки, а для минуты в минуту. На Android 13+ ее
+    /// дает USE_EXACT_ALARM, выданный молча при установке, так что спрашивать нечего.
+    /// Экран настроек нужен фактически только на Android 12.
+    /// </summary>
+    public Task<bool> CanScheduleExactAlarmsAsync()
     {
-        // 1. Проверка POST_NOTIFICATIONS
-        if (!await CheckPermissionAsync()) return false;
+        // До Android 12 точный будильник ставится без разрешения вообще
+        if (!OperatingSystem.IsAndroidVersionAtLeast(31)) return Task.FromResult(true);
 
-        // 2. Проверка SCHEDULE_EXACT_ALARM (Android 12+)
-        if (OperatingSystem.IsAndroidVersionAtLeast(31))
-        {
-            var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
-            if (alarmManager == null || !alarmManager.CanScheduleExactAlarms()) return false;
-        }
-
-        // 3. Проверка IGNORE_BATTERY_OPTIMIZATIONS (Android 6+)
-        if (OperatingSystem.IsAndroidVersionAtLeast(23))
-        {
-            var powerManager = Context.GetSystemService(Context.PowerService) as PowerManager;
-            if (powerManager == null || !powerManager.IsIgnoringBatteryOptimizations(Context.PackageName)) return false;
-        }
-
-        return true;
+        var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
+        return Task.FromResult(alarmManager?.CanScheduleExactAlarms() ?? false);
     }
 
-    public async Task RequestAllPermissionsAsync()
+    public Task RequestExactAlarmsAsync()
     {
-        // 1. Запрос POST_NOTIFICATIONS
-        await RequestPermissionAsync();
-        await Task.Delay(800); // Пауза для взаимодействия с системным диалогом
+        if (!OperatingSystem.IsAndroidVersionAtLeast(31)) return Task.CompletedTask;
 
-        // 2. Запрос SCHEDULE_EXACT_ALARM
-        if (OperatingSystem.IsAndroidVersionAtLeast(31))
-        {
-            var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
-            if (alarmManager != null && !alarmManager.CanScheduleExactAlarms())
-            {
-                // ИСПРАВЛЕНО: добавлен префикс global:: для избежания конфликта пространств имен
-                var intent = new Intent(global::Android.Provider.Settings.ActionRequestScheduleExactAlarm);
-                intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
-                StartSettingsActivity(intent);
-                await Task.Delay(1000);
-            }
-        }
+        var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
+        if (alarmManager == null || alarmManager.CanScheduleExactAlarms()) return Task.CompletedTask;
 
-        // 3. Запрос IGNORE_BATTERY_OPTIMIZATIONS
-        if (OperatingSystem.IsAndroidVersionAtLeast(23))
-        {
-            var powerManager = Context.GetSystemService(Context.PowerService) as PowerManager;
-            if (powerManager != null && !powerManager.IsIgnoringBatteryOptimizations(Context.PackageName))
-            {
-                // ИСПРАВЛЕНО: добавлен префикс global:: для избежания конфликта пространств имен
-                var intent = new Intent(global::Android.Provider.Settings.ActionRequestIgnoreBatteryOptimizations);
-                intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
-                StartSettingsActivity(intent);
-                await Task.Delay(1000);
-            }
-        }
+        // Разрешение выдается только на системном экране, диалога у него нет
+        var intent = new Intent(global::Android.Provider.Settings.ActionRequestScheduleExactAlarm);
+        intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
+        StartSettingsActivity(intent);
+        return Task.CompletedTask;
     }
 
     private void StartSettingsActivity(Intent intent)

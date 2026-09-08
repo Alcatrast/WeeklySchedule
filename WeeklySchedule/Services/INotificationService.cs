@@ -2,12 +2,21 @@ namespace WeeklySchedule.Services;
 
 public interface INotificationService
 {
+    /// <summary>
+    /// Единственное разрешение, без которого уведомлений не будет вовсе.
+    /// </summary>
     Task<bool> CheckPermissionAsync();
     Task RequestPermissionAsync();
 
-    // Комплексная проверка всех 3 разрешений
-    Task<bool> CheckAllPermissionsAsync();
-    Task RequestAllPermissionsAsync();
+    /// <summary>
+    /// Может ли система будить приложение точно в срок. Это не право на доставку,
+    /// а только ее точность: будильники ставятся флагом «разрешено в простое», и
+    /// без точности они все равно срабатывают, но с задержкой в несколько минут.
+    /// Отдельно от <see cref="CheckPermissionAsync"/> именно поэтому — отказ здесь
+    /// не должен закрывать пользователю настройки уведомлений.
+    /// </summary>
+    Task<bool> CanScheduleExactAlarmsAsync();
+    Task RequestExactAlarmsAsync();
 
     /// <summary>
     /// Ставит еженедельное напоминание за <paramref name="minutesBefore"/> минут до

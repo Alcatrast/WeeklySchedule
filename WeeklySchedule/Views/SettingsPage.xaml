@@ -27,14 +27,29 @@
                     BackgroundColor="{StaticResource Primary}" TextColor="White"
                     CornerRadius="8" HeightRequest="45"/>
 
-            <HorizontalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="8" VerticalOptions="Center">
+            <HorizontalStackLayout IsVisible="{Binding IsPermissionGranted}" Spacing="8" VerticalOptions="Center">
                 <Path Data="{StaticResource IconDoneOutline}" 
                       Fill="{StaticResource Success}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
                 <Label Text="Разрешение предоставлено" 
                        TextColor="{StaticResource Success}" FontAttributes="Bold" FontSize="16" VerticalOptions="Center"/>
             </HorizontalStackLayout>
 
-            <VerticalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="15">
+            <!-- Подсказка, а не запрет: без точных будильников уведомления приходят,
+                 но могут опоздать на несколько минут. Приложение не просит ни работы
+                 в фоне, ни исключения из оптимизации батареи -->
+            <VerticalStackLayout IsVisible="{Binding ShowInexactAlarmHint}" Spacing="8"
+                                 views:PressFeedback.IsEnabled="True">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding RequestExactAlarmsCommand}" />
+                </VerticalStackLayout.GestureRecognizers>
+                <Label Text="Уведомления могут приходить с задержкой в несколько минут"
+                       FontSize="14" VerticalOptions="Center"
+                       TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+                <Label Text="Разрешить точное время"
+                       FontSize="14" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout IsVisible="{Binding IsPermissionGranted}" Spacing="15">
                 <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
                     <Label Text="Уведомлять при начале пары" FontSize="16" VerticalOptions="Center"/>
                     <Switch Grid.Column="1" IsToggled="{Binding NotifyAtStart}" VerticalOptions="Center"/>

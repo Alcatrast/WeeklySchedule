@@ -640,8 +640,8 @@ static class InteractionRegression
         public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
             DayOfWeek day, TimeSpan startTime, int minutes) { }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
-        public Task<bool> CheckAllPermissionsAsync() => Task.FromResult(true);
+        public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
         public Task RequestPermissionAsync() => Task.CompletedTask;
-        public Task RequestAllPermissionsAsync() => Task.CompletedTask;
+        public Task RequestExactAlarmsAsync() => Task.CompletedTask;
     }
 }
