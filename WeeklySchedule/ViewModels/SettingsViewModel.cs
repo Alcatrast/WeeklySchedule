@@ -161,7 +161,10 @@ public class NotificationReminderViewModel : BaseViewModel
         get => _model.MinutesBefore;
         set
         {
-            var minutes = Math.Clamp(value, 0, 7 * 24 * 60);
+            // Не с нуля: BuildNotificationId считает id по паре и числу минут, поэтому
+            // напоминание «за 0 минут» получало тот же id, что и уведомление о начале
+            // пары, и затирало его. Начало пары — это отдельный переключатель выше
+            var minutes = Math.Clamp(value, 1, 7 * 24 * 60);
             if (_model.MinutesBefore == minutes) return;
             _model.MinutesBefore = minutes;
             OnPropertyChanged();

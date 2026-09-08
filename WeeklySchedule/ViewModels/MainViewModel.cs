@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using WeeklySchedule.Core;
@@ -98,27 +99,27 @@ public partial class MainViewModel : BaseViewModel
         _navService.NavigationRequested += () => MainThread.BeginInvokeOnMainThread(CheckPendingNavigation);
 
         _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
-        _scheduler.OnTimeMarkerReached += (now) =>
+        _scheduler.OnTimeMarkerReached += (now) => UpdateFromHandler("тик планировщика", () =>
         {
             // Пара началась или закончилась: пересобираем сегодняшний день, иначе
             // подсветка текущей пары остается такой, какой была на прошлом пересчете
             var todayVM = Days.FirstOrDefault(d => d.Date == now.Date);
             todayVM?.UpdateLayout(now, _weekLayout);
-        };
-        _scheduler.OnDayChanged += () =>
+        });
+        _scheduler.OnDayChanged += () => UpdateFromHandler("смена суток", () =>
         {
             _scheduler.RebuildQueue();
             RollDaysWindow();
             UpdateAllTitles();
             UpdateAllDays();
-        };
+        });
 
         AppEvents.DataChanged += OnDataChanged;
-        Application.Current!.RequestedThemeChanged += (s, e) =>
+        Application.Current!.RequestedThemeChanged += (s, e) => UpdateFromHandler("смена темы", () =>
         {
             OnPropertyChanged(nameof(CurrentTheme));
             UpdateAllDays();
-        };
+        });
 
         InitializeDays();
         // Загрузку данных запускает MainPage.OnAppearing. Раньше она стартовала
@@ -408,6 +409,31 @@ public partial class MainViewModel : BaseViewModel
     }
 
     /// <summary>
+    /// Обновление дней из синхронного обработчика — тика планировщика или смены темы.
+    ///
+    /// UpdateAllDays намеренно бросает, чтобы о неудавшейся отрисовке узнал вызывающий
+    /// код. На путях загрузки он есть: там await под SafeFireAndForget. Здесь его нет —
+    /// оба обработчика приходят на главный поток через BeginInvokeOnMainThread, ловить
+    /// исключение оттуда некому, а на Android необработанное исключение главного потока
+    /// завершает процесс. Пишем ошибку и живем дальше: DayView на своей стороне уже
+    /// сбросил кэш раскладки, поэтому следующий проход построит день заново.
+    /// </summary>
+    private static void UpdateFromHandler(string source, Action update)
+    {
+        try
+        {
+            update();
+        }
+        catch (Exception ex)
+        {
+            if (SafeFireAndForget.Logger is { } logger)
+                logger.LogError(ex, "[{Source}] не удалось обновить дни расписания", source);
+            else
+                System.Diagnostics.Debug.WriteLine($"[{source}] не удалось обновить дни расписания: {ex}");
+        }
+    }
+
+    /// <summary>
     /// Пересобирает общую сетку недели, только если содержимое пар или пометок
     /// действительно изменилось. Переименование таймлайна и возврат на экран
     /// приходят сюда постоянно, а каждая новая раскладка стоит DayView полной
@@ -459,8 +485,13 @@ public partial class MainViewModel : BaseViewModel
         }
 
         bool notifyAtStart = _settingsService.NotifyAtStart;
+        // Строго больше нуля: у напоминания «за 0 минут» id совпадает с id уведомления
+        // о начале пары (BuildNotificationId считает его по паре и числу минут), и
+        // PendingIntentFlags.UpdateCurrent затирал одно другим — вместо «Начало пары»
+        // приходило «Через 0 мин.». Настройки такое значение больше не сохраняют,
+        // но в уже сохраненном списке оно могло остаться
         var activeReminders = _settingsService.NotifyBeforeList
-            .Where(r => r.IsActive && r.MinutesBefore >= 0 && r.MinutesBefore <= 7 * 24 * 60).ToList();
+            .Where(r => r.IsActive && r.MinutesBefore > 0 && r.MinutesBefore <= 7 * 24 * 60).ToList();
 
         if (!notifyAtStart && activeReminders.Count == 0)
         {

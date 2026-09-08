@@ -38,8 +38,20 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
 
         // Расписание недельное, а AlarmManager умеет только разовые точные будильники:
         // повтор ставим сами, здесь. Раньше повтора не было вообще, и без запуска
-        // приложения уведомления заканчивались через неделю
-        RescheduleNextWeek(context, alarm);
+        // приложения уведомления заканчивались через неделю.
+        //
+        // Своя обертка, хотя весь OnReceive и так под catch: показ уведомления от
+        // перестановки не зависит, а бросить она может — будильник, мигрированный
+        // с 1.0.5, читает день и время из файла пары, а файла может уже не быть.
+        // Общего catch хватало, чтобы не упасть, но уведомление при этом терялось
+        try
+        {
+            RescheduleNextWeek(context, alarm);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NOTIF RECEIVER] повтор {notificationId}: {ex}");
+        }
 
         // Intent для открытия приложения при клике на уведомление
         var appIntent = new Intent(context, typeof(MainActivity));

@@ -159,8 +159,10 @@ public class ExcelMIPTScheduleParser
         ParseGroupSchedule(filePath, groupName, out baseDays, out _);
 
     /// <param name="skippedRows">
-    /// Строки с текстом пары, у которых не удалось определить время. Их видно в отчете
+    /// Ячейки с текстом пары, у которых не удалось определить время. Их видно в отчете
     /// об импорте: молчаливый пропуск и был причиной "иногда парсинг ломается".
+    /// Каждая считается один раз, сколько бы строк и колонок группы ни накрывало
+    /// ее объединение.
     /// </param>
     public List<Lesson> ParseGroupSchedule(string filePath, string groupName,
         out List<BaseDay> baseDays, out int skippedRows)
@@ -202,6 +204,13 @@ public class ExcelMIPTScheduleParser
         // HashSet для отслеживания уже добавленных пар (для предотвращения дубликатов)
         var addedLessons = new HashSet<string>();
 
+        // Ячейки, у которых не удалось определить время. Именно ячейки, а не заходы
+        // в цикл: одна объединенная ячейка приходит сюда на каждой своей строке и в
+        // каждой колонке группы, которую накрывает, и счетчик умножался на высоту
+        // объединения и число колонок. Число видит пользователь и по нему ищет
+        // строки в файле
+        var skippedCells = new HashSet<(int Row, int Column)>();
+
         for (int r = startDataRow; r <= lastLessonRow; r++)
         {
             var row = sheet.GetRow(r);
@@ -219,11 +228,17 @@ public class ExcelMIPTScheduleParser
                 ICell? cell = null;
                 int firstRow = r;
                 int lastRowOfLesson = r;
+                // Координаты ячейки со значением: у объединения это его левый
+                // верхний угол, один и тот же для всех строк и колонок области
+                int cellRow = r;
+                int cellColumn = groupColIndex;
 
                 if (mergedRegion != null)
                 {
                     firstRow = mergedRegion.FirstRow;
                     lastRowOfLesson = mergedRegion.LastRow;
+                    cellRow = mergedRegion.FirstRow;
+                    cellColumn = mergedRegion.FirstColumn;
 
                     var masterRow = sheet.GetRow(mergedRegion.FirstRow);
                     if (masterRow != null)
@@ -288,10 +303,13 @@ public class ExcelMIPTScheduleParser
                 // пропадал целый день
                 if (!LessonTimeRange.IsValid(startTime, endTime))
                 {
-                    skippedRows++;
-                    _logger.LogWarning(
-                        "Строка {Row} ({Day}, «{Name}») пропущена: время не определено ({Start}–{End})",
-                        r, currentDay, name, startTime, endTime);
+                    if (skippedCells.Add((cellRow, cellColumn)))
+                    {
+                        skippedRows++;
+                        _logger.LogWarning(
+                            "Строка {Row} ({Day}, «{Name}») пропущена: время не определено ({Start}–{End})",
+                            cellRow, currentDay, name, startTime, endTime);
+                    }
                     continue;
                 }
 
@@ -443,6 +461,15 @@ public class ExcelMIPTScheduleParser
 
     private static bool MatchesGroup(string cellText, string groupName)
     {
+        // Список для выбора собирается из НОРМАЛИЗОВАННОГО текста ячейки
+        // (ExtractAllGroupNames), поэтому сравнивать надо тоже нормализованный.
+        // Иначе шапка «Б05-411\nЦУ» предлагается пользователю как «Б05-411 ЦУ»,
+        // а здесь не находится ни одним из трёх способов: точное сравнение
+        // спотыкается о перенос против пробела, разбиение по словам дает части
+        // порознь, а regex ищет имя с настоящим пробелом внутри. Ячейки с
+        // несколькими группами это не задевало, их спасало разбиение по словам
+        cellText = WhitespaceRegex.Replace(cellText, " ").Trim();
+
         // 1. Точное совпадение (быстрый путь)
         if (cellText.Equals(groupName, StringComparison.OrdinalIgnoreCase)) return true;
 
@@ -653,9 +680,10 @@ public class ExcelMIPTScheduleParser
     }
 
     /// <summary>
-    /// «900», «9:00», «18-40» → время дня. null, если прочитать не удалось: здесь
-    /// стоял TimeSpan.Zero, и нераспознанное время было не отличить от полуночи —
-    /// ошибка молча превращалась в правдоподобные данные.
+    /// «900», «9:00», «9.00» → время дня. Дефис здесь не снимается: он разделяет
+    /// границы слота, и его убирает ParseTimeRange раньше. null, если прочитать не
+    /// удалось: здесь стоял TimeSpan.Zero, и нераспознанное время было не отличить
+    /// от полуночи — ошибка молча превращалась в правдоподобные данные.
     /// </summary>
     private static TimeSpan? ParseSingleTime(string timeStr)
     {

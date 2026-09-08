@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
@@ -350,9 +351,7 @@ public partial class EditLessonPage : ContentPage
         }
         catch (Exception ex)
         {
-            // Debug.WriteLine и так вырезается в Release. Собственный #if DEBUG
-            // вокруг него оставлял там переменную ex без единого использования
-            System.Diagnostics.Debug.WriteLine($"Save error: {ex}");
+            LogFailure("сохранение пары", ex);
             _isProcessing = false;
             SetButtonsEnabled(true);
         }
@@ -372,7 +371,7 @@ public partial class EditLessonPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Delete error: {ex}");
+            LogFailure("удаление пары", ex);
             _isProcessing = false;
             SetButtonsEnabled(true);
         }
@@ -391,10 +390,24 @@ public partial class EditLessonPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Cancel error: {ex}");
+            LogFailure("закрытие редактора", ex);
         }
         _isProcessing = false;
         SetButtonsEnabled(true);
+    }
+
+    /// <summary>
+    /// Обработчики здесь объявлены void, поэтому исключение ловится на месте — падения
+    /// не было и раньше. Не было и следа: писал только Debug.WriteLine, а его в Release
+    /// вырезает компилятор, и сорвавшееся сохранение выглядело как несработавшая кнопка.
+    /// Логгер тот же, что у SafeFireAndForget, — он ставится при сборке контейнера.
+    /// </summary>
+    private static void LogFailure(string operation, Exception ex)
+    {
+        if (SafeFireAndForget.Logger is { } logger)
+            logger.LogError(ex, "[{Page}] {Operation}", nameof(EditLessonPage), operation);
+        else
+            System.Diagnostics.Debug.WriteLine($"[{nameof(EditLessonPage)}] {operation}: {ex}");
     }
 
     private void SetButtonsEnabled(bool isEnabled)
@@ -420,7 +433,7 @@ public partial class EditLessonPage : ContentPage
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"PopModal safe catch: {ex}");
+            LogFailure("закрытие модального окна", ex);
         }
         return false;
     }
