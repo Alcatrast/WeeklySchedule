@@ -1,5 +1,14 @@
 namespace WeeklySchedule.Services;
 
+/// <summary>
+/// Одно еженедельное напоминание. Дня недели и времени начала достаточно: расписание
+/// недельное, а конкретную дату ближайшего вхождения считает платформа — она зависит
+/// от часового пояса и перевода часов.
+/// </summary>
+public readonly record struct PlannedNotification(
+    Guid TimelineId, Guid LessonId, string Title, string Body,
+    DayOfWeek Day, TimeSpan StartTime, int MinutesBefore);
+
 public interface INotificationService
 {
     /// <summary>
@@ -39,13 +48,12 @@ public interface INotificationService
     Task<bool> RequestExactAlarmsAsync();
 
     /// <summary>
-    /// Ставит еженедельное напоминание за <paramref name="minutesBefore"/> минут до
-    /// начала пары. Реализация сама находит ближайшее будущее вхождение: расписание
-    /// недельное, поэтому дня недели и времени начала достаточно, а конкретная дата
-    /// зависит от часового пояса и перевода часов и считается на стороне платформы.
+    /// Ставит ровно этот набор напоминаний вместо всех прежних; пустой список просто
+    /// отменяет все. Пакетом, а не по одному, и асинхронно намеренно: каждая
+    /// постановка — это два обращения к системе плюс запись хранилища, и поштучный
+    /// вызов с главного потока замораживал экран на десятки будильников. Теперь
+    /// хранилище переписывается один раз на весь набор, а вся работа уходит с
+    /// главного потока.
     /// </summary>
-    void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
-        DayOfWeek day, TimeSpan startTime, int minutesBefore);
-
-    void CancelAllNotifications();
+    Task ReplaceScheduledAsync(IReadOnlyList<PlannedNotification> plan);
 }

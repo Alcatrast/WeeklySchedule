@@ -11,14 +11,14 @@ public class MockNotificationService : INotificationService
     public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
     public Task<bool> RequestExactAlarmsAsync() => Task.FromResult(true);
 
-    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
-        DayOfWeek day, TimeSpan startTime, int minutesBefore)
+    public Task ReplaceScheduledAsync(IReadOnlyList<PlannedNotification> plan)
     {
 #if DEBUG
-        Debug.WriteLine($"[MOCK Notification] Запланировано: '{title}' на {day} {startTime:hh\\:mm} " +
-            $"(за {minutesBefore} мин.)");
+        Debug.WriteLine($"[MOCK Notification] Запланировано напоминаний: {plan.Count}");
+        foreach (var item in plan)
+            Debug.WriteLine($"[MOCK Notification]   '{item.Title}' на {item.Day} " +
+                $"{item.StartTime:hh\\:mm} (за {item.MinutesBefore} мин.)");
 #endif
+        return Task.CompletedTask;
     }
-
-    public void CancelAllNotifications() { }
 }

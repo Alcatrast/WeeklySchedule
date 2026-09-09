@@ -46,6 +46,10 @@ public partial class MainViewModel : BaseViewModel
     // не дождавшись предыдущего
     private readonly SemaphoreSlim _initGate = new(1, 1);
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    // Постановка будильников теперь асинхронна, и между отменой прежних и записью
+    // новых появилось место, где два прохода могли бы перемешаться. Раньше их
+    // удерживал вместе главный поток
+    private readonly SemaphoreSlim _notificationGate = new(1, 1);
     private bool _startupCompleted;
     private int _loadVersion;
     private int _notificationVersion;
@@ -53,6 +57,7 @@ public partial class MainViewModel : BaseViewModel
     private int _loadedRevision = -1;
     private Guid _loadedTimelineId;
     private string? _notificationSettings;
+    private string? _notificationData;
     private string? _clockContext;
     private bool _monitorEnabled;
     // Защелка от повторного захода в починку каталога из вложенного вызова
@@ -132,7 +137,7 @@ public partial class MainViewModel : BaseViewModel
     private void OnSettingsChanged()
     {
         if (_startupCompleted && _notificationSettings != NotificationSettingsKey())
-            SafeFireAndForget.Run(ScheduleAllNotificationsAsync);
+            SafeFireAndForget.Run(() => ScheduleAllNotificationsAsync());
     }
 
     public void CheckPendingNavigation()
@@ -251,7 +256,9 @@ public partial class MainViewModel : BaseViewModel
         if (version != _loadVersion || revision != _dataRevision || timelineId != ActiveTimelineId) return;
         _loadedTimelineId = timelineId;
         _loadedRevision = revision;
-        await ScheduleAllNotificationsAsync();
+        // Те же расписание и пары, что уже прочитаны выше: без передачи те же файлы
+        // читались и разбирались второй раз подряд
+        await ScheduleAllNotificationsAsync(timeline, lessons);
     }
 
     private void InitializeDays()
@@ -461,28 +468,56 @@ public partial class MainViewModel : BaseViewModel
         _scheduler.Stop();
     }
 
-    public async Task ScheduleAllNotificationsAsync()
+    /// <summary>
+    /// Приводит поставленные будильники в соответствие с расписанием и настройками.
+    /// Расписание и пары можно передать, если вызывающий их только что прочитал.
+    /// </summary>
+    public async Task ScheduleAllNotificationsAsync(Timeline? timeline = null, List<Lesson>? lessons = null)
     {
         var version = ++_notificationVersion;
         var timelineId = _scheduleService.ActiveTimelineId;
-        var timeline = await _timelineRepository.GetByIdAsync(timelineId);
-        var lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
-        if (version != _notificationVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+        if (timeline == null || lessons == null)
+        {
+            timeline = await _timelineRepository.GetByIdAsync(timelineId);
+            lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
+            if (version != _notificationVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+        }
 
         var settingsKey = NotificationSettingsKey();
         var clockContext = CurrentClockContext();
-        // Ошибка постановки не должна оставлять признак успешной синхронизации.
-        _notificationSettings = null;
-        _clockContext = null;
+        var dataKey = NotificationDataKey(timeline, lessons);
+        // Ничего из того, что попадает в будильник, не изменилось. Переименование
+        // расписания и правка длительности пары приходят сюда постоянно, а стоят
+        // они отмены и повторной постановки всех будильников до единого
+        if (_notificationSettings == settingsKey && _clockContext == clockContext &&
+            _notificationData == dataKey) return;
 
-        // До этой точки старый запрос не должен ни отменять, ни ставить будильники.
-        _notificationService.CancelAllNotifications();
-        if (timeline == null || !timeline.NotificationsEnabled)
+        var plan = BuildNotificationPlan(timeline, lessons);
+
+        await _notificationGate.WaitAsync();
+        try
         {
+            // До этой точки старый запрос не должен ни отменять, ни ставить будильники.
+            if (version != _notificationVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+
+            // Ошибка постановки не должна оставлять признак успешной синхронизации.
+            _notificationSettings = null;
+            _notificationData = null;
+            _clockContext = null;
+
+            await _notificationService.ReplaceScheduledAsync(plan);
+
             _notificationSettings = settingsKey;
+            _notificationData = dataKey;
             _clockContext = clockContext;
-            return;
         }
+        finally { _notificationGate.Release(); }
+    }
+
+    private List<PlannedNotification> BuildNotificationPlan(Timeline? timeline, List<Lesson> lessons)
+    {
+        var plan = new List<PlannedNotification>();
+        if (timeline == null || !timeline.NotificationsEnabled) return plan;
 
         bool notifyAtStart = _settingsService.NotifyAtStart;
         // Строго больше нуля: у напоминания «за 0 минут» id совпадает с id уведомления
@@ -493,45 +528,45 @@ public partial class MainViewModel : BaseViewModel
         var activeReminders = _settingsService.NotifyBeforeList
             .Where(r => r.IsActive && r.MinutesBefore > 0 && r.MinutesBefore <= 7 * 24 * 60).ToList();
 
-        if (!notifyAtStart && activeReminders.Count == 0)
-        {
-            _notificationSettings = settingsKey;
-            _clockContext = clockContext;
-            return;
-        }
-
         foreach (var lesson in lessons)
         {
-            // Испорченное время одной пары не должно оставлять без будильников
-            // все остальные: без этого исключение уходило в SafeFireAndForget,
-            // цикл обрывался, а признак успеха не выставлялся и попытка
-            // повторялась при каждом возврате на экран — с тем же результатом
-            try
+            if (notifyAtStart)
             {
-                if (notifyAtStart)
-                {
-                    _notificationService.ScheduleNotification(
-                        timeline.Id, lesson.Id,
-                        $"Начало пары: {lesson.Name}", lesson.Description,
-                        lesson.Day, lesson.StartTime, 0);
-                }
-
-                foreach (var reminder in activeReminders)
-                {
-                    _notificationService.ScheduleNotification(
-                        timeline.Id, lesson.Id,
-                        $"Скоро начнется: {lesson.Name}",
-                        $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
-                        lesson.Day, lesson.StartTime, reminder.MinutesBefore);
-                }
+                plan.Add(new PlannedNotification(timeline.Id, lesson.Id,
+                    $"Начало пары: {lesson.Name}", lesson.Description,
+                    lesson.Day, lesson.StartTime, 0));
             }
-            catch (ArgumentOutOfRangeException ex)
+
+            foreach (var reminder in activeReminders)
             {
-                System.Diagnostics.Debug.WriteLine($"[Уведомления] пара {lesson.Id}: {ex}");
+                plan.Add(new PlannedNotification(timeline.Id, lesson.Id,
+                    $"Скоро начнется: {lesson.Name}",
+                    $"Через {reminder.MinutesBefore} мин. {lesson.Description}",
+                    lesson.Day, lesson.StartTime, reminder.MinutesBefore));
             }
         }
-        _notificationSettings = settingsKey;
-        _clockContext = clockContext;
+        return plan;
+    }
+
+    /// <summary>
+    /// Все, что попадает в будильник, одной строкой. Длительность пары и ее тип сюда
+    /// не входят: в напоминании их нет. Длины строк выписаны перед ними, иначе
+    /// название с разделителем внутри могло бы совпасть с другим набором пар.
+    /// </summary>
+    private static string NotificationDataKey(Timeline? timeline, List<Lesson> lessons)
+    {
+        if (timeline == null || !timeline.NotificationsEnabled) return "off";
+
+        var key = new System.Text.StringBuilder(timeline.Id.ToString("N"));
+        foreach (var lesson in lessons.OrderBy(l => l.Id))
+        {
+            key.Append('|').Append(lesson.Id.ToString("N"))
+               .Append(':').Append((int)lesson.Day)
+               .Append(':').Append(lesson.StartTime.Ticks)
+               .Append(':').Append(lesson.Name.Length).Append(':').Append(lesson.Name)
+               .Append(':').Append(lesson.Description.Length).Append(':').Append(lesson.Description);
+        }
+        return key.ToString();
     }
 
     private static string CurrentClockContext() =>

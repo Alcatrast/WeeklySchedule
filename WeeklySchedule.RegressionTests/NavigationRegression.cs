@@ -70,10 +70,10 @@ static class NavigationRegression
         var old = f.VM.ScheduleAllNotificationsAsync();
         f.Active.ActiveTimelineId = f.B.Id;
         await f.VM.ScheduleAllNotificationsAsync();
-        var cancellations = f.Notifications.Cancellations;
+        var applied = f.Notifications.Applied;
         pending.SetResult([f.LessonA]);
         await old;
-        Check(f.Notifications.Cancellations == cancellations);
+        Check(f.Notifications.Applied == applied);
         Check(f.Notifications.Scheduled.Single() == (f.B.Id, f.LessonB.Id));
         f.VM.StopMonitor();
     }
@@ -378,15 +378,23 @@ static class NavigationRegression
 
     private sealed class RecordingNotifications : INotificationService
     {
-        public int Cancellations { get; private set; }
+        // Раньше считались отмены: каждое напоминание ставилось отдельным вызовом, и
+        // отмена была единственной точкой, где виден целый проход. Теперь проход и
+        // есть один вызов с готовым набором
+        public int Applied { get; private set; }
         public List<(Guid Timeline, Guid Lesson)> Scheduled { get; } = [];
         public List<(DayOfWeek Day, TimeSpan Start, int Minutes)> Moments { get; } = [];
-        public void CancelAllNotifications() { Cancellations++; Scheduled.Clear(); Moments.Clear(); }
-        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
-            DayOfWeek day, TimeSpan startTime, int minutes)
+        public Task ReplaceScheduledAsync(IReadOnlyList<PlannedNotification> plan)
         {
-            Scheduled.Add((timelineId, lessonId));
-            Moments.Add((day, startTime, minutes));
+            Applied++;
+            Scheduled.Clear();
+            Moments.Clear();
+            foreach (var item in plan)
+            {
+                Scheduled.Add((item.TimelineId, item.LessonId));
+                Moments.Add((item.Day, item.StartTime, item.MinutesBefore));
+            }
+            return Task.CompletedTask;
         }
         // Настраиваемые: пока обе заглушки отвечали «да» на все, ни один тест не мог
         // увидеть ни подсказку о неточных будильниках, ни отказ в разрешении

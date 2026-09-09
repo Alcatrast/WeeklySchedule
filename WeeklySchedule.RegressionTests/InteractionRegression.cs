@@ -15,6 +15,8 @@ static class InteractionRegression
         ("Returning without edits reuses data, layouts and scheduled notifications", Resume),
         ("Save and return share one data refresh", SaveAndReturn),
         ("Theme and duration settings do not rebuild notifications", UnrelatedSettings),
+        ("Renaming a schedule and changing lesson length do not rearm alarms", AlarmContentKey),
+        ("Disabled notifications send an empty plan, and only once", DisabledTimelineClearsAlarms),
         ("Returning after midnight and a week keeps the day window current", ResumeAfterMidnight),
         ("Cold reload restores every weekday and leaves saved lesson files unchanged", ColdReloadWholeWeek),
         ("A day render failure does not leave the remaining days unloaded", FailedDayRender),
@@ -65,7 +67,7 @@ static class InteractionRegression
             await f.Main.InitializeDataAsync();
             Check(f.Repo.LessonReads > reads);
             Check(f.Main.Days.All(d => d.Layout.Lessons.Count == 1));
-            Check(f.Notifications.Cancellations == 1);
+            Check(f.Notifications.Applied == 1);
         }
         finally { f.Main.StopMonitor(); }
     }
@@ -337,13 +339,13 @@ static class InteractionRegression
             await f.Main.InitializeDataAsync();
             var reads = f.Repo.LessonReads;
             var catalogueReads = f.Repo.TimelineReads;
-            var cancellations = f.Notifications.Cancellations;
+            var applied = f.Notifications.Applied;
             var layouts = f.Main.Days.Select(d => d.Layout).ToArray();
             f.Main.StopMonitor();
             await f.Main.InitializeDataAsync();
             await f.Main.InitializeDataAsync();
             Check(f.Repo.LessonReads == reads && f.Repo.TimelineReads == catalogueReads);
-            Check(f.Notifications.Cancellations == cancellations);
+            Check(f.Notifications.Applied == applied);
             Check(f.Main.Days.Select(d => d.Layout).SequenceEqual(layouts));
         }
         finally { f.Main.StopMonitor(); }
@@ -356,7 +358,7 @@ static class InteractionRegression
         {
             await f.Main.InitializeDataAsync();
             int reads = f.Repo.LessonReads;
-            int cancellations = f.Notifications.Cancellations;
+            int applied = f.Notifications.Applied;
             f.Repo.Lessons[0].Name = "Changed";
             var pending = new TaskCompletionSource<IEnumerable<Lesson>>(TaskCreationOptions.RunContinuationsAsynchronously);
             f.Repo.NextLessons = pending.Task;
@@ -364,8 +366,8 @@ static class InteractionRegression
             var returning = f.Main.InitializeDataAsync();
             pending.SetResult(f.Repo.Lessons.ToList());
             await returning;
-            Check(f.Repo.LessonReads == reads + 2); // One snapshot for cards, one for alarms.
-            Check(f.Notifications.Cancellations == cancellations + 1);
+            Check(f.Repo.LessonReads == reads + 1); // One snapshot serves both cards and alarms.
+            Check(f.Notifications.Applied == applied + 1);
             Check(f.Main.Days.SelectMany(d => d.Layout.Lessons).Single().Lesson.Name == "Changed");
         }
         finally { f.Main.StopMonitor(); }
@@ -377,17 +379,66 @@ static class InteractionRegression
         try
         {
             await f.Main.InitializeDataAsync();
-            int reads = f.Repo.LessonReads, cancellations = f.Notifications.Cancellations;
+            int reads = f.Repo.LessonReads, applied = f.Notifications.Applied;
             f.Settings.Theme = AppTheme.Dark;
             f.Settings.DefaultLessonDuration = 90;
             f.Settings.RaiseChanged();
             await f.Main.InitializeDataAsync();
-            Check(f.Repo.LessonReads == reads && f.Notifications.Cancellations == cancellations);
+            Check(f.Repo.LessonReads == reads && f.Notifications.Applied == applied);
             f.Settings.NotifyAtStart = false;
             f.Settings.RaiseChanged();
-            Check(f.Notifications.Cancellations == cancellations + 1);
+            Check(f.Notifications.Applied == applied + 1);
             await f.Main.InitializeDataAsync();
-            Check(f.Notifications.Cancellations == cancellations + 1);
+            Check(f.Notifications.Applied == applied + 1);
+        }
+        finally { f.Main.StopMonitor(); }
+    }
+
+    // Отмена и повторная постановка всех будильников — это два обращения к системе на
+    // каждый, поэтому проход должен начинаться только тогда, когда изменилось что-то
+    // из самого напоминания. Имя расписания и конец пары в него не входят
+    private static async Task AlarmContentKey()
+    {
+        var f = new Fixture();
+        try
+        {
+            await f.Main.InitializeDataAsync();
+            int applied = f.Notifications.Applied;
+            Check(applied == 1 && f.Notifications.Last.Count == 1);
+
+            f.Repo.Timelines[0].Name = "Renamed";
+            f.Repo.Lessons[0].EndTime = TimeSpan.FromHours(12);
+            AppEvents.NotifyDataChanged();
+            await f.Main.InitializeDataAsync();
+            Check(f.Notifications.Applied == applied);
+
+            f.Repo.Lessons[0].StartTime = TimeSpan.FromHours(9);
+            AppEvents.NotifyDataChanged();
+            await f.Main.InitializeDataAsync();
+            Check(f.Notifications.Applied == applied + 1);
+            Check(f.Notifications.Last.Single().StartTime == TimeSpan.FromHours(9));
+        }
+        finally { f.Main.StopMonitor(); }
+    }
+
+    // Выключенные у расписания уведомления — это пустой набор, а не пропуск вызова:
+    // ранее поставленные будильники обязан снять кто-то
+    private static async Task DisabledTimelineClearsAlarms()
+    {
+        var f = new Fixture();
+        try
+        {
+            await f.Main.InitializeDataAsync();
+            int applied = f.Notifications.Applied;
+            f.Repo.Timelines[0].NotificationsEnabled = false;
+            AppEvents.NotifyDataChanged();
+            await f.Main.InitializeDataAsync();
+            Check(f.Notifications.Applied == applied + 1 && f.Notifications.Last.Count == 0);
+
+            // Повторный проход по тому же выключенному расписанию уже ничего не стоит
+            AppEvents.NotifyDataChanged();
+            await f.Main.InitializeDataAsync();
+            Check(f.Notifications.Applied == applied + 1);
         }
         finally { f.Main.StopMonitor(); }
     }
@@ -635,10 +686,15 @@ static class InteractionRegression
     }
     private sealed class Notifications : INotificationService
     {
-        public int Cancellations;
-        public void CancelAllNotifications() => Cancellations++;
-        public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
-            DayOfWeek day, TimeSpan startTime, int minutes) { }
+        // Считаем проходы: набор приходит целиком одним вызовом
+        public int Applied;
+        public List<PlannedNotification> Last = [];
+        public Task ReplaceScheduledAsync(IReadOnlyList<PlannedNotification> plan)
+        {
+            Applied++;
+            Last = [.. plan];
+            return Task.CompletedTask;
+        }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
         public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
         public Task<bool> RequestPermissionAsync() => Task.FromResult(true);

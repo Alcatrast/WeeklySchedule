@@ -17,13 +17,10 @@ public class NotificationService : INotificationService
 
     private Context Context => Application.Context;
 
-    // Список читается из SharedPreferences один раз за запуск: планирование идет
-    // пачкой по всем парам, и перечитывать хранилище на каждую пару незачем.
-    // Приемники пишут в то же хранилище и могут сделать кэш устаревшим, но набор
-    // идентификаторов они не меняют — только время срабатывания, — поэтому отмена
-    // по кэшу все равно попадает во все поставленные будильники
-    private List<ScheduledAlarm>? _alarms;
-    private List<ScheduledAlarm> Alarms => _alarms ??= ScheduledAlarmStore.Load();
+    // Постановка пакета идет в фоновом потоке, и два пакета не должны перемешаться:
+    // между отменой прежних будильников и записью новых состояние хранилища не
+    // соответствует системе
+    private readonly Lock _applyLock = new();
 
     public NotificationService() => CreateNotificationChannel();
 
@@ -187,31 +184,65 @@ public class NotificationService : INotificationService
             ? PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable
             : PendingIntentFlags.UpdateCurrent;
 
-    public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body,
-        DayOfWeek day, TimeSpan startTime, int minutesBefore)
+    /// <summary>
+    /// Ставит ровно переданный набор вместо всех прежних. Работа уходит в фоновый
+    /// поток целиком: на каждое напоминание приходятся два обращения к системе, и
+    /// шесть десятков будильников с главного потока замораживали экран.
+    /// </summary>
+    public Task ReplaceScheduledAsync(IReadOnlyList<PlannedNotification> plan) =>
+        Task.Run(() => ReplaceScheduled(plan));
+
+    private void ReplaceScheduled(IReadOnlyList<PlannedNotification> plan)
     {
-        int notificationId = BuildNotificationId(lessonId, minutesBefore);
-        long triggerMillis = WeeklyOccurrence.Next(day, startTime,
-            minutesBefore, DateTimeOffset.Now, TimeZoneInfo.Local).ToUnixTimeMilliseconds();
-
-        var alarm = new ScheduledAlarm
+        lock (_applyLock)
         {
-            NotificationId = notificationId,
-            TimelineId = timelineId.ToString(),
-            LessonId = lessonId.ToString(),
-            Title = title,
-            Body = body,
-            TriggerAtMillis = triggerMillis,
-            MinutesBefore = minutesBefore,
-            LessonDay = day,
-            LessonStartTime = startTime
-        };
+            var context = Context;
+            // Список читается заново, а не из кэша: приемник переставляет сработавший
+            // будильник на следующую неделю в этом же процессе и пишет в то же хранилище
+            foreach (var stale in ScheduledAlarmStore.Load()) CancelAlarm(context, stale.NotificationId);
 
-        if (!SetAlarm(Context, alarm)) return;
+            var armed = new List<ScheduledAlarm>(plan.Count);
+            var ids = new HashSet<int>();
+            foreach (var item in plan)
+            {
+                // Два напоминания на одинаковое число минут дают один и тот же
+                // идентификатор: второе перезаписало бы первое в системе, а в
+                // хранилище осталась бы лишняя запись
+                int notificationId = BuildNotificationId(item.LessonId, item.MinutesBefore);
+                if (!ids.Add(notificationId)) continue;
 
-        Alarms.RemoveAll(a => a.NotificationId == notificationId);
-        Alarms.Add(alarm);
-        ScheduledAlarmStore.Save(Alarms);
+                try
+                {
+                    var alarm = new ScheduledAlarm
+                    {
+                        NotificationId = notificationId,
+                        TimelineId = item.TimelineId.ToString(),
+                        LessonId = item.LessonId.ToString(),
+                        Title = item.Title,
+                        Body = item.Body,
+                        TriggerAtMillis = WeeklyOccurrence.Next(item.Day, item.StartTime,
+                            item.MinutesBefore, DateTimeOffset.Now, TimeZoneInfo.Local).ToUnixTimeMilliseconds(),
+                        MinutesBefore = item.MinutesBefore,
+                        LessonDay = item.Day,
+                        LessonStartTime = item.StartTime
+                    };
+                    if (SetAlarm(context, alarm)) armed.Add(alarm);
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    // Испорченное время одной пары не должно оставлять без будильников
+                    // все остальные
+                    SafeFireAndForget.Logger?.LogError(ex,
+                        "Будильник для пары {Lesson} за {Minutes} мин. не поставлен",
+                        item.LessonId, item.MinutesBefore);
+                }
+            }
+
+            // Одна запись на весь набор. Раньше хранилище переписывалось после каждого
+            // будильника: тридцать пар с одним напоминанием давали шестьдесят записей
+            // растущего списка целиком
+            ScheduledAlarmStore.Save(armed);
+        }
     }
 
     /// <summary>
@@ -250,23 +281,16 @@ public class NotificationService : INotificationService
         return true;
     }
 
-    public void CancelAllNotifications()
+    private static void CancelAlarm(Context context, int notificationId)
     {
-        foreach (var alarm in Alarms) CancelAlarm(alarm.NotificationId);
-        Alarms.Clear();
-        ScheduledAlarmStore.Save(Alarms);
-    }
+        if (context.GetSystemService(Context.AlarmService) is not AlarmManager alarmManager) return;
 
-    private void CancelAlarm(int notificationId)
-    {
-        if (Context.GetSystemService(Context.AlarmService) is not AlarmManager alarmManager) return;
-
-        var intent = new Intent(Context, typeof(ScheduledNotificationReceiver));
+        var intent = new Intent(context, typeof(ScheduledNotificationReceiver));
         intent.SetAction(ActionShow);
 
         // Extras при сопоставлении PendingIntent не учитываются, поэтому для отмены
         // достаточно совпадения requestCode, компонента, действия и флагов
-        var pendingIntent = PendingIntent.GetBroadcast(Context, notificationId, intent, BroadcastFlags);
+        var pendingIntent = PendingIntent.GetBroadcast(context, notificationId, intent, BroadcastFlags);
         if (pendingIntent == null) return;
 
         alarmManager.Cancel(pendingIntent);
