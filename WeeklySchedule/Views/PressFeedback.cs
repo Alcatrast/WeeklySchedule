@@ -54,6 +54,12 @@ public static class PressFeedback
 #if ANDROID
         private Android.Views.View? _native;
         private float _downX, _downY;
+        // Порог читается один раз на подключение, а не на каждое движение пальца:
+        // ViewConfiguration.Get — это переход в Java и обертка в куче, а MOVE во
+        // время прокрутки приходят десятками в секунду на каждую карточку.
+        // Пересоздание хендлера зовет Connect заново, так что смена плотности
+        // экрана подхватится
+        private int _touchSlop = 16;
 #elif WINDOWS
         private Microsoft.UI.Xaml.FrameworkElement? _native;
 #endif
@@ -111,7 +117,12 @@ public static class PressFeedback
             Disconnect();
 #if ANDROID
             _native = _view.Handler?.PlatformView as Android.Views.View;
-            if (_native != null) _native.Touch += OnTouch;
+            if (_native != null)
+            {
+                _native.Touch += OnTouch;
+                if (_native.Context is { } context)
+                    _touchSlop = Android.Views.ViewConfiguration.Get(context)?.ScaledTouchSlop ?? _touchSlop;
+            }
 #elif WINDOWS
             _native = _view.Handler?.PlatformView as Microsoft.UI.Xaml.FrameworkElement;
             if (_native != null)
@@ -157,8 +168,8 @@ public static class PressFeedback
                     Press();
                     break;
                 case Android.Views.MotionEventActions.Move:
-                    var slop = Android.Views.ViewConfiguration.Get(_native!.Context!)?.ScaledTouchSlop ?? 16;
-                    if (Math.Abs(motion.GetX() - _downX) > slop || Math.Abs(motion.GetY() - _downY) > slop) Release();
+                    if (Math.Abs(motion.GetX() - _downX) > _touchSlop ||
+                        Math.Abs(motion.GetY() - _downY) > _touchSlop) Release();
                     break;
                 case Android.Views.MotionEventActions.Up:
                 case Android.Views.MotionEventActions.Cancel:

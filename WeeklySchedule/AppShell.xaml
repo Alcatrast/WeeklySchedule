@@ -11,53 +11,53 @@
         <Grid x:Name="FlyoutGrid" RowDefinitions="*, Auto" 
               BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}">
 
-            <ScrollView Grid.Row="0" VerticalScrollBarVisibility="Default">
-                <VerticalStackLayout Padding="0, 20, 0, 10" Spacing="5">
-                    <CollectionView ItemsSource="{Binding Timelines}" SelectionMode="None">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TimelineFlyoutItem">
-                                <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                                    <Grid ColumnDefinitions="*, Auto">
-                                    <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
-                                          views:PressFeedback.IsEnabled="True"
-                                          views:ContextActions.TapCommand="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}"
-                                          views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}"
-                                          views:ContextActions.Parameter="{Binding Timeline}">
-                                        <!-- Контейнер для иконок: Звезда всегда первая, затем Колокольчик -->
-                                        <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4" InputTransparent="True">
-                                            <Path Data="{StaticResource IconStar}" 
-                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
-                      IsVisible="{Binding IsHighlighted}" />
+            <!-- Список прокручивается сам. Раньше он лежал внутри ScrollView, а
+                 виртуализированный список в бесконечной по высоте прокрутке
+                 разворачивает все элементы сразу и меряется дважды -->
+            <CollectionView Grid.Row="0" ItemsSource="{Binding Timelines}" SelectionMode="None"
+                            VerticalScrollBarVisibility="Default" Margin="0, 20, 0, 10">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TimelineFlyoutItem">
+                        <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
+                            <Grid ColumnDefinitions="*, Auto">
+                            <Grid ColumnDefinitions="Auto, *" BackgroundColor="Transparent"
+                                  views:PressFeedback.IsEnabled="True"
+                                  views:ContextActions.TapCommand="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}"
+                                  views:ContextActions.MenuCommand="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}"
+                                  views:ContextActions.Parameter="{Binding Timeline}">
+                                <!-- Контейнер для иконок: Звезда всегда первая, затем Колокольчик -->
+                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4" InputTransparent="True">
+                                    <Path Data="{StaticResource IconStar}" 
+              WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+              Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+              IsVisible="{Binding IsHighlighted}" />
 
-                                            <Path Data="{StaticResource IconNotifications}" 
-                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
-                      IsVisible="{Binding NotificationsEnabled}" />
-                                        </HorizontalStackLayout>
+                                    <Path Data="{StaticResource IconNotifications}" 
+              WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+              Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+              IsVisible="{Binding NotificationsEnabled}" />
+                                </HorizontalStackLayout>
 
-                                        <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center" InputTransparent="True"
-                   TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
-                                            <Label.Triggers>
-                                                <DataTrigger TargetType="Label" Binding="{Binding IsActive}" Value="True">
-                                                    <Setter Property="FontAttributes" Value="Bold" />
-                                                </DataTrigger>
-                                            </Label.Triggers>
-                                        </Label>
-                                    </Grid>
-                                    <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="0" BackgroundColor="Transparent"
-                                            TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
-                                            Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}" CommandParameter="{Binding Timeline}" />
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                        <CollectionView.EmptyView>
-                            <Label Text="Нет созданных таймлайнов" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" Margin="0,20,0,0" />
-                        </CollectionView.EmptyView>
-                    </CollectionView>
-                </VerticalStackLayout>
-            </ScrollView>
+                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center" InputTransparent="True"
+           TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
+                                    <Label.Triggers>
+                                        <DataTrigger TargetType="Label" Binding="{Binding IsActive}" Value="True">
+                                            <Setter Property="FontAttributes" Value="Bold" />
+                                        </DataTrigger>
+                                    </Label.Triggers>
+                                </Label>
+                            </Grid>
+                            <Button Grid.Column="1" Text="⋮" FontSize="22" WidthRequest="44" HeightRequest="44" CornerRadius="22" Padding="0" BackgroundColor="Transparent"
+                                    TextColor="{AppThemeBinding Light=Black, Dark=White}" SemanticProperties.Description="Действия с таймлайном"
+                                    Command="{Binding BindingContext.TimelineActionsCommand, Source={x:Reference FlyoutGrid}}" CommandParameter="{Binding Timeline}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="Нет созданных таймлайнов" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" Margin="0,20,0,0" />
+                </CollectionView.EmptyView>
+            </CollectionView>
 
             <VerticalStackLayout Grid.Row="1" Spacing="0" Padding="0,0,0,10">
                 <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="15,0,15,10"/>

@@ -35,6 +35,10 @@ public static class ContextActions
         private readonly HoldGestureState _hold = new();
 #if ANDROID
         private Android.Views.View? _native;
+        // См. тот же прием в PressFeedback: порог и задержка долгого нажатия читаются
+        // один раз на подключение, а не на каждое движение пальца
+        private int _touchSlop = 16;
+        private int _longPressMillis = 500;
 #elif WINDOWS
         private Microsoft.UI.Xaml.FrameworkElement? _native;
 #endif
@@ -75,7 +79,13 @@ public static class ContextActions
             Disconnect();
 #if ANDROID
             _native = _view.Handler?.PlatformView as Android.Views.View;
-            if (_native != null) _native.Touch += OnTouch;
+            if (_native != null)
+            {
+                _native.Touch += OnTouch;
+                if (_native.Context is { } context)
+                    _touchSlop = Android.Views.ViewConfiguration.Get(context)?.ScaledTouchSlop ?? _touchSlop;
+                _longPressMillis = Android.Views.ViewConfiguration.LongPressTimeout;
+            }
 #elif WINDOWS
             _native = _view.Handler?.PlatformView as Microsoft.UI.Xaml.FrameworkElement;
             if (_native != null)
@@ -113,15 +123,14 @@ public static class ContextActions
             {
                 case Android.Views.MotionEventActions.Down:
                     var version = _hold.Begin(motion.GetX(), motion.GetY());
-                    _view.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(Android.Views.ViewConfiguration.LongPressTimeout), () =>
+                    _view.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(_longPressMillis), () =>
                     {
                         if (!_view.IsLoaded || !_hold.TryHold(version)) return;
                         Menu();
                     });
                     break;
                 case Android.Views.MotionEventActions.Move:
-                    var slop = Android.Views.ViewConfiguration.Get(_native!.Context!)?.ScaledTouchSlop ?? 16;
-                    _hold.Move(motion.GetX(), motion.GetY(), slop);
+                    _hold.Move(motion.GetX(), motion.GetY(), _touchSlop);
                     break;
                 case Android.Views.MotionEventActions.Up:
                     if (_hold.End()) { _suppressTapUntil = Environment.TickCount64 + 700; e.Handled = true; }
