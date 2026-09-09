@@ -1,6 +1,6 @@
 ﻿using global::Android.App;
 using global::Android.Content;
-using global::AndroidX.Core.App;
+using Microsoft.Extensions.Logging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
@@ -45,18 +45,38 @@ public class NotificationService : INotificationService
         return Task.FromResult(status == global::Android.Content.PM.Permission.Granted);
     }
 
-    public Task RequestPermissionAsync()
+    /// <summary>
+    /// Запрос идет через Essentials, а не через ActivityCompat напрямую: тот
+    /// показывает диалог и уходит, не сказав ответа, и вызывающему оставалось только
+    /// подождать наугад и перечитать состояние. Здесь возвращается настоящий итог —
+    /// MauiAppCompatActivity прокидывает OnRequestPermissionsResult в Essentials сам.
+    /// </summary>
+    public async Task<bool> RequestPermissionAsync()
     {
-        if (!OperatingSystem.IsAndroidVersionAtLeast(33)) return Task.CompletedTask;
-        var activity = Platform.CurrentActivity;
-        if (activity != null)
+        if (!OperatingSystem.IsAndroidVersionAtLeast(33)) return true;
+        var status = await Permissions.RequestAsync<Permissions.PostNotifications>();
+        return status == PermissionStatus.Granted;
+    }
+
+    /// <summary>
+    /// Отклоненное дважды разрешение система больше не спрашивает: диалог не
+    /// появляется, а запрос возвращается мгновенно. Единственный оставшийся путь —
+    /// системный экран уведомлений приложения.
+    /// </summary>
+    public Task<bool> OpenNotificationSettingsAsync()
+    {
+        Intent intent;
+        if (OperatingSystem.IsAndroidVersionAtLeast(26))
         {
-            global::AndroidX.Core.App.ActivityCompat.RequestPermissions(
-                activity,
-                new[] { global::Android.Manifest.Permission.PostNotifications },
-                101);
+            intent = new Intent(global::Android.Provider.Settings.ActionAppNotificationSettings);
+            intent.PutExtra(global::Android.Provider.Settings.ExtraAppPackage, Context.PackageName);
         }
-        return Task.CompletedTask;
+        else
+        {
+            intent = new Intent(global::Android.Provider.Settings.ActionApplicationDetailsSettings);
+            intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
+        }
+        return Task.FromResult(StartSettingsActivity(intent));
     }
     #endregion
 
@@ -64,10 +84,12 @@ public class NotificationService : INotificationService
     /// <summary>
     /// Приложение не просит ни исключения из оптимизации батареи, ни права работать
     /// в фоне, и не держит ни сервиса, ни цикла: расписание будильников хранит сама
-    /// система, процесс до срабатывания не живет. Doze будильникам не помеха —
+    /// система, процесс до срабатывания не живет. Doze доставку не отменяет —
     /// оба Set*AndAllowWhileIdle в <see cref="SetAlarm"/> пробивают простой по
-    /// определению, исключение из оптимизации к доставке ничего не добавляло, только
-    /// показывало пугающий системный диалог.
+    /// определению, но пропускает такой будильник примерно раз в девять минут на
+    /// приложение, отчего без точности уведомление и опаздывает до десяти минут.
+    /// Исключение из оптимизации к доставке ничего не добавляло, только показывало
+    /// пугающий системный диалог.
     ///
     /// Точность же нужна не для доставки, а для минуты в минуту. На Android 13+ ее
     /// дает USE_EXACT_ALARM, выданный молча при установке, так что спрашивать нечего.
@@ -82,31 +104,48 @@ public class NotificationService : INotificationService
         return Task.FromResult(alarmManager?.CanScheduleExactAlarms() ?? false);
     }
 
-    public Task RequestExactAlarmsAsync()
+    public Task<bool> RequestExactAlarmsAsync()
     {
-        if (!OperatingSystem.IsAndroidVersionAtLeast(31)) return Task.CompletedTask;
+        // Ниже Android 12 точность есть всегда, и на 12+ при уже выданном разрешении
+        // открывать нечего — в обоих случаях состояние в порядке, а не сломано
+        if (!OperatingSystem.IsAndroidVersionAtLeast(31)) return Task.FromResult(true);
 
         var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
-        if (alarmManager == null || alarmManager.CanScheduleExactAlarms()) return Task.CompletedTask;
+        if (alarmManager == null) return Task.FromResult(false);
+        if (alarmManager.CanScheduleExactAlarms()) return Task.FromResult(true);
 
         // Разрешение выдается только на системном экране, диалога у него нет
         var intent = new Intent(global::Android.Provider.Settings.ActionRequestScheduleExactAlarm);
         intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
-        StartSettingsActivity(intent);
-        return Task.CompletedTask;
+        return Task.FromResult(StartSettingsActivity(intent));
     }
 
-    private void StartSettingsActivity(Intent intent)
+    /// <summary>
+    /// Экрана из интента может не оказаться — на части прошивок его нет вовсе, — и
+    /// StartActivity тогда бросает ActivityNotFoundException. Исключение отсюда
+    /// улетало в SafeFireAndForget через команду и попадало в лог под именем
+    /// конструктора вью-модели, так что по следу нельзя было понять даже экран.
+    /// </summary>
+    private bool StartSettingsActivity(Intent intent)
     {
-        var activity = Platform.CurrentActivity;
-        if (activity != null)
+        try
         {
-            activity.StartActivity(intent);
+            var activity = Platform.CurrentActivity;
+            if (activity != null)
+            {
+                activity.StartActivity(intent);
+            }
+            else
+            {
+                intent.AddFlags(ActivityFlags.NewTask);
+                Application.Context.StartActivity(intent);
+            }
+            return true;
         }
-        else
+        catch (Exception ex)
         {
-            intent.AddFlags(ActivityFlags.NewTask);
-            Application.Context.StartActivity(intent);
+            SafeFireAndForget.Logger?.LogError(ex, "Не удалось открыть системный экран {Action}", intent.Action);
+            return false;
         }
     }
     #endregion

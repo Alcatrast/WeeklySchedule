@@ -6,6 +6,12 @@ namespace WeeklySchedule.Views;
 
 public partial class SettingsPage : ContentPage
 {
+    /// <summary>
+    /// Окно, на котором висит подписка. Хранится отдельно от свойства Window,
+    /// чтобы отписка попала в тот же экземпляр, на который была подписка.
+    /// </summary>
+    private Window? _subscribedWindow;
+
     public SettingsPage(SettingsViewModel viewModel)
     {
         InitializeComponent();
@@ -20,6 +26,7 @@ public partial class SettingsPage : ContentPage
         {
             vm.PropertyChanged -= Vm_PropertyChanged;
             vm.PropertyChanged += Vm_PropertyChanged;
+            SubscribeToResume();
             SafeFireAndForget.Run(async () =>
             {
                 await vm.RefreshAsync();
@@ -32,6 +39,32 @@ public partial class SettingsPage : ContentPage
     {
         base.OnDisappearing();
         if (BindingContext is SettingsViewModel vm) vm.PropertyChanged -= Vm_PropertyChanged;
+        if (_subscribedWindow != null)
+        {
+            _subscribedWindow.Resumed -= OnWindowResumed;
+            _subscribedWindow = null;
+        }
+    }
+
+    /// <summary>
+    /// Разрешения выдаются вне приложения — в системном диалоге и на системном
+    /// экране, — и возврат оттуда не вызывает OnAppearing: страница никуда не
+    /// уходила. Без этой подписки выданная точность будильника не доходила до
+    /// экрана вовсе, и подсказка о задержке оставалась висеть навсегда.
+    /// </summary>
+    private void SubscribeToResume()
+    {
+        if (_subscribedWindow != null) _subscribedWindow.Resumed -= OnWindowResumed;
+        _subscribedWindow = Window;
+        if (_subscribedWindow != null) _subscribedWindow.Resumed += OnWindowResumed;
+    }
+
+    private void OnWindowResumed(object? sender, EventArgs e)
+    {
+        // RefreshAsync ничего не трогает, когда состояние то же самое, поэтому
+        // вызывать ее на каждое возвращение безопасно
+        if (BindingContext is SettingsViewModel vm)
+            SafeFireAndForget.Run(vm.RefreshAsync, nameof(OnWindowResumed));
     }
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)

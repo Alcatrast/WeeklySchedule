@@ -3,12 +3,14 @@
 	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<!-- Точность будильника, а не право на доставку: без обоих разрешений
-	     уведомления приходят, но с задержкой в несколько минут. USE_EXACT_ALARM
+	     уведомления приходят, но с задержкой до десяти минут. USE_EXACT_ALARM
 	     (Android 13+) выдается при установке молча, SCHEDULE_EXACT_ALARM
-	     пользователь выдает вручную и нужен фактически только на Android 12.
+	     пользователь выдает вручную и нужен фактически только на Android 12 —
+	     потому и ограничен maxSdkVersion, чтобы не просить на 13+ ограниченное
+	     разрешение, которое там все равно не используется.
 	     Google Play разрешает первое только будильникам и календарям, но
 	     приложение ставится напрямую из apk, а не через стор -->
-	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 	<uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 	<!-- Будильники стираются при перезагрузке телефона: без этого разрешения
 	     BootReceiver не получит ACTION_BOOT_COMPLETED и не восстановит их -->

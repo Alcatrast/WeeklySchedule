@@ -21,8 +21,8 @@
         <VerticalStackLayout Spacing="25" Padding="20" VerticalOptions="Start">
             <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>
             <Label Text="Уведомления" FontSize="18" FontAttributes="Bold"/>
-            <Button Text="Разрешить уведомления" 
-                    IsVisible="{Binding IsNotPermissionGranted}" 
+            <Button Text="{Binding PermissionButtonText}"
+                    IsVisible="{Binding IsNotPermissionGranted}"
                     Command="{Binding RequestPermissionCommand}"
                     BackgroundColor="{StaticResource Primary}" TextColor="White"
                     CornerRadius="8" HeightRequest="45"/>
@@ -35,18 +35,22 @@
             </HorizontalStackLayout>
 
             <!-- Подсказка, а не запрет: без точных будильников уведомления приходят,
-                 но могут опоздать на несколько минут. Приложение не просит ни работы
-                 в фоне, ни исключения из оптимизации батареи -->
+                 но могут опоздать до десяти минут — Doze пропускает такой будильник
+                 примерно раз в девять минут. Приложение не просит ни работы в фоне,
+                 ни исключения из оптимизации батареи -->
             <VerticalStackLayout IsVisible="{Binding ShowInexactAlarmHint}" Spacing="8"
                                  views:PressFeedback.IsEnabled="True">
                 <VerticalStackLayout.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding RequestExactAlarmsCommand}" />
                 </VerticalStackLayout.GestureRecognizers>
-                <Label Text="Уведомления могут приходить с задержкой в несколько минут"
+                <Label Text="Уведомления могут приходить с задержкой до десяти минут"
                        FontSize="14" VerticalOptions="Center"
                        TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
                 <Label Text="Разрешить точное время"
                        FontSize="14" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+                <Label Text="Системный экран недоступен на этом устройстве"
+                       IsVisible="{Binding ExactAlarmsUnavailable}"
+                       FontSize="14" TextColor="{StaticResource Danger}" />
             </VerticalStackLayout>
 
             <VerticalStackLayout IsVisible="{Binding IsPermissionGranted}" Spacing="15">

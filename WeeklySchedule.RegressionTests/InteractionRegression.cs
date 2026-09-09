@@ -641,7 +641,8 @@ static class InteractionRegression
             DayOfWeek day, TimeSpan startTime, int minutes) { }
         public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
         public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
-        public Task RequestPermissionAsync() => Task.CompletedTask;
-        public Task RequestExactAlarmsAsync() => Task.CompletedTask;
+        public Task<bool> RequestPermissionAsync() => Task.FromResult(true);
+        public Task<bool> OpenNotificationSettingsAsync() => Task.FromResult(true);
+        public Task<bool> RequestExactAlarmsAsync() => Task.FromResult(true);
     }
 }

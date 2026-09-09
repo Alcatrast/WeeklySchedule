@@ -17,6 +17,9 @@ static class NavigationRegression
         ("Warm notification navigation updates the already open main view", WarmNavigation),
         ("Settings refresh reflects added, renamed and deleted timelines", RefreshSettings),
         ("Stale settings refresh cannot replace the newest list", StaleSettings),
+        ("Inexact alarms show a hint without hiding the notification settings", InexactAlarmsKeepSettings),
+        ("Denied notification permission offers the system settings screen", DeniedPermissionOffersSettings),
+        ("Unavailable exact-alarm screen is reported and a stale hint clears on tap", ExactAlarmTapReportsAndRereads),
         ("Rebinding and unloading day view releases both event handlers", DaySubscriptions),
         ("Alarms carry the lesson's own weekday and start time", AlarmMoments),
         ("Unreadable catalogue is repaired on the read path", CatalogueRecovery),
@@ -146,6 +149,55 @@ static class NavigationRegression
         repo.Pending[0].SetResult([new Timeline { Name = "old" }]);
         await old;
         Check(vm.StartupTimelines.Single().Name == "new");
+    }
+
+    /// <summary>
+    /// DEC-013: точность будильника не входит в шлюз. Возврат к «granted &amp;&amp; exact»
+    /// снова спрятал бы список напоминаний от того, кто отказался только от точности.
+    /// </summary>
+    private static async Task InexactAlarmsKeepSettings()
+    {
+        var notifications = new RecordingNotifications { ExactAlarms = false };
+        var vm = new SettingsViewModel(new TestSettings(), new MutableTimelines(), notifications);
+        await vm.RefreshAsync();
+        Check(vm.IsPermissionGranted && !vm.IsNotPermissionGranted);
+        Check(vm.ShowInexactAlarmHint && !vm.AreAlarmsExact);
+        notifications.ExactAlarms = true;
+        await vm.RefreshAsync();
+        Check(!vm.ShowInexactAlarmHint && vm.IsPermissionGranted);
+    }
+
+    private static async Task DeniedPermissionOffersSettings()
+    {
+        var notifications = new RecordingNotifications { PermissionGranted = false };
+        var vm = new SettingsViewModel(new TestSettings(), new MutableTimelines(), notifications);
+        await vm.RefreshAsync();
+        Check(vm.IsNotPermissionGranted && vm.PermissionButtonText == "Разрешить уведомления");
+
+        // Первое нажатие спрашивает; отказ переводит кнопку на системные настройки
+        await vm.RequestNotificationPermissionAsync();
+        Check(notifications.PermissionRequests == 1 && notifications.SettingsOpened == 0);
+        Check(vm.ShowOpenNotificationSettings && vm.PermissionButtonText == "Открыть настройки уведомлений");
+
+        // Второе ведет туда, а не повторяет запрос, которого система уже не покажет
+        await vm.RequestNotificationPermissionAsync();
+        Check(notifications.PermissionRequests == 1 && notifications.SettingsOpened == 1);
+    }
+
+    private static async Task ExactAlarmTapReportsAndRereads()
+    {
+        var notifications = new RecordingNotifications { ExactAlarms = false, SettingsOpenSucceeds = false };
+        var vm = new SettingsViewModel(new TestSettings(), new MutableTimelines(), notifications);
+        await vm.RefreshAsync();
+
+        // Экрана на прошивке нет: нажатие обязано сказать об этом, а не молчать
+        await vm.RequestExactAlarmsAsync();
+        Check(vm.ExactAlarmsUnavailable && notifications.SettingsOpened == 1 && vm.ShowInexactAlarmHint);
+
+        // Точность выдана снаружи: подсказка уходит на самом нажатии, без RefreshAsync
+        notifications.ExactAlarms = true;
+        await vm.RequestExactAlarmsAsync();
+        Check(!vm.ExactAlarmsUnavailable && !vm.ShowInexactAlarmHint && notifications.SettingsOpened == 1);
     }
 
     private static Task DaySubscriptions()
@@ -336,9 +388,24 @@ static class NavigationRegression
             Scheduled.Add((timelineId, lessonId));
             Moments.Add((day, startTime, minutes));
         }
-        public Task<bool> CheckPermissionAsync() => Task.FromResult(true);
-        public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(true);
-        public Task RequestPermissionAsync() => Task.CompletedTask;
-        public Task RequestExactAlarmsAsync() => Task.CompletedTask;
+        // Настраиваемые: пока обе заглушки отвечали «да» на все, ни один тест не мог
+        // увидеть ни подсказку о неточных будильниках, ни отказ в разрешении
+        public bool PermissionGranted { get; set; } = true;
+        public bool ExactAlarms { get; set; } = true;
+        public bool SettingsOpenSucceeds { get; set; } = true;
+        public int PermissionRequests { get; private set; }
+        public int SettingsOpened { get; private set; }
+
+        public Task<bool> CheckPermissionAsync() => Task.FromResult(PermissionGranted);
+        public Task<bool> CanScheduleExactAlarmsAsync() => Task.FromResult(ExactAlarms);
+        public Task<bool> RequestPermissionAsync() { PermissionRequests++; return Task.FromResult(PermissionGranted); }
+        public Task<bool> OpenNotificationSettingsAsync() { SettingsOpened++; return Task.FromResult(SettingsOpenSucceeds); }
+        public Task<bool> RequestExactAlarmsAsync()
+        {
+            // Как на устройстве: при уже выданной точности открывать нечего
+            if (ExactAlarms) return Task.FromResult(true);
+            SettingsOpened++;
+            return Task.FromResult(SettingsOpenSucceeds);
+        }
     }
 }

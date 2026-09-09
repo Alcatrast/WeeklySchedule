@@ -55,6 +55,25 @@ public partial class SettingsViewModel : BaseViewModel
 
     public bool IsNotPermissionGranted => !IsPermissionGranted;
 
+    private bool _showOpenNotificationSettings;
+    /// <summary>
+    /// Отклоненное окончательно разрешение система больше не спрашивает: диалог не
+    /// появляется, и кнопка запроса без этого превращалась в нажатие в никуда.
+    /// Флаг живет один запуск: на следующем диалог снова стоит попробовать.
+    /// </summary>
+    public bool ShowOpenNotificationSettings
+    {
+        get => _showOpenNotificationSettings;
+        set
+        {
+            if (SetProperty(ref _showOpenNotificationSettings, value))
+                OnPropertyChanged(nameof(PermissionButtonText));
+        }
+    }
+
+    public string PermissionButtonText =>
+        ShowOpenNotificationSettings ? "Открыть настройки уведомлений" : "Разрешить уведомления";
+
     private bool _areAlarmsExact = true;
     /// <summary>
     /// Может ли система будить приложение минута в минуту. Без этого уведомления
@@ -71,6 +90,17 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     public bool ShowInexactAlarmHint => IsPermissionGranted && !AreAlarmsExact;
+
+    private bool _exactAlarmsUnavailable;
+    /// <summary>
+    /// Системного экрана выдачи точности на прошивке может не быть. Раньше нажатие
+    /// в этом случае просто ничего не делало, а исключение уходило в лог.
+    /// </summary>
+    public bool ExactAlarmsUnavailable
+    {
+        get => _exactAlarmsUnavailable;
+        set => SetProperty(ref _exactAlarmsUnavailable, value);
+    }
 
     private bool _notifyAtStart;
     public bool NotifyAtStart { get => _notifyAtStart; set { if (SetProperty(ref _notifyAtStart, value)) _settingsService.NotifyAtStart = value; } }
@@ -89,8 +119,12 @@ public partial class SettingsViewModel : BaseViewModel
         _notificationService = notificationService;
 
         ToggleOpenLastCommand = new Command(() => OpenLast = !OpenLast);
-        RequestPermissionCommand = new Command(() => SafeFireAndForget.Run(RequestNotificationPermissionAsync));
-        RequestExactAlarmsCommand = new Command(() => SafeFireAndForget.Run(RequestExactAlarmsAsync));
+        // Имя вызывающего передается явно: [CallerMemberName] взял бы его из
+        // конструктора, и любой сбой команды писался бы в лог как «[.ctor]»
+        RequestPermissionCommand = new Command(() =>
+            SafeFireAndForget.Run(RequestNotificationPermissionAsync, nameof(RequestNotificationPermissionAsync)));
+        RequestExactAlarmsCommand = new Command(() =>
+            SafeFireAndForget.Run(RequestExactAlarmsAsync, nameof(RequestExactAlarmsAsync)));
         AddReminderCommand = new Command(AddReminder);
         DeleteReminderCommand = new Command<NotificationReminderViewModel>(DeleteReminder);
 
@@ -102,27 +136,46 @@ public partial class SettingsViewModel : BaseViewModel
         LoadReminders();
     }
 
-    public async Task CheckPermissionsAsync()
+    /// <summary>
+    /// Чтение отделено от применения, потому что RefreshAsync обязана читать до
+    /// проверки на устаревание, а присваивать — после нее. Обе половины общие с
+    /// <see cref="CheckPermissionsAsync"/>: разойдясь, они дали бы экран, где одно
+    /// состояние свежее другого.
+    /// </summary>
+    private async Task<(bool Granted, bool Exact)> ReadPermissionStateAsync() =>
+        (await _notificationService.CheckPermissionAsync(),
+         await _notificationService.CanScheduleExactAlarmsAsync());
+
+    private void ApplyPermissionState((bool Granted, bool Exact) state)
     {
-        IsPermissionGranted = await _notificationService.CheckPermissionAsync();
-        AreAlarmsExact = await _notificationService.CanScheduleExactAlarmsAsync();
+        IsPermissionGranted = state.Granted;
+        AreAlarmsExact = state.Exact;
     }
 
-    private async Task RequestNotificationPermissionAsync()
+    private async Task CheckPermissionsAsync() => ApplyPermissionState(await ReadPermissionStateAsync());
+
+    internal async Task RequestNotificationPermissionAsync()
     {
-        await _notificationService.RequestPermissionAsync();
-        // Системный диалог отвечает не сразу и результата не возвращает. Эта пауза —
-        // попытка успеть за быстрым нажатием; настоящую сверку делает RefreshAsync,
-        // когда экран возвращается после диалога
-        await Task.Delay(800);
-        await CheckPermissionsAsync();
+        // Второе нажатие после отказа ведет в системные настройки: диалога больше не
+        // будет, и повторный запрос вернулся бы мгновенно, ничего не показав
+        if (ShowOpenNotificationSettings)
+        {
+            await _notificationService.OpenNotificationSettingsAsync();
+            return;
+        }
+
+        var granted = await _notificationService.RequestPermissionAsync();
+        IsPermissionGranted = granted;
+        ShowOpenNotificationSettings = !granted;
     }
 
-    private async Task RequestExactAlarmsAsync()
+    internal async Task RequestExactAlarmsAsync()
     {
-        await _notificationService.RequestExactAlarmsAsync();
-        // Точность выдается на системном экране, а не в диалоге: ждать здесь нечего,
-        // состояние сверится в RefreshAsync при возврате
+        ExactAlarmsUnavailable = !await _notificationService.RequestExactAlarmsAsync();
+        // Перечитываем сразу: если точность уже выдана, а подсказка осталась от
+        // устаревшего состояния, она должна исчезнуть на самом нажатии, не дожидаясь
+        // возврата на экран. Возврат с системного экрана ловит SettingsPage
+        ApplyPermissionState(await ReadPermissionStateAsync());
     }
 
     private void LoadReminders()
@@ -159,8 +212,7 @@ public partial class SettingsViewModel : BaseViewModel
     {
         var version = ++_refreshVersion;
         var all = (await _timelineRepository.GetAllAsync()).ToList();
-        var granted = await _notificationService.CheckPermissionAsync();
-        var exact = await _notificationService.CanScheduleExactAlarmsAsync();
+        var permissions = await ReadPermissionStateAsync();
         if (version != _refreshVersion) return;
 
         _isRefreshing = true;
@@ -180,8 +232,7 @@ public partial class SettingsViewModel : BaseViewModel
             SetProperty(ref _defaultDuration, _settingsService.DefaultLessonDuration, nameof(DefaultDuration));
             SetProperty(ref _notifyAtStart, _settingsService.NotifyAtStart, nameof(NotifyAtStart));
             LoadReminders();
-            IsPermissionGranted = granted;
-            AreAlarmsExact = exact;
+            ApplyPermissionState(permissions);
         }
         finally { _isRefreshing = false; }
     }
