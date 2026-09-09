@@ -73,7 +73,7 @@ namespace WeeklySchedule.Views
     public class LessonDetailsPage
     {
         public static Guid? LastOpened { get; set; }
-        public static Task OpenAsync(Guid id) { LastOpened = id; return Task.CompletedTask; }
+        public static Task OpenAsync(Models.Lesson lesson) { LastOpened = lesson.Id; return Task.CompletedTask; }
     }
     public class EditLessonPage
     {

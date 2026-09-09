@@ -30,7 +30,7 @@ public partial class DayViewModel : BaseViewModel
         Date = date.Date;
         ViewLessonCommand = new Command<Lesson>(lesson =>
         {
-            if (lesson != null) SafeFireAndForget.Run(() => LessonDetailsPage.OpenAsync(lesson.Id));
+            if (lesson != null) SafeFireAndForget.Run(() => LessonDetailsPage.OpenAsync(lesson));
         });
         LessonActionsCommand = new Command<Lesson>(lesson =>
         {

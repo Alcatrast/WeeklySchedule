@@ -28,6 +28,7 @@ static class InteractionRegression
         ("Deleting the active last timeline recovers a usable default", DeleteLastTimeline),
         ("Lesson details refresh after edit, move and deletion", Details),
         ("Late lesson details cannot replace a newer response", LateDetails),
+        ("Lesson details read the known schedule and fall back when it moved", DetailsLookup),
         ("Flyout return and selection retain items without rereading catalogue", FlyoutCache),
         ("Hold cancels on movement, release, rebind and unload", HoldGestures),
         ("Cold seed invalidates an already loaded empty flyout", SeededFlyout),
@@ -592,6 +593,26 @@ static class InteractionRegression
         await vm.RefreshAsync(); Check(vm.IsDeleted && vm.Lesson == null);
     }
 
+    // Нажатие на карточку открывало пару только после разбора всех файлов всех
+    // расписаний. Расписание известно из самой карточки, поэтому читается один файл,
+    // а полный поиск остается на случай, когда пару перенесли редактором
+    private static async Task DetailsLookup()
+    {
+        var repo = new Repository();
+        var a = new Timeline { Name = "A" }; var b = new Timeline { Name = "B" };
+        repo.Timelines.AddRange([a, b]);
+        var lesson = new Lesson { TimelineId = a.Id, Name = "Here" };
+        repo.Lessons.Add(lesson);
+
+        var vm = new LessonDetailsViewModel(lesson.Id, repo, repo, a.Id);
+        await vm.RefreshAsync();
+        Check(vm.Lesson!.Name == "Here" && repo.Scans == 0);
+
+        lesson.TimelineId = b.Id;
+        await vm.RefreshAsync();
+        Check(vm.TimelineName == "B" && repo.Scans == 1);
+    }
+
     private static async Task LateDetails()
     {
         var repo = new Repository();
@@ -653,7 +674,7 @@ static class InteractionRegression
     {
         public List<Lesson> Lessons { get; } = [];
         public List<Timeline> Timelines { get; } = [];
-        public int LessonReads, TimelineReads, Deletions;
+        public int LessonReads, TimelineReads, Deletions, Scans;
         public Task<IEnumerable<Lesson>>? NextLessons;
         public Task<Lesson?>? NextLesson;
         Task<IEnumerable<Lesson>> ILessonRepository.GetAllAsync() => Task.FromResult<IEnumerable<Lesson>>(Lessons.ToList());
@@ -665,9 +686,14 @@ static class InteractionRegression
         }
         Task<Lesson?> ILessonRepository.GetByIdAsync(Guid id)
         {
+            Scans++;
             if (NextLesson != null) { var task = NextLesson; NextLesson = null; return task; }
             return Task.FromResult(Lessons.FirstOrDefault(l => l.Id == id));
         }
+        // Адресное чтение: в файловом репозитории это один файл вместо обхода всего
+        // хранилища, здесь — просто поиск с учетом расписания
+        Task<Lesson?> ILessonRepository.GetByIdAsync(Guid timelineId, Guid id) =>
+            Task.FromResult(Lessons.FirstOrDefault(l => l.TimelineId == timelineId && l.Id == id));
         public Task AddAsync(Lesson lesson) { Lessons.Add(lesson); return Task.CompletedTask; }
         public Task UpdateAsync(Lesson lesson) => Task.CompletedTask;
         Task ILessonRepository.DeleteAsync(Guid id) { Deletions++; Lessons.RemoveAll(l => l.Id == id); return Task.CompletedTask; }

@@ -20,11 +20,11 @@ public sealed class LessonDetailsPage : ContentPage
     private bool _busy;
     private bool _hasAppeared, _visible, _closing;
 
-    private LessonDetailsPage(Guid id)
+    private LessonDetailsPage(Models.Lesson lesson)
     {
         var services = Application.Current!.Handler!.MauiContext!.Services;
-        _viewModel = new LessonDetailsViewModel(id, services.GetRequiredService<ILessonRepository>(),
-            services.GetRequiredService<ITimelineRepository>());
+        _viewModel = new LessonDetailsViewModel(lesson.Id, services.GetRequiredService<ILessonRepository>(),
+            services.GetRequiredService<ITimelineRepository>(), lesson.TimelineId);
         Title = "Просмотр пары";
         var edit = new Button { Text = "Редактировать" };
         edit.Clicked += (_, _) => SafeFireAndForget.Run(EditAsync);
@@ -41,7 +41,12 @@ public sealed class LessonDetailsPage : ContentPage
         };
     }
 
-    public static async Task OpenAsync(Guid id)
+    /// <summary>
+    /// Открывает просмотр по нажатой карточке. Пара передается целиком, а не одним
+    /// идентификатором: из нее известно расписание, и содержимое читается одним файлом.
+    /// Показывается все равно то, что сейчас на диске, — пару могли изменить.
+    /// </summary>
+    public static async Task OpenAsync(Models.Lesson lesson)
     {
         var navigation = Shell.Current?.Navigation;
         if (_opening || navigation == null || EditLessonPage.IsOpen ||
@@ -49,7 +54,7 @@ public sealed class LessonDetailsPage : ContentPage
         _opening = true;
         try
         {
-            var page = new LessonDetailsPage(id);
+            var page = new LessonDetailsPage(lesson);
             if (await page.RefreshAsync()) await navigation.PushModalAsync(new NavigationPage(page));
         }
         finally { _opening = false; }

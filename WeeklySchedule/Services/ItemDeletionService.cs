@@ -16,7 +16,10 @@ public sealed class ItemDeletionService(ILessonRepository lessons, ITimelineRepo
         try
         {
             if (!await confirm("Удаление пары", $"Удалить пару «{lesson.Name}»?")) return false;
-            await lessons.DeleteAsync(lesson.Id);
+            // Расписание известно из самой пары, поэтому файл удаляется адресно.
+            // DeleteAsync(Guid) ради этого читает и разбирает все файлы всех
+            // расписаний, только чтобы узнать то, что уже лежит в руках
+            await lessons.DeleteManyAsync(lesson.TimelineId, [lesson.Id]);
             AppEvents.NotifyDataChanged(lesson.Day);
             return true;
         }

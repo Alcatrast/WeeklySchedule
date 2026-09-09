@@ -129,6 +129,35 @@ public class FileLessonRepository : ILessonRepository
         return all.FirstOrDefault(l => l.Id == id);
     }
 
+    /// <summary>
+    /// Один файл по известному пути. Тем же занимался <see cref="GetByIdAsync(Guid)"/>,
+    /// но через обход и разбор всех файлов всех расписаний: нажатие на карточку не
+    /// открывало пару, пока не будет прочитано все хранилище.
+    /// </summary>
+    public async Task<Lesson?> GetByIdAsync(Guid timelineId, Guid id)
+    {
+        Lesson? found = null;
+        await Task.Run(() =>
+        {
+            lock (_lock)
+            {
+                var path = GetFilePath(timelineId, id);
+                if (!File.Exists(path)) return;
+                try
+                {
+                    found = JsonSerializer.Deserialize<Lesson>(File.ReadAllText(path), _jsonOptions);
+                }
+                catch (Exception ex)
+                {
+                    // Не прочиталось — вызывающий пойдет искать полным обходом, и там
+                    // этот же файл будет пропущен уже с подробностями
+                    _logger?.LogError(ex, "Файл пары {File} не прочитан", path);
+                }
+            }
+        });
+        return found;
+    }
+
     public async Task AddAsync(Lesson lesson)
     {
         await Task.Run(() =>

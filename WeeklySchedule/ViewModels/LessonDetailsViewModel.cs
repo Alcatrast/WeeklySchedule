@@ -3,7 +3,13 @@ using WeeklySchedule.Models;
 
 namespace WeeklySchedule.ViewModels;
 
-public sealed class LessonDetailsViewModel(Guid lessonId, ILessonRepository lessons, ITimelineRepository timelines)
+/// <param name="timelineHint">
+/// Расписание, в котором пара лежала, когда экран открывали. Позволяет прочитать один
+/// файл вместо обхода всего хранилища. Пустой или промахнувшийся — не ошибка: пару
+/// могли перенести редактором, и тогда идет прежний полный поиск.
+/// </param>
+public sealed class LessonDetailsViewModel(Guid lessonId, ILessonRepository lessons,
+    ITimelineRepository timelines, Guid timelineHint = default)
 {
     private int _version;
     public Lesson? Lesson { get; private set; }
@@ -15,7 +21,9 @@ public sealed class LessonDetailsViewModel(Guid lessonId, ILessonRepository less
     public async Task RefreshAsync()
     {
         var version = ++_version;
-        var lesson = await lessons.GetByIdAsync(lessonId);
+        var lesson = timelineHint == Guid.Empty ? null : await lessons.GetByIdAsync(timelineHint, lessonId);
+        if (version != _version) return;
+        lesson ??= await lessons.GetByIdAsync(lessonId);
         if (version != _version) return;
         var timeline = lesson == null ? null : await timelines.GetByIdAsync(lesson.TimelineId);
         if (version != _version) return;

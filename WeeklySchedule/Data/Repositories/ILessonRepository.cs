@@ -13,6 +13,14 @@ public interface ILessonRepository
     Task<IEnumerable<Lesson>> GetByTimelineIdForReplacementAsync(Guid timelineId) =>
         GetByTimelineIdAsync(timelineId);
     Task<Lesson?> GetByIdAsync(Guid id);
+
+    /// <summary>
+    /// Пара по уже известному расписанию: одно чтение вместо разбора всех файлов всех
+    /// расписаний, которым занят <see cref="GetByIdAsync(Guid)"/>. Промах допустим —
+    /// пару могли перенести редактором, — и вызывающий тогда откатывается на полный
+    /// поиск. Реализация по умолчанию просто ищет везде.
+    /// </summary>
+    Task<Lesson?> GetByIdAsync(Guid timelineId, Guid id) => GetByIdAsync(id);
     Task AddAsync(Lesson lesson);
     Task UpdateAsync(Lesson lesson);
     Task DeleteAsync(Guid id);
