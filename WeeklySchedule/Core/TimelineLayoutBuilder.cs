@@ -156,21 +156,37 @@ public static class TimelineLayoutBuilder
     /// <summary>
     /// Геометрия не зависит от текущего времени. Меняем только подсветку текущей пары
     /// и положение метки времени, сохраняя объекты размещения.
+    ///
+    /// Возвращает, изменилось ли хоть что-нибудь. Планировщик будит экран раз в минуту,
+    /// а перерисовывать нечего почти всегда: в чужом дне, ночью и в выходной ни одна
+    /// пара не текущая и метки времени нет вовсе.
     /// </summary>
-    public static void RefreshState(TimelineLayout layout, DateTime date, DateTime now)
+    public static bool RefreshState(TimelineLayout layout, DateTime date, DateTime now)
     {
         bool today = date.Date == now.Date;
+        bool changed = false;
         foreach (var placement in layout.Lessons)
-            placement.IsCurrent = today && now.TimeOfDay >= placement.Lesson.StartTime &&
+        {
+            bool current = today && now.TimeOfDay >= placement.Lesson.StartTime &&
                 now.TimeOfDay < placement.Lesson.EndTime;
+            if (placement.IsCurrent == current) continue;
+            placement.IsCurrent = current;
+            changed = true;
+        }
 
         var segments = layout.Segments;
         // Метка живет только внутри сетки: до первой пары недели и после последней
         // ее прижимало бы к краю, и она врала бы о том, где сейчас время
         bool inside = today && segments.Count > 0 &&
             now.TimeOfDay >= segments[0].Start && now.TimeOfDay <= segments[^1].End;
-        layout.CurrentTimeOffset = inside
+        double? offset = inside
             ? TimelineMetrics.OffsetAt(layout.RowHeights, segments, now.TimeOfDay)
             : null;
+        if (offset != layout.CurrentTimeOffset)
+        {
+            layout.CurrentTimeOffset = offset;
+            changed = true;
+        }
+        return changed;
     }
 }

@@ -14,7 +14,12 @@ public partial class DayView : ContentView
     private const double EmptyLabelTopMargin = 48;
 
     private readonly DayViewSubscription _subscription;
-    private readonly Dictionary<Guid, LessonCardView> _cards = [];
+    // Карточки переиспользуются по номеру места, как пометки и подписи «окон» ниже.
+    // Пока они искались по идентификатору пары, смена дня не находила ни одной —
+    // идентификаторы у другого дня другие, — и каждый свайп снимал с дерева все
+    // карточки и строил новые: Border, Grid, три Label, Button и две подписки на
+    // касания на каждую пару
+    private readonly List<LessonCardView> _cards = [];
     private readonly List<BaseDayCardView> _markers = [];
     private readonly List<Label> _gapLabels = [];
     private readonly Label _empty = new()
@@ -92,13 +97,6 @@ public partial class DayView : ContentView
             _rowHeights = layout.RowHeights;
             _totalHeight = TimelineMetrics.TotalHeight(_rowHeights);
 
-            var ids = layout.Lessons.Select(p => p.Lesson.Id).ToHashSet();
-            foreach (var id in _cards.Keys.Where(id => !ids.Contains(id)).ToArray())
-            {
-                TimelineGrid.Children.Remove(_cards[id]);
-                _cards.Remove(id);
-            }
-
             // «Пусто» — это пустая НЕДЕЛЯ, а не пустой день: день без пар внутри
             // непустой недели строит те же строки, что и все остальные, и занимает
             // столько же места
@@ -127,9 +125,16 @@ public partial class DayView : ContentView
                     TimelineGrid.RowDefinitions.RemoveAt(TimelineGrid.RowDefinitions.Count - 1);
                 while (TimelineGrid.RowDefinitions.Count < rows)
                     TimelineGrid.RowDefinitions.Add(new RowDefinition());
+                // Только при отличии: высоты общие для всей недели, поэтому при свайпе
+                // они те же самые, а каждое присваивание дергает пересчет всей сетки
                 for (int i = 0; i < layout.Segments.Count; i++)
-                    TimelineGrid.RowDefinitions[i].Height = new GridLength(_rowHeights[i]);
-                TimelineGrid.RowDefinitions[rows - 1].Height = GridLength.Star;
+                {
+                    var height = new GridLength(_rowHeights[i]);
+                    if (TimelineGrid.RowDefinitions[i].Height != height)
+                        TimelineGrid.RowDefinitions[i].Height = height;
+                }
+                if (TimelineGrid.RowDefinitions[rows - 1].Height != GridLength.Star)
+                    TimelineGrid.RowDefinitions[rows - 1].Height = GridLength.Star;
                 columns = Math.Max(1, layout.TotalColumns);
                 while (TimelineGrid.ColumnDefinitions.Count > columns)
                     TimelineGrid.ColumnDefinitions.RemoveAt(TimelineGrid.ColumnDefinitions.Count - 1);
@@ -137,14 +142,10 @@ public partial class DayView : ContentView
                     TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
                 TimelineGrid.ColumnSpacing = 6;
                 TimelineGrid.HeightRequest = _totalHeight;
-                foreach (var placement in layout.Lessons)
+                for (int i = 0; i < layout.Lessons.Count; i++)
                 {
-                    if (!_cards.TryGetValue(placement.Lesson.Id, out var card))
-                    {
-                        card = new LessonCardView();
-                        _cards.Add(placement.Lesson.Id, card);
-                        TimelineGrid.Children.Add(card);
-                    }
+                    var placement = layout.Lessons[i];
+                    var card = CardAt(i);
                     // Android не всегда измеряет Border по высоте строк при RowSpan.
                     // Явная высота берется из тех же строк, поэтому карточка остается
                     // согласована с сеткой и не исчезает при нативной раскладке.
@@ -158,19 +159,47 @@ public partial class DayView : ContentView
                 }
             }
 
+            TrimCards(weekEmpty ? 0 : layout.Lessons.Count);
             UpdateMarkers(layout, columns);
             UpdateGapLabels(layout, weekEmpty);
             UpdateEmptyLabel(layout, weekEmpty, columns);
-            if (!TimelineGrid.Children.Contains(_nowMarker)) TimelineGrid.Children.Add(_nowMarker);
+            // Треугольник кладется последним: порядок детей в Grid и есть z-order, а
+            // непрозрачный фон карточки, добавленной позже, закрыл бы метку. Проверка
+            // на месте: обычно он и так последний, а перестановка снимает и заново
+            // цепляет нативный элемент
+            if (TimelineGrid.Children.Count == 0 ||
+                !ReferenceEquals(TimelineGrid.Children[^1], _nowMarker))
+            {
+                TimelineGrid.Children.Remove(_nowMarker);
+                TimelineGrid.Children.Add(_nowMarker);
+            }
             Grid.SetRow(_nowMarker, 0);
             Grid.SetRowSpan(_nowMarker, Math.Max(1, layout.Segments.Count));
         }
 
         var now = TimeContext.Now;
-        foreach (var placement in layout.Lessons)
-            if (_cards.TryGetValue(placement.Lesson.Id, out var card)) card.Update(placement, day, now);
+        for (int i = 0; i < layout.Lessons.Count && i < _cards.Count; i++)
+            _cards[i].Update(layout.Lessons[i], day, now);
         UpdateNowMarker(layout);
         if (structureChanged) QueueScroll();
+    }
+
+    private LessonCardView CardAt(int index)
+    {
+        if (index < _cards.Count) return _cards[index];
+        var created = new LessonCardView();
+        _cards.Add(created);
+        TimelineGrid.Children.Add(created);
+        return created;
+    }
+
+    private void TrimCards(int used)
+    {
+        while (_cards.Count > used)
+        {
+            TimelineGrid.Children.Remove(_cards[^1]);
+            _cards.RemoveAt(_cards.Count - 1);
+        }
     }
 
     // Базовые дни рисуются под карточками пар: пометка на весь день накрывает всю
@@ -257,9 +286,11 @@ public partial class DayView : ContentView
         }
     }
 
-    // Треугольник стоит в строке 0 с рядами на всю сетку и сдвигается отступом:
+    // Треугольник стоит в строке 0 с рядами на всю сетку и сдвигается по вертикали:
     // так не нужно считать положение внутри своей строки и нельзя промахнуться
-    // мимо ее границы.
+    // мимо ее границы. Сдвиг именно TranslationY, а не Margin: отступ меняет
+    // раскладку, и метка, ползущая раз в минуту, каждый раз пересчитывала бы всю
+    // сетку из нескольких десятков строк со всеми карточками.
     private void UpdateNowMarker(TimelineLayout layout)
     {
         if (layout.CurrentTimeOffset is not double offset)
@@ -268,7 +299,7 @@ public partial class DayView : ContentView
             return;
         }
         _nowMarker.IsVisible = true;
-        _nowMarker.Margin = new Thickness(0, offset - 4.5, 0, 0);
+        _nowMarker.TranslationY = offset - 4.5;
     }
 
     private void OnScrollToCurrentRequested()
@@ -303,7 +334,7 @@ public partial class DayView : ContentView
             if (requested)
             {
                 day.AcknowledgeScroll();
-                var anchor = _cards.Values.FirstOrDefault(c => c.StyleId == "CurrentLessonAnchor");
+                var anchor = _cards.FirstOrDefault(c => c.StyleId == "CurrentLessonAnchor");
                 if (anchor != null)
                 {
                     int anchorRow = Grid.GetRow(anchor);
@@ -313,7 +344,16 @@ public partial class DayView : ContentView
                 }
             }
             if (target.HasValue)
-                await MainScroll.ScrollToAsync(0, Math.Clamp(target.Value, 0, Math.Max(0, _totalHeight - MainScroll.Height)), requested);
+            {
+                var scroll = MainScroll.ScrollToAsync(0,
+                    Math.Clamp(target.Value, 0, Math.Max(0, _totalHeight - MainScroll.Height)), requested);
+                // ScrollToAsync завершается по событию окончания прокрутки. Карусель
+                // переиспользует вью прямо во время анимации, и отцепленный от дерева
+                // ScrollView такого события может не прислать — тогда ожидание не
+                // вернулось бы никогда, finally ниже не выполнился бы, и этот день
+                // больше не прокрутился бы ни к текущей паре, ни к прежней позиции
+                await Task.WhenAny(scroll, Task.Delay(TimeSpan.FromSeconds(2)));
+            }
         }
         finally
         {

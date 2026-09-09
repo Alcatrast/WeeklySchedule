@@ -28,6 +28,7 @@ public class View
     public bool InputTransparent { get; set; }
     public bool IsVisible { get; set; } = true;
     public Thickness Margin { get; set; }
+    public double TranslationY { get; set; }
     public string? StyleId { get; set; }
     internal int Row, RowSpan = 1, Column, ColumnSpan = 1;
     public event EventHandler? SizeChanged;

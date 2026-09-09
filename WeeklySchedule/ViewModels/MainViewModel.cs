@@ -401,13 +401,20 @@ public partial class MainViewModel : BaseViewModel
         foreach (var dayVM in Days) dayVM.UpdateTitle(now);
     }
 
+    /// <summary>
+    /// Перерисовка всех семи дней. Всегда принудительная: сюда приходят загрузка,
+    /// смена суток и смена темы, а у последней причина в раскладке не видна — цвет
+    /// карточки берется из темы приложения. Плюс предыдущий проход мог оборваться на
+    /// ошибке отрисовки, и тогда день остался пустым при тех же данных. Пропускает
+    /// лишнюю работу только тик планировщика: он обновляет свой день напрямую.
+    /// </summary>
     private void UpdateAllDays()
     {
         var now = TimeContext.Now;
         List<Exception>? errors = null;
         foreach (var dayVM in Days)
         {
-            try { dayVM.UpdateLayout(now, _weekLayout); }
+            try { dayVM.UpdateLayout(now, _weekLayout, force: true); }
             catch (Exception ex) { (errors ??= []).Add(ex); }
         }
         // Ошибка первого видимого дня не должна оставлять остальные шесть с

@@ -70,10 +70,22 @@ public partial class DayViewModel : BaseViewModel
     // при смене данных, поэтому здесь достаточно взять свой день и обновить состояние.
     // Сравнение снимка пар переехало в MainViewModel — оно делается раз на неделю,
     // а не семь раз подряд.
-    public void UpdateLayout(DateTime now, WeekLayout week)
+    /// <param name="force">
+    /// Перерисовать, даже если ни раскладка, ни состояние не изменились. Нужно там,
+    /// где причина перерисовки в раскладке не отражается: цвет карточки зависит от
+    /// темы приложения, а предыдущий проход мог оборваться на ошибке отрисовки, и
+    /// тогда день остался пустым. Без force остается только тик планировщика — он
+    /// приходит раз в минуту и в чужом дне менять ему нечего.
+    /// </param>
+    public void UpdateLayout(DateTime now, WeekLayout week, bool force = false)
     {
-        Layout = week.For(DayOfWeek);
-        TimelineLayoutBuilder.RefreshState(Layout, Date, now);
-        LayoutUpdated?.Invoke();
+        var layout = week.For(DayOfWeek);
+        bool rebuilt = !ReferenceEquals(Layout, layout);
+        Layout = layout;
+        bool changed = TimelineLayoutBuilder.RefreshState(Layout, Date, now);
+        // Смена раскладки поднимает событие даже при совпавшем состоянии: DayView
+        // отличает перестройку от обновления по ReferenceEquals, и без этого первый
+        // показ дня остался бы пустым до повторного свайпа
+        if (force || rebuilt || changed) LayoutUpdated?.Invoke();
     }
 }
