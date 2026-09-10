@@ -1,6 +1,7 @@
 using WeeklySchedule.Core;
 using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
+using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 using WeeklySchedule.ViewModels;
@@ -17,6 +18,8 @@ static class NavigationRegression
         ("Warm notification navigation updates the already open main view", WarmNavigation),
         ("Settings refresh reflects added, renamed and deleted timelines", RefreshSettings),
         ("Stale settings refresh cannot replace the newest list", StaleSettings),
+        ("Opening settings twice rereads the catalogue only after a change", SettingsEntrySkipsUnchangedCatalogue),
+        ("Returning to the app rereads permissions without rereading the catalogue", ResumeRereadsPermissionsOnly),
         ("Inexact alarms show a hint without hiding the notification settings", InexactAlarmsKeepSettings),
         ("Denied notification permission offers the system settings screen", DeniedPermissionOffersSettings),
         ("Unavailable exact-alarm screen is reported and a stale hint clears on tap", ExactAlarmTapReportsAndRereads),
@@ -126,6 +129,51 @@ static class NavigationRegression
         await vm.RefreshAsync();
         Check(vm.SelectedStartupTimeline == null);
         Check(f.Settings.StartupTimelineId == c.Id); // Чтение не переписывает настройки.
+    }
+
+    /// <summary>
+    /// Один вход на экран настроек зовет обновление дважды — из бокового меню, чтобы
+    /// значения были готовы до создания страницы, и из ее OnAppearing. Второе чтение
+    /// каталога приходилось на первые кадры новой страницы и стоило их зря.
+    /// </summary>
+    private static async Task SettingsEntrySkipsUnchangedCatalogue()
+    {
+        var timelines = new MutableTimelines();
+        timelines.Items.Add(new Timeline { Name = "Main" });
+        var settings = new TestSettings();
+        var vm = new SettingsViewModel(settings, timelines, new RecordingNotifications());
+
+        await vm.RefreshIfStaleAsync();
+        await vm.RefreshIfStaleAsync();
+        Check(timelines.Reads == 1 && vm.StartupTimelines.Single().Name == "Main");
+
+        // Шлюз держится на том, что каждый писатель поднимает событие
+        AppEvents.NotifyDataChanged();
+        await vm.RefreshIfStaleAsync();
+        Check(timelines.Reads == 2);
+
+        settings.RaiseChanged();
+        await vm.RefreshIfStaleAsync();
+        Check(timelines.Reads == 3 && vm.StartupTimelines.Single().Name == "Main");
+    }
+
+    /// <summary>
+    /// Разрешения меняются вне приложения, каталог — нет. Возврат обязан подхватить
+    /// первое, не перечитывая второго.
+    /// </summary>
+    private static async Task ResumeRereadsPermissionsOnly()
+    {
+        var timelines = new MutableTimelines();
+        timelines.Items.Add(new Timeline { Name = "Main" });
+        var notifications = new RecordingNotifications { ExactAlarms = false };
+        var vm = new SettingsViewModel(new TestSettings(), timelines, notifications);
+
+        await vm.RefreshIfStaleAsync();
+        Check(vm.ShowInexactAlarmHint && timelines.Reads == 1);
+
+        notifications.ExactAlarms = true;
+        await vm.RefreshPermissionsAsync();
+        Check(!vm.ShowInexactAlarmHint && vm.AreAlarmsExact && timelines.Reads == 1);
     }
 
     private static async Task WarmNavigation()
@@ -342,7 +390,12 @@ static class NavigationRegression
     private sealed class MutableTimelines : ITimelineRepository
     {
         public List<Timeline> Items { get; } = [];
-        public Task<IEnumerable<Timeline>> GetAllAsync() => Task.FromResult<IEnumerable<Timeline>>(Items.ToList());
+        public int Reads { get; private set; }
+        public Task<IEnumerable<Timeline>> GetAllAsync()
+        {
+            Reads++;
+            return Task.FromResult<IEnumerable<Timeline>>(Items.ToList());
+        }
         public Task<Timeline?> GetByIdAsync(Guid id) => Task.FromResult(Items.FirstOrDefault(t => t.Id == id));
         public Task AddAsync(Timeline timeline) { Items.Add(timeline); return Task.CompletedTask; }
         public Task UpdateAsync(Timeline timeline) => throw new NotSupportedException();

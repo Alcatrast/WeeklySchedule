@@ -53,7 +53,7 @@ public partial class AppShell : Shell
                 // Готовим значения до создания страницы, чтобы блок разрешений
                 // и списки не меняли её размеры посреди открытия.
                 if (route == nameof(SettingsPage))
-                    await Handler!.MauiContext!.Services.GetRequiredService<SettingsViewModel>().RefreshAsync();
+                    await Handler!.MauiContext!.Services.GetRequiredService<SettingsViewModel>().RefreshIfStaleAsync();
                 CloseFlyout();
                 // Остаётся анимация меню; второй сдвиг страницы поверх неё не нужен.
                 await GoToAsync(route, animate: false);

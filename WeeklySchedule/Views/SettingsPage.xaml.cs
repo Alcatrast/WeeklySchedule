@@ -29,7 +29,7 @@ public partial class SettingsPage : ContentPage
             SubscribeToResume();
             SafeFireAndForget.Run(async () =>
             {
-                await vm.RefreshAsync();
+                await vm.RefreshIfStaleAsync();
                 UpdatePickerVisibility(vm.IsStartupPickerVisible);
             });
         }
@@ -61,10 +61,10 @@ public partial class SettingsPage : ContentPage
 
     private void OnWindowResumed(object? sender, EventArgs e)
     {
-        // RefreshAsync ничего не трогает, когда состояние то же самое, поэтому
-        // вызывать ее на каждое возвращение безопасно
+        // Снаружи приложения меняются только разрешения — список расписаний и настройки
+        // некому тронуть, — поэтому полное чтение здесь ни к чему
         if (BindingContext is SettingsViewModel vm)
-            SafeFireAndForget.Run(vm.RefreshAsync, nameof(OnWindowResumed));
+            SafeFireAndForget.Run(vm.RefreshPermissionsAsync, nameof(OnWindowResumed));
     }
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)

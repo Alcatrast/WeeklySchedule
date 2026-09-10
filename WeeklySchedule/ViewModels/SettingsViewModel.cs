@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
+using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
@@ -14,6 +15,15 @@ public partial class SettingsViewModel : BaseViewModel
     private readonly INotificationService _notificationService;
     private int _refreshVersion;
     private bool _isRefreshing;
+
+    /// <summary>
+    /// Список расписаний и настройки меняются только изнутри приложения, и каждый такой
+    /// писатель поднимает SettingsChanged или AppEvents.DataChanged. Пока никто не поднял,
+    /// перечитывать нечего: NavigateTo и OnAppearing зовут обновление подряд за один вход,
+    /// и второе чтение было чистой потерей кадров ровно на первых кадрах новой страницы.
+    /// Писатель, который забудет поднять событие, оставит здесь устаревший список.
+    /// </summary>
+    private bool _dataStale = true;
 
     public ObservableCollection<string> ThemeOptions { get; } = ["Как в системе", "Светлая", "Темная"];
     public ObservableCollection<Timeline> StartupTimelines { get; } = [];
@@ -133,13 +143,17 @@ public partial class SettingsViewModel : BaseViewModel
         _openLast = _settingsService.OpenLastTimeline;
         _notifyAtStart = _settingsService.NotifyAtStart;
 
+        // Отписки нет намеренно: вью-модель живет весь процесс синглтоном
+        _settingsService.SettingsChanged += () => _dataStale = true;
+        AppEvents.DataChanged += _ => _dataStale = true;
+
         LoadReminders();
     }
 
     /// <summary>
     /// Чтение отделено от применения, потому что RefreshAsync обязана читать до
     /// проверки на устаревание, а присваивать — после нее. Обе половины общие с
-    /// <see cref="CheckPermissionsAsync"/>: разойдясь, они дали бы экран, где одно
+    /// <see cref="RefreshPermissionsAsync"/>: разойдясь, они дали бы экран, где одно
     /// состояние свежее другого.
     ///
     /// Task.Run здесь обязателен: обе реализации отдают Task.FromResult, то есть считают
@@ -156,7 +170,14 @@ public partial class SettingsViewModel : BaseViewModel
         AreAlarmsExact = state.Exact;
     }
 
-    private async Task CheckPermissionsAsync() => ApplyPermissionState(await ReadPermissionStateAsync());
+    /// <summary>
+    /// Разрешения выдают и отзывают вне приложения, и случиться это может когда угодно —
+    /// в том числе пока страница настроек закрыта и ни одно внутреннее событие сюда не
+    /// придет. Поэтому их, в отличие от списка расписаний, гейтить нечем: перечитываем на
+    /// каждый вход и на каждый возврат в приложение. Стоит это уже недорого — само чтение
+    /// ушло с главного потока в ReadPermissionStateAsync.
+    /// </summary>
+    public async Task RefreshPermissionsAsync() => ApplyPermissionState(await ReadPermissionStateAsync());
 
     internal async Task RequestNotificationPermissionAsync()
     {
@@ -237,9 +258,18 @@ public partial class SettingsViewModel : BaseViewModel
             SetProperty(ref _notifyAtStart, _settingsService.NotifyAtStart, nameof(NotifyAtStart));
             LoadReminders();
             ApplyPermissionState(permissions);
+            _dataStale = false;
         }
         finally { _isRefreshing = false; }
     }
+
+    /// <summary>
+    /// Вход на экран настроек. Полное чтение — только если данные успели устареть;
+    /// иначе остаются одни разрешения, и те уже читаются вне главного потока.
+    /// RefreshAsync намеренно оставлена безусловной: на нее опираются тесты, которые
+    /// меняют состояние в обход событий.
+    /// </summary>
+    public Task RefreshIfStaleAsync() => _dataStale ? RefreshAsync() : RefreshPermissionsAsync();
 }
 
 public class NotificationReminderViewModel : BaseViewModel
