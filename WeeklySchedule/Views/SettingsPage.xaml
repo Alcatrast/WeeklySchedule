@@ -59,8 +59,11 @@
                     <Switch Grid.Column="1" IsToggled="{Binding NotifyAtStart}" VerticalOptions="Center"/>
                 </Grid>
                 <Label Text="Уведомлять до начала (минут)" FontSize="16" FontAttributes="Bold"/>
-                <CollectionView ItemsSource="{Binding ReminderItems}" HeightRequest="200">
-                    <CollectionView.ItemTemplate>
+                <!-- Не CollectionView: напоминаний единицы, виртуализация на них не
+                     окупается, а на Android это RecyclerView, который строился заново на
+                     каждый вход и внутри ScrollView отбирал касания у прокрутки страницы -->
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding ReminderItems}">
+                    <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="vm:NotificationReminderViewModel">
                             <Grid ColumnDefinitions="Auto, *, Auto" Padding="0,5" ColumnSpacing="10">
                                 <Switch IsToggled="{Binding IsActive}" VerticalOptions="Center"/>
@@ -74,8 +77,8 @@
                                 </Border>
                             </Grid>
                         </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
                 <Border HeightRequest="40" WidthRequest="40" StrokeShape="RoundRectangle 20" StrokeThickness="1" Stroke="{StaticResource Primary}" BackgroundColor="Transparent" HorizontalOptions="Start" VerticalOptions="Center"
                         views:PressFeedback.IsEnabled="True">
                     <Border.GestureRecognizers>
