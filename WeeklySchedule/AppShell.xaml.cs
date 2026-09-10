@@ -50,11 +50,16 @@ public partial class AppShell : Shell
         {
             try
             {
-                // Готовим значения до создания страницы, чтобы блок разрешений
-                // и списки не меняли её размеры посреди открытия.
-                if (route == nameof(SettingsPage))
-                    await Handler!.MauiContext!.Services.GetRequiredService<SettingsViewModel>().RefreshIfStaleAsync();
+                // Шторка уезжает в том же кадре, что и отпускание пальца: подготовка
+                // значений идет параллельно ее анимации, а не вместо нее. Раньше меню
+                // стояло открытым и неподвижным, пока читались настройки.
                 CloseFlyout();
+                // Значения по-прежнему готовы до создания страницы — его делает GoToAsync,
+                // а не CloseFlyout, — иначе блок разрешений и списки меняли бы её размеры
+                // посреди открытия. Хендлер может быть еще не готов: тогда переход важнее
+                // подготовки, а раньше тап в этом случае молча не делал ничего.
+                if (route == nameof(SettingsPage) && Handler?.MauiContext?.Services is { } services)
+                    await services.GetRequiredService<SettingsViewModel>().RefreshIfStaleAsync();
                 // Остаётся анимация меню; второй сдвиг страницы поверх неё не нужен.
                 await GoToAsync(route, animate: false);
             }
