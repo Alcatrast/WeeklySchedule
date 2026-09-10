@@ -54,7 +54,9 @@ public static class MauiProgram
         // Страницы, которые открывает Shell или DI. EditLessonPage и
         // GroupSelectionPage создаются через new с параметрами конкретной пары
         // или файла, поэтому в контейнере им тоже не место
-        builder.Services.AddTransient<SettingsPage>();
+        // Настройки живут одним экземпляром, как и AboutPage: страница открывается часто,
+        // а Transient строил ее дерево и применял неявные стили заново на каждый вход
+        builder.Services.AddSingleton<SettingsPage>();
         builder.Services.AddTransient<TimelinesPage>();
         builder.Services.AddTransient<EditTimelinePage>();
         builder.Services.AddSingleton<AboutPage>();

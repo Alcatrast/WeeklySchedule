@@ -31,6 +31,10 @@ public partial class SettingsPage : ContentPage
             {
                 await vm.RefreshIfStaleAsync();
                 UpdatePickerVisibility(vm.IsStartupPickerVisible);
+                // Страница переживает уход с нее, поэтому нечисловой текст остался бы в
+                // поле навсегда: привязка его не преобразует, вью-модель не обновляется и
+                // сама поле не перепишет. Transient раньше просто строил поле заново
+                DurationEntry.Text = vm.DefaultDuration.ToString();
             });
         }
     }

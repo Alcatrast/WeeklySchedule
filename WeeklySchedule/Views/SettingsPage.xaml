@@ -92,7 +92,7 @@
             <Label Text="Тема приложения" FontSize="16" FontAttributes="Bold"/>
             <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" FontSize="16"/>
             <Label Text="Длительность пары по умолчанию (мин)" FontSize="16" FontAttributes="Bold"/>
-            <Entry Keyboard="Numeric" Text="{Binding DefaultDuration}" FontSize="16"/>
+            <Entry x:Name="DurationEntry" Keyboard="Numeric" Text="{Binding DefaultDuration}" FontSize="16"/>
             <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" views:PressFeedback.IsEnabled="True">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ToggleOpenLastCommand}" />
