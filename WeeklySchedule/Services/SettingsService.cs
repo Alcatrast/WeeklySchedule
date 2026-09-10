@@ -45,30 +45,44 @@ public class SettingsService : ISettingsService
         }
     }
 
+    /// <summary>
+    /// Значение держится в памяти: геттер дергают FlyoutViewModel.UpdateFlags на каждое
+    /// SettingsChanged, AppShell на каждый возврат на главную и RefreshAsync экрана
+    /// настроек — а каждое обращение читало файл, в том числе с главного потока посреди
+    /// открытия настроек. Писатель у файла один, этот сеттер, так что кэш не разойдется
+    /// с диском.
+    /// </summary>
+    private Guid? _startupTimelineId;
+
     public Guid StartupTimelineId
     {
-        get
-        {
-            try
-            {
-                if (File.Exists(_startupTimelineFilePath))
-                {
-                    var str = File.ReadAllText(_startupTimelineFilePath).Trim();
-                    return Guid.TryParse(str, out var id) ? id : Guid.Empty;
-                }
-            }
-            catch { }
-            return Guid.Empty;
-        }
+        get => _startupTimelineId ??= ReadStartupTimelineId();
         set
         {
             try
             {
                 File.WriteAllText(_startupTimelineFilePath, value.ToString());
+                // Кэш принимает значение только после удачной записи: иначе геттер стал бы
+                // отдавать то, чего на диске нет
+                _startupTimelineId = value;
             }
-            catch { }
+            catch { _startupTimelineId = null; }
             SettingsChanged?.Invoke();
         }
+    }
+
+    private Guid ReadStartupTimelineId()
+    {
+        try
+        {
+            if (File.Exists(_startupTimelineFilePath))
+            {
+                var str = File.ReadAllText(_startupTimelineFilePath).Trim();
+                return Guid.TryParse(str, out var id) ? id : Guid.Empty;
+            }
+        }
+        catch { }
+        return Guid.Empty;
     }
     public bool NotifyAtStart
     {

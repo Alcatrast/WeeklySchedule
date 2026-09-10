@@ -141,10 +141,14 @@ public partial class SettingsViewModel : BaseViewModel
     /// проверки на устаревание, а присваивать — после нее. Обе половины общие с
     /// <see cref="CheckPermissionsAsync"/>: разойдясь, они дали бы экран, где одно
     /// состояние свежее другого.
+    ///
+    /// Task.Run здесь обязателен: обе реализации отдают Task.FromResult, то есть считают
+    /// синхронно на вызывающем потоке, а CanScheduleExactAlarms — вызов в системный
+    /// процесс. На главном потоке это стоило кадров ровно в момент открытия страницы.
     /// </summary>
-    private async Task<(bool Granted, bool Exact)> ReadPermissionStateAsync() =>
+    private Task<(bool Granted, bool Exact)> ReadPermissionStateAsync() => Task.Run(async () =>
         (await _notificationService.CheckPermissionAsync(),
-         await _notificationService.CanScheduleExactAlarmsAsync());
+         await _notificationService.CanScheduleExactAlarmsAsync()));
 
     private void ApplyPermissionState((bool Granted, bool Exact) state)
     {
