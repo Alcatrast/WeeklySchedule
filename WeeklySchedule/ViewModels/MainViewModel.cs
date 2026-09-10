@@ -80,8 +80,6 @@ public partial class MainViewModel : BaseViewModel
         }
     }
 
-    public static AppTheme CurrentTheme => Application.Current?.RequestedTheme ?? AppTheme.Light;
-
     public MainViewModel(
         ILessonRepository repository,
         ITimelineRepository timelineRepository,
@@ -122,7 +120,6 @@ public partial class MainViewModel : BaseViewModel
         AppEvents.DataChanged += OnDataChanged;
         Application.Current!.RequestedThemeChanged += (s, e) => UpdateFromHandler("смена темы", () =>
         {
-            OnPropertyChanged(nameof(CurrentTheme));
             UpdateAllDays();
         });
 

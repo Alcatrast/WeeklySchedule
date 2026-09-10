@@ -723,7 +723,7 @@ public class ExcelMIPTScheduleParser
 
     #region Логика парсинга текста
 
-    public (string Name, string Description) ParseLessonText(ICell cell, string rawText)
+    private (string Name, string Description) ParseLessonText(ICell cell, string rawText)
     {
         if (string.IsNullOrWhiteSpace(rawText)) return (string.Empty, string.Empty);
 
