@@ -1,6 +1,4 @@
 namespace WeeklySchedule.ViewModels;
-
-// Одна подписка на текущий день; при переиспользовании View старый день отпускается.
 public sealed class DayViewSubscription(Action onLayout, Action onScroll) : IDisposable
 {
     private DayViewModel? _source;

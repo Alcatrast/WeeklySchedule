@@ -2,8 +2,6 @@ namespace WeeklySchedule.Utilities;
 
 public static class WeeklyOccurrence
 {
-    // Сначала находим местное начало пары и только затем переводим его в UTC.
-    // Напоминание отсчитывается реальными минутами до начала, в том числе на DST.
     public static DateTimeOffset Next(DayOfWeek day, TimeSpan startTime, int minutesBefore,
         DateTimeOffset after, TimeZoneInfo zone)
     {
@@ -17,8 +15,6 @@ public static class WeeklyOccurrence
         while (true)
         {
             var localStart = DateTime.SpecifyKind(date.Add(startTime), DateTimeKind.Unspecified);
-            // При переводе часов вперед отсутствующее время переносим на ближайшую
-            // существующую минуту. При переводе назад выбирается стандартное время.
             while (zone.IsInvalidTime(localStart)) localStart = localStart.AddMinutes(1);
             var trigger = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localStart, zone))
                 .AddMinutes(-minutesBefore);

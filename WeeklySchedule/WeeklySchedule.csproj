@@ -12,17 +12,18 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<ApplicationTitle>Weekly</ApplicationTitle>
 		<ApplicationId>com.alcatrast.weeklyschedule</ApplicationId>
-		<ApplicationDisplayVersion>1.0.6</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
 		<!-- versionCode для Android: не должен уменьшаться от сборки к сборке -->
-		<ApplicationVersion>6</ApplicationVersion>
+		<ApplicationVersion>1</ApplicationVersion>
 		<WindowsPackageType>None</WindowsPackageType>
 
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
@@ -38,13 +39,16 @@
 
 		<!-- Images & Fonts & Raw Assets -->
 		<MauiImage Include="Resources\Images\*" />
-		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- === 1. Основные пакеты MAUI и логирования (актуальные версии для .NET 10) === -->
+		<PackageReference Include="Microsoft.Build.Tasks.Git" Version="10.0.401">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.100" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />
 
@@ -55,7 +59,7 @@
 		     Без явной ссылки линковщик выбрасывает сборку из Release-сборки,
 		     и AOT падает на "Could not load file or assembly 'SkiaSharp'".
 		     Версия должна совпадать с той, что приезжает транзитивно из NPOI -->
-		<PackageReference Include="SkiaSharp" Version="3.119.2" />
+		<PackageReference Include="SkiaSharp" Version="4.152.0" />
 
 		<PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
 	</ItemGroup>
@@ -88,6 +92,10 @@
 		<MauiXaml Update="Views\TimelinesPage.xaml">
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Resources\Images\" />
 	</ItemGroup>
 
 </Project>

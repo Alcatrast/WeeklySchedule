@@ -3,13 +3,6 @@ using global::Android.Content;
 
 namespace WeeklySchedule.Platforms.Android.Services;
 
-/// <summary>
-/// Android стирает все будильники при перезагрузке телефона и при установке нового
-/// apk поверх старого. Без этого приемника уведомления после каждого такого события
-/// пропадали до следующего ручного запуска приложения.
-///
-/// Exported = true обязательно: широковещательное сообщение шлет система, а не мы.
-/// </summary>
 [BroadcastReceiver(Enabled = true, Exported = true, DirectBootAware = false)]
 [IntentFilter([
     Intent.ActionBootCompleted,

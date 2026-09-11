@@ -1,6 +1,4 @@
-﻿using Microsoft.Maui.Storage;
-
-namespace WeeklySchedule.Services;
+﻿namespace WeeklySchedule.Services;
 
 public class FilePickerService : IFilePickerService
 {

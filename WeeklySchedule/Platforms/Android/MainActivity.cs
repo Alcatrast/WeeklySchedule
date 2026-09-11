@@ -1,9 +1,10 @@
 ﻿using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using WeeklySchedule.Services;
 
-namespace WeeklySchedule;
+namespace WeeklySchedule.Platforms.Android;
 
 [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
@@ -13,14 +14,13 @@ public class MainActivity : MauiAppCompatActivity
         base.OnCreate(savedInstanceState);
         HandleNotificationIntent(Intent);
     }
-
-    protected override void OnNewIntent(Android.Content.Intent intent)
+    protected override void OnNewIntent(Intent? intent)
     {
         base.OnNewIntent(intent);
         HandleNotificationIntent(intent);
     }
 
-    private void HandleNotificationIntent(Android.Content.Intent? intent)
+    private static void HandleNotificationIntent(Intent? intent)
     {
         if (intent?.HasExtra("TimelineId") == true)
         {
@@ -33,10 +33,8 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
-    // Обработка результата запроса разрешений
-    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Android.Content.PM.Permission[] grantResults)
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
         base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
-        // Здесь можно вызвать событие, чтобы UI обновился
     }
 }

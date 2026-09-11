@@ -6,9 +6,6 @@ using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Platforms.Android.Services;
 
-/// <summary>
-/// Один поставленный в AlarmManager будильник.
-/// </summary>
 public sealed class ScheduledAlarm
 {
     public int NotificationId { get; set; }
@@ -17,7 +14,6 @@ public sealed class ScheduledAlarm
     public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
 
-    /// <summary>Момент срабатывания в Unix-миллисекундах (уже с учетом MinutesBefore).</summary>
     public long TriggerAtMillis { get; set; }
 
     public int MinutesBefore { get; set; }
@@ -26,8 +22,6 @@ public sealed class ScheduledAlarm
 
     public bool MoveToNextOccurrence(DateTimeOffset after, TimeZoneInfo zone)
     {
-        // Миграция будильников 1.0.5: в них сохранен только Unix timestamp.
-        // Настоящие день и время берем из пары, а не из уже сменившегося часового пояса.
         if (LessonDay == null || LessonStartTime == null)
         {
             if (!Guid.TryParse(TimelineId, out var timelineId) || !Guid.TryParse(LessonId, out var lessonId)) return false;
@@ -45,15 +39,6 @@ public sealed class ScheduledAlarm
     }
 }
 
-/// <summary>
-/// Список поставленных будильников в SharedPreferences.
-///
-/// Раньше он жил только в памяти сервиса, поэтому после перезапуска процесса
-/// CancelAllNotifications не отменял ничего: старые будильники оставались в
-/// системе, а приложение ставило поверх них новые, и уведомления двоились.
-/// Тот же список читает BootReceiver, чтобы восстановить будильники после
-/// перезагрузки телефона и после установки нового apk.
-/// </summary>
 public static class ScheduledAlarmStore
 {
     private const string PreferencesName = "weekly_schedule_alarms";
@@ -72,8 +57,6 @@ public static class ScheduledAlarmStore
         }
         catch
         {
-            // Битый список — не повод падать: хуже, чем потерянные будильники,
-            // только приложение, которое не запускается
             return [];
         }
     }

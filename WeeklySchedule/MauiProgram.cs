@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using WeeklySchedule.Data;
+﻿using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Services;
 using WeeklySchedule.ViewModels;
@@ -20,17 +19,18 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Repositories
         builder.Services.AddSingleton<ILessonRepository, FileLessonRepository>();
         builder.Services.AddSingleton<ITimelineRepository, FileTimelineRepository>();
         builder.Services.AddSingleton<IDataSeeder, DemoDataSeeder>();
 
-        // Services
         builder.Services.AddSingleton<IActiveScheduleService, ActiveScheduleService>();
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IFilePickerService, FilePickerService>();
         builder.Services.AddSingleton<INotificationNavigationService, NotificationNavigationService>();
         builder.Services.AddSingleton<INavigationService, NavigationService>();
+
+        builder.Services.AddSingleton<IEditLessonPageFactory, EditLessonPageFactory>();
+        builder.Services.AddSingleton<IGroupSelectionPageFactory, GroupSelectionPageFactory>();
 
 #if ANDROID
         builder.Services.AddSingleton<INotificationService, WeeklySchedule.Platforms.Android.Services.NotificationService>();
@@ -38,10 +38,6 @@ public static class MauiProgram
         builder.Services.AddSingleton<INotificationService, MockNotificationService>();
 #endif
 
-        // Конвертеры в DI не нужны: XAML берет их из App.xaml как StaticResource,
-        // а код в DayView держит собственные статические экземпляры
-
-        // ViewModels
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<FlyoutViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();
@@ -49,7 +45,6 @@ public static class MauiProgram
         builder.Services.AddTransient<EditTimelineViewModel>();
         builder.Services.AddTransient<GroupSelectionViewModel>();
 
-        // Pages (Все модальные страницы должны быть Transient!)
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<TimelinesPage>();
         builder.Services.AddTransient<EditTimelinePage>();

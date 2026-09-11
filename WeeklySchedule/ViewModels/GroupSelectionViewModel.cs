@@ -13,7 +13,6 @@ namespace WeeklySchedule.ViewModels;
 public partial class GroupSelectionViewModel : BaseViewModel
 {
     private readonly string _filePath;
-    // Таймлайн уже сохранен в репозитории (режим "дополнить импортом")
     private readonly bool _timelineExists;
     private readonly Timeline _timeline;
     private readonly ILessonRepository _lessonRepo;
@@ -59,9 +58,8 @@ public partial class GroupSelectionViewModel : BaseViewModel
         _navigationService = navigationService;
         _serviceProvider = serviceProvider;
         _onImported = onImported;
-
-        ToggleCategoryCommand = new Command<GroupCategory>(ToggleCategory);
-        SelectGroupCommand = new Command<GroupItem>(SelectGroup);
+        ToggleCategoryCommand = new Command(ExecuteToggleCategory);
+        SelectGroupCommand = new Command(ExecuteSelectGroup);
         IsLoadingGroups = true;
     }
 
@@ -69,10 +67,9 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
-            var groups = await Task.Run(() =>
+            List<string> groups = await Task.Run(() =>
             {
-                var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
-                return parser.ExtractAllGroupNames(_filePath);
+                return ExcelMIPTScheduleParser.ExtractAllGroupNames(_filePath);
             });
 
             if (groups.Count == 0)
@@ -84,7 +81,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
             var dict = new Dictionary<string, List<GroupItem>>();
             foreach (var g in groups)
             {
-                var parts = g.Split(new[] { '-' }, 2);
+                var parts = g.Split(['-'], 2);
                 if (parts.Length != 2) continue;
                 var prefix = parts[0].Trim();
                 var suffix = parts[1].Trim();
@@ -99,6 +96,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
                     Prefix = kvp.Key,
                     Groups = new ObservableCollection<GroupItem>(kvp.Value)
                 });
+                if (kvp.Key == dict.Keys.First())
+                {
+                    Categories[^1].IsExpanded = true;
+                }
             }
         }
         catch (Exception)
@@ -110,21 +111,27 @@ public partial class GroupSelectionViewModel : BaseViewModel
             IsLoadingGroups = false;
         }
     }
-
-    private void ToggleCategory(GroupCategory category)
+    private void ExecuteToggleCategory(object? parameter)
     {
+        if (parameter is not GroupCategory category) return;
         if (IsProcessing || IsLoadingGroups) return;
-        foreach (var c in Categories) c.IsExpanded = (c == category);
+
+        foreach (var c in Categories)
+            c.IsExpanded = (c == category);
     }
 
-    private void SelectGroup(GroupItem group)
+    private void ExecuteSelectGroup(object? parameter)
     {
+        if (parameter is not GroupItem group) return;
         if (IsProcessing || IsLoadingGroups) return;
+
         if (_selectedGroup == group)
+        {
             SafeFireAndForget.Run(() => ImportGroupAsync(group));
+        }
         else
         {
-            if (_selectedGroup != null) _selectedGroup.IsSelected = false;
+            _selectedGroup?.IsSelected = false;
             _selectedGroup = group;
             group.IsSelected = true;
         }
@@ -135,7 +142,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         IsProcessing = true;
         try
         {
-            var lessons = await Task.Run(() =>
+            List<Lesson> lessons = await Task.Run(() =>
             {
                 var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
                 return parser.ParseGroupSchedule(_filePath, group.FullGroupName);
@@ -143,7 +150,6 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
             if (!_timelineExists)
             {
-                // Имя, введенное пользователем, приоритетнее автоматического
                 if (string.IsNullOrWhiteSpace(_timeline.Name))
                     _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
                 await _timelineRepo.AddAsync(_timeline);
@@ -171,12 +177,15 @@ public partial class GroupSelectionViewModel : BaseViewModel
         {
             IsProcessing = false;
         }
+        _selectedGroup?.IsSelected = false;
+        _selectedGroup = null;
     }
 
-    // Application.MainPage и Page.DisplayAlert объявлены устаревшими в MAUI 10
     private static Task ShowAlertAsync(string title, string message)
     {
-        var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+        var windows = Application.Current?.Windows;
+        var page = (windows != null && windows.Count > 0) ? windows[0].Page : null;
+
         return page?.DisplayAlertAsync(title, message, "OK") ?? Task.CompletedTask;
     }
 
@@ -184,11 +193,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
-            // Закрываем все модальные окна
-            while (Shell.Current?.Navigation.ModalStack.Count > 0)
-            {
-                await _navigationService.PopModalAsync();
-            }
+            await _navigationService.PopModalAsync();
         }
         catch { }
     }

@@ -4,8 +4,6 @@ public interface INotificationService
 {
     Task<bool> CheckPermissionAsync();
     Task RequestPermissionAsync();
-
-    // Новые методы для комплексной проверки всех 3 разрешений
     Task<bool> CheckAllPermissionsAsync();
     Task RequestAllPermissionsAsync();
 

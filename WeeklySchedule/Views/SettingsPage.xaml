@@ -63,7 +63,6 @@
                 </Border>
             </VerticalStackLayout>
 
-            <!-- === ОБЩИЕ НАСТРОЙКИ === -->
             <Label Text="Тема приложения" FontSize="16" FontAttributes="Bold"/>
             <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" FontSize="16"/>
             <Label Text="Длительность пары по умолчанию (мин)" FontSize="16" FontAttributes="Bold"/>

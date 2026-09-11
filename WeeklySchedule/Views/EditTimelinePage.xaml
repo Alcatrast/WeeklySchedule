@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
-             x:Class="WeeklySchedule.Views.EditTimelinePage"
-             x:DataType="vm:EditTimelineViewModel">
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" xmlns:vm="clr-namespace:WeeklySchedule.ViewModels" x:Class="WeeklySchedule.Views.EditTimelinePage" x:DataType="vm:EditTimelineViewModel">
     <ScrollView>
         <VerticalStackLayout Spacing="20" Padding="20" VerticalOptions="Start">
             <Label Text="{Binding Title}" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" />
             <Label Text="Название таймлайна" FontSize="14" FontAttributes="Bold"/>
             <Entry Text="{Binding Name}" Placeholder="Например: Осенний семестр" FontSize="16" />
-
             <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" Margin="0,10,0,0">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ToggleIsStartupCommand}" />
@@ -17,7 +12,6 @@
                 <Label Text="Сделать главным таймлайном" FontSize="16" FontAttributes="Bold" VerticalOptions="Center"/>
                 <Switch Grid.Column="1" IsToggled="{Binding IsStartupTimeline}" VerticalOptions="Center" />
             </Grid>
-
             <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10" Margin="0,10,0,0">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding ToggleNotificationsCommand}" />
@@ -25,11 +19,7 @@
                 <Label Text="Включить уведомления для этого таймлайна" FontSize="16" FontAttributes="Bold" VerticalOptions="Center"/>
                 <Switch Grid.Column="1" IsToggled="{Binding NotificationsEnabled}" VerticalOptions="Center" />
             </Grid>
-
-            <Label Text="Разрешите уведомления в настройках приложения"
-                   TextColor="{StaticResource Danger}" FontSize="12" FontAttributes="Italic"
-                   IsVisible="{Binding ShowPermissionWarning}" Margin="0,5,0,0" />
-
+            <Label Text="Разрешите уведомления в настройках приложения" TextColor="{StaticResource Danger}" FontSize="12" FontAttributes="Italic" IsVisible="{Binding ShowPermissionWarning}" Margin="0,5,0,0" />
             <Border BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding SaveCommand}" />
@@ -39,7 +29,6 @@
                     <Label Text="Сохранить" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
-
             <Border BackgroundColor="{StaticResource Danger}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill" IsVisible="{Binding IsEditMode}">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding DeleteCommand}" />
@@ -49,7 +38,6 @@
                     <Label Text="Удалить" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
-
             <Border BackgroundColor="Transparent" StrokeShape="RoundRectangle 12" StrokeThickness="1" Stroke="{StaticResource Gray500}" HeightRequest="50" HorizontalOptions="Fill">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding CancelCommand}" />
@@ -60,25 +48,20 @@
                 </HorizontalStackLayout>
             </Border>
 
-            <!-- === ИМПОРТ === -->
             <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>
             <Label Text="{Binding ImportSectionTitle}" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" />
 
-            <Border x:Name="ImportButton" 
-                    HeightRequest="50" 
-                    HorizontalOptions="Fill"
-                    StrokeShape="RoundRectangle 12"
-                    StrokeThickness="0"
-                    BackgroundColor="Transparent">
+            <Border x:Name="ImportButton" HeightRequest="50" HorizontalOptions="Fill" StrokeShape="RoundRectangle 12" StrokeThickness="0" BackgroundColor="Transparent">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="{StaticResource GradientStart}" Offset="0.0" />
+                        <GradientStop Color="{StaticResource GradientEnd}" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding SelectExcelFileCommand}" />
                 </Border.GestureRecognizers>
-                <Label Text="Excel (Физтех) BETA" 
-                       TextColor="White" 
-                       FontSize="16" 
-                       FontAttributes="Bold" 
-                       HorizontalOptions="Center" 
-                       VerticalOptions="Center" />
+                <Label Text="Excel (Физтех) BETA" TextColor="White" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
             <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>
         </VerticalStackLayout>

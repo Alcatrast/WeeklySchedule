@@ -17,12 +17,6 @@ public class NotificationService : INotificationService
     internal const string ActionShow = "com.weeklyschedule.SHOW_NOTIFICATION";
 
     private Context Context => Application.Context;
-
-    // Список читается из SharedPreferences один раз за запуск: планирование идет
-    // пачкой по всем парам, и перечитывать хранилище на каждую пару незачем.
-    // Приемники пишут в то же хранилище и могут сделать кэш устаревшим, но набор
-    // идентификаторов они не меняют — только время срабатывания, — поэтому отмена
-    // по кэшу все равно попадает во все поставленные будильники
     private List<ScheduledAlarm>? _alarms;
     private List<ScheduledAlarm> Alarms => _alarms ??= ScheduledAlarmStore.Load();
 
@@ -64,17 +58,14 @@ public class NotificationService : INotificationService
     #region Комплексная проверка и запрос всех 3 разрешений
     public async Task<bool> CheckAllPermissionsAsync()
     {
-        // 1. Проверка POST_NOTIFICATIONS
         if (!await CheckPermissionAsync()) return false;
 
-        // 2. Проверка SCHEDULE_EXACT_ALARM (Android 12+)
         if (OperatingSystem.IsAndroidVersionAtLeast(31))
         {
             var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
             if (alarmManager == null || !alarmManager.CanScheduleExactAlarms()) return false;
         }
 
-        // 3. Проверка IGNORE_BATTERY_OPTIMIZATIONS (Android 6+)
         if (OperatingSystem.IsAndroidVersionAtLeast(23))
         {
             var powerManager = Context.GetSystemService(Context.PowerService) as PowerManager;
@@ -86,17 +77,14 @@ public class NotificationService : INotificationService
 
     public async Task RequestAllPermissionsAsync()
     {
-        // 1. Запрос POST_NOTIFICATIONS
         await RequestPermissionAsync();
-        await Task.Delay(800); // Пауза для взаимодействия с системным диалогом
+        await Task.Delay(800);
 
-        // 2. Запрос SCHEDULE_EXACT_ALARM
         if (OperatingSystem.IsAndroidVersionAtLeast(31))
         {
             var alarmManager = Context.GetSystemService(Context.AlarmService) as AlarmManager;
             if (alarmManager != null && !alarmManager.CanScheduleExactAlarms())
             {
-                // ИСПРАВЛЕНО: добавлен префикс global:: для избежания конфликта пространств имен
                 var intent = new Intent(global::Android.Provider.Settings.ActionRequestScheduleExactAlarm);
                 intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
                 StartSettingsActivity(intent);
@@ -104,13 +92,11 @@ public class NotificationService : INotificationService
             }
         }
 
-        // 3. Запрос IGNORE_BATTERY_OPTIMIZATIONS
         if (OperatingSystem.IsAndroidVersionAtLeast(23))
         {
             var powerManager = Context.GetSystemService(Context.PowerService) as PowerManager;
             if (powerManager != null && !powerManager.IsIgnoringBatteryOptimizations(Context.PackageName))
             {
-                // ИСПРАВЛЕНО: добавлен префикс global:: для избежания конфликта пространств имен
                 var intent = new Intent(global::Android.Provider.Settings.ActionRequestIgnoreBatteryOptimizations);
                 intent.SetData(global::Android.Net.Uri.Parse("package:" + Context.PackageName));
                 StartSettingsActivity(intent);
@@ -135,29 +121,15 @@ public class NotificationService : INotificationService
     #endregion
 
     #region Логика будильников
-
-    /// <summary>
-    /// Идентификатор уведомления. Обязан быть одинаковым между запусками приложения:
-    /// по нему отменяется ранее поставленный будильник. HashCode.Combine для этого
-    /// не годится — он подмешивает случайное зерно, свое на каждый процесс, поэтому
-    /// после перезапуска старые будильники становились неотменяемыми.
-    /// </summary>
     internal static int BuildNotificationId(Guid lessonId, int minutesBefore)
     {
-        Span<byte> bytes = stackalloc byte[16];
-        lessonId.TryWriteBytes(bytes);
-
-        unchecked
-        {
-            // FNV-1a
-            uint hash = 2166136261;
-            foreach (var b in bytes) hash = (hash ^ b) * 16777619;
-            for (int i = 0; i < 4; i++) hash = (hash ^ (byte)(minutesBefore >> (i * 8))) * 16777619;
-
-            // Гасим старший бит вместо Math.Abs: тот на int.MinValue бросает
-            // OverflowException
-            return (int)(hash & 0x7FFFFFFF);
-        }
+        var bytes = lessonId.ToByteArray();
+        int hash = BitConverter.ToInt32(bytes, 0) ^
+                   BitConverter.ToInt32(bytes, 4) ^
+                   BitConverter.ToInt32(bytes, 8) ^
+                   BitConverter.ToInt32(bytes, 12) ^
+                   minutesBefore;
+        return hash & 0x7FFFFFFF;
     }
 
     public void ScheduleNotification(Guid timelineId, Guid lessonId, string title, string body, DateTime triggerTime, int minutesBefore)
@@ -186,10 +158,6 @@ public class NotificationService : INotificationService
         ScheduledAlarmStore.Save(Alarms);
     }
 
-    /// <summary>
-    /// Ставит будильник в AlarmManager. Статический, потому что тем же кодом
-    /// восстанавливает будильники BootReceiver, у которого нет сервиса из DI.
-    /// </summary>
     internal static bool SetAlarm(Context context, ScheduledAlarm alarm)
     {
         if (context.GetSystemService(Context.AlarmService) is not AlarmManager alarmManager) return false;
@@ -250,8 +218,6 @@ public class NotificationService : INotificationService
         var intent = new Intent(Context, typeof(ScheduledNotificationReceiver));
         intent.SetAction(ActionShow);
 
-        // Extras при сопоставлении PendingIntent не учитываются, поэтому для отмены
-        // достаточно совпадения requestCode, компонента и действия
         var pendingIntent = PendingIntent.GetBroadcast(Context, notificationId, intent,
             PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
         if (pendingIntent == null) return;

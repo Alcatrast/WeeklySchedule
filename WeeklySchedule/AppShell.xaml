@@ -21,7 +21,6 @@
                                   CommandParameter="{Binding Timeline}" />
                                     </Border.GestureRecognizers>
                                     <Grid ColumnDefinitions="Auto, *">
-                                        <!-- Контейнер для иконок: Звезда всегда первая, затем Колокольчик -->
                                         <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4">
                                             <Path Data="{StaticResource IconStar}" 
                       WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
@@ -56,7 +55,6 @@
             <VerticalStackLayout Grid.Row="1" Spacing="0" Padding="0,0,0,10">
                 <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="15,0,15,10"/>
 
-                <!-- Управление таймлайнами -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
                     <Grid ColumnDefinitions="Auto, *">
                         <Grid.GestureRecognizers>
@@ -67,13 +65,11 @@
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
                               VerticalOptions="Center" Margin="15, 12, 10, 12"
                               Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <!-- Было: Text="Управление таймлайнами" -->
                         <Label Grid.Column="1" Text="Таймлайны" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
        TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
                     </Grid>
                 </Border>
 
-                <!-- Настройки -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
                     <Grid ColumnDefinitions="Auto, *">
                         <Grid.GestureRecognizers>
@@ -89,7 +85,6 @@
                     </Grid>
                 </Border>
 
-                <!-- О приложении -->
                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
                     <Grid ColumnDefinitions="Auto, *">
                         <Grid.GestureRecognizers>

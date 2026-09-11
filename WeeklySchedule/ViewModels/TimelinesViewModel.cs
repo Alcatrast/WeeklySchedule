@@ -70,7 +70,6 @@ public partial class TimelinesViewModel : BaseViewModel
     {
         SafeFireAndForget.Run(async () =>
         {
-            // Резолвим страницу через DI
             var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
             editPage.Initialize(timeline);
             await Shell.Current!.Navigation.PushModalAsync(editPage);

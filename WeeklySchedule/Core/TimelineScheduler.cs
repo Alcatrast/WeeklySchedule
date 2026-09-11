@@ -94,9 +94,6 @@ public class TimelineScheduler
                         if (now.Date > _currentDate)
                         {
                             isDayChange = true;
-                            // Без обновления даты следующий маркер снова оказался бы в прошлом,
-                            // и цикл крутился бы с шагом 50 мс до тех пор, пока подписчик
-                            // не вызовет RebuildQueue
                             _currentDate = now.Date;
                         }
                         _markers.RemoveAll(m => m <= now);

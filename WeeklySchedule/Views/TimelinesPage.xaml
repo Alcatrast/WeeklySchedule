@@ -25,8 +25,6 @@
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Timelines}" Spacing="10" Padding="15">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="models:Timeline">
-                        <!-- Цвета нейтральные и от таймлайна не зависят: выделение
-                             активного таймлайна показывает иконка-звезда ниже -->
                         <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2"
                                 BackgroundColor="{AppThemeBinding Light=#E1E1E1, Dark=#2C2C2C}"
                                 Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
@@ -37,7 +35,6 @@
                             </Border.GestureRecognizers>
 
                             <Grid ColumnDefinitions="Auto, *">
-                                <!-- Контейнер для иконок -->
                                 <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4">
                                     <Path Data="{StaticResource IconStar}" 
                       WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"

@@ -79,8 +79,6 @@ public class SettingsService : ISettingsService
             SettingsChanged?.Invoke();
         }
     }
-
-    // Напоминание при первом открытии, пока пользователь ничего не настроил
     private static List<NotificationReminder> DefaultReminders() =>
         [new() { MinutesBefore = 10, IsActive = true }];
 
@@ -90,9 +88,6 @@ public class SettingsService : ISettingsService
         {
             var json = Preferences.Get(nameof(NotifyBeforeList), string.Empty);
 
-            // Дефолт именно возвращаем, а не записываем: запись из геттера дергала бы
-            // SettingsChanged и перепланирование уведомлений на ровном месте, в том
-            // числе из обработчика самого SettingsChanged
             if (string.IsNullOrEmpty(json)) return DefaultReminders();
 
             try
@@ -101,7 +96,6 @@ public class SettingsService : ISettingsService
             }
             catch (JsonException)
             {
-                // Битый JSON в Preferences не должен ронять приложение на старте
                 return DefaultReminders();
             }
         }

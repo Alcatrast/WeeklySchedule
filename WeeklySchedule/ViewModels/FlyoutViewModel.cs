@@ -13,15 +13,13 @@ public partial class TimelineFlyoutItem(Timeline timeline) : BaseViewModel
     public Guid Id => Timeline.Id;
     public string Name => Timeline.Name;
     public bool NotificationsEnabled => Timeline.NotificationsEnabled;
-
     private bool _isActive;
     public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
-
     private bool _isHighlighted;
     public bool IsHighlighted { get => _isHighlighted; set => SetProperty(ref _isHighlighted, value); }
 }
 
-public partial class FlyoutViewModel : BaseViewModel
+public partial class FlyoutViewModel : BaseViewModel, IDisposable
 {
     private readonly ITimelineRepository _repository;
     private readonly IActiveScheduleService _scheduleService;
@@ -36,14 +34,18 @@ public partial class FlyoutViewModel : BaseViewModel
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _scheduleService = scheduleService ?? throw new ArgumentNullException(nameof(scheduleService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-
         SelectTimelineCommand = new Command<Timeline>(OnSelectTimeline);
+        _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
+        _settingsService.SettingsChanged += OnSettingsChanged;
+    }
 
-        // События объявлены как Action/Action<T>, поэтому Task-метод приходится
-        // запускать без ожидания. Раньше это была async void лямбда: исключение
-        // из нее не ловилось нигде и роняло процесс
-        _scheduleService.ActiveTimelineChanged += (_) => SafeFireAndForget.Run(LoadTimelinesAsync);
-        _settingsService.SettingsChanged += () => SafeFireAndForget.Run(LoadTimelinesAsync);
+    private void OnActiveTimelineChanged(Guid _) => SafeFireAndForget.Run(LoadTimelinesAsync);
+    private void OnSettingsChanged() => SafeFireAndForget.Run(LoadTimelinesAsync);
+
+    public void Dispose()
+    {
+        _scheduleService.ActiveTimelineChanged -= OnActiveTimelineChanged;
+        _settingsService.SettingsChanged -= OnSettingsChanged;
     }
 
     public async Task LoadTimelinesAsync()
@@ -52,26 +54,12 @@ public partial class FlyoutViewModel : BaseViewModel
         var activeId = _scheduleService.ActiveTimelineId;
         var startupId = _settingsService.StartupTimelineId;
         bool isOpenLast = _settingsService.OpenLastTimeline;
-
         bool shouldHighlight = !isOpenLast && startupId != Guid.Empty;
         var allTimelines = (await _repository.GetAllAsync()).ToList();
         if (version != _loadVersion) return;
         Timelines.Clear();
-        foreach (var t in allTimelines)
-        {
-            var item = new TimelineFlyoutItem(t)
-            {
-                IsActive = t.Id == activeId,
-                IsHighlighted = shouldHighlight && t.Id == startupId
-            };
-            Timelines.Add(item);
-        }
+        foreach (var t in allTimelines) Timelines.Add(new TimelineFlyoutItem(t) { IsActive = t.Id == activeId, IsHighlighted = shouldHighlight && t.Id == startupId });
     }
 
-    private void OnSelectTimeline(Timeline? timeline)
-    {
-        if (timeline == null) return;
-        Shell.Current!.FlyoutIsPresented = false;
-        _scheduleService.ActiveTimelineId = timeline.Id;
-    }
+    private void OnSelectTimeline(Timeline? timeline) { if (timeline == null) return; Shell.Current!.FlyoutIsPresented = false; _scheduleService.ActiveTimelineId = timeline.Id; }
 }

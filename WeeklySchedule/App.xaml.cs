@@ -13,7 +13,6 @@ public partial class App : Application
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        // Резолвим AppShell через DI, чтобы передать ему зависимости
         var shell = _services.GetRequiredService<AppShell>();
         return new Window(shell);
     }

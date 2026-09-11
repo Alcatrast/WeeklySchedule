@@ -4,7 +4,6 @@ namespace WeeklySchedule.Utilities;
 
 public static class AtomicFile
 {
-    // Временный файл в той же папке: до успешной замены оригинал не меняется.
     public static void WriteAllText(string path, string contents)
     {
         var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

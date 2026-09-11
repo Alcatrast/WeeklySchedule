@@ -13,7 +13,6 @@
     <Color x:Key="MidnightBlue">#190649</Color>
     <Color x:Key="OffBlack">#1f1f1f</Color>
 
-    <!-- Semantic Colors -->
     <Color x:Key="Danger">#D32F2F</Color>
     <Color x:Key="Success">#2E7D32</Color>
     <Color x:Key="GradientStart">#4361EE</Color>
