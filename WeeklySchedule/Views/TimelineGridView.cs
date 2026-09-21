@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using Microsoft.Maui.Controls;
 using WeeklySchedule.Models;
 using WeeklySchedule.Utilities;
 
@@ -10,6 +9,7 @@ public class TimelineGridView : Grid
     private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
     private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
     private static readonly Converters.LessonTypeToColorConverter LessonColor = new();
+
     public static readonly BindableProperty TimelineLayoutDataProperty =
         BindableProperty.Create(nameof(TimelineLayoutData), typeof(TimelineLayout), typeof(TimelineGridView), propertyChanged: OnLayoutChanged);
 
@@ -32,7 +32,6 @@ public class TimelineGridView : Grid
         Children.Clear();
         RowDefinitions.Clear();
         ColumnDefinitions.Clear();
-
         var displayInfo = DeviceDisplay.MainDisplayInfo;
         double screenHeightDp = displayInfo.Height / displayInfo.Density;
 
@@ -54,7 +53,6 @@ public class TimelineGridView : Grid
 
         int minLessonMinutes = layout.Lessons.Count > 0 ? layout.Lessons.Min(l => l.TotalMinutes) : 15;
         if (minLessonMinutes <= 0) minLessonMinutes = 15;
-
         const double StandardMinCardHeight = 90.0;
         double dynamicPixelsPerMinute = StandardMinCardHeight / minLessonMinutes;
         double totalGridHeight = 0;
@@ -69,7 +67,6 @@ public class TimelineGridView : Grid
 
         int cols = Math.Max(1, layout.TotalColumns);
         for (int i = 0; i < cols; i++) ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-
         ColumnSpacing = 6;
         RowSpacing = 0;
         HeightRequest = totalGridHeight;
@@ -80,7 +77,6 @@ public class TimelineGridView : Grid
             double breakHeight = br.TotalMinutes * dynamicPixelsPerMinute;
             if (breakHeight > maxElementHeight) breakHeight = maxElementHeight;
             double lineOffset = (breakHeight / 2.0) - 1.0;
-
             var separatorLine = new BoxView
             {
                 Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
@@ -88,31 +84,52 @@ public class TimelineGridView : Grid
                 VerticalOptions = LayoutOptions.Start,
                 Margin = new Thickness(10, lineOffset, 10, 0)
             };
-
             SetRow((IView)separatorLine, br.StartRow);
             SetRowSpan((IView)separatorLine, br.RowSpan);
             SetColumn((IView)separatorLine, 0);
             SetColumnSpan((IView)separatorLine, cols);
-
             Children.Add(separatorLine);
         }
 
         var now = TimeContext.Now;
+        View? targetAnchor = null;
+        TimeSpan nowTime = now.TimeOfDay;
+        TimeSpan earliestFutureStart = TimeSpan.MaxValue;
+        bool isCurrentDay = now.Date == CurrentDate;
+
         foreach (var lp in layout.Lessons)
         {
             var lessonCard = CreateLessonCard(lp, now);
+
+            if (isCurrentDay)
+            {
+                bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime;
+
+                if (isCurrent)
+                {
+                    targetAnchor = lessonCard;
+                }
+                else if (targetAnchor == null && lp.Lesson.StartTime > nowTime && lp.Lesson.StartTime < earliestFutureStart)
+                {
+                    earliestFutureStart = lp.Lesson.StartTime;
+                    targetAnchor = lessonCard;
+                }
+            }
+
             double cardHeight = lp.TotalMinutes * dynamicPixelsPerMinute;
             if (cardHeight > maxElementHeight) cardHeight = maxElementHeight;
-
             lessonCard.HeightRequest = cardHeight;
             lessonCard.VerticalOptions = LayoutOptions.Fill;
-
             SetRow((IView)lessonCard, lp.StartRow);
             SetRowSpan((IView)lessonCard, lp.RowSpan);
             SetColumn((IView)lessonCard, lp.Column);
             SetColumnSpan((IView)lessonCard, lp.ColumnSpan);
-
             Children.Add(lessonCard);
+        }
+
+        if (targetAnchor != null)
+        {
+            targetAnchor.StyleId = "CurrentLessonAnchor";
         }
     }
 
@@ -145,8 +162,6 @@ public class TimelineGridView : Grid
         var tapGesture = new TapGestureRecognizer();
         tapGesture.Tapped += (s, e) => { if (BindingContext is ViewModels.DayViewModel vm && vm.EditLessonCommand.CanExecute(lp.Lesson)) vm.EditLessonCommand.Execute(lp.Lesson); };
         border.GestureRecognizers.Add(tapGesture);
-
-        if (isCurrent) border.StyleId = "CurrentLessonAnchor";
 
         return border;
     }

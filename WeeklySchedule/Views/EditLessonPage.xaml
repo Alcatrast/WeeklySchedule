@@ -55,7 +55,7 @@
                 </Border.GestureRecognizers>
                 <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
                     <Path Data="{StaticResource IconDeleteForever}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
-                    <Label Text="Удалить пару" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                    <Label Text="Удалить" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
             <Border x:Name="BorderSave" BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill">

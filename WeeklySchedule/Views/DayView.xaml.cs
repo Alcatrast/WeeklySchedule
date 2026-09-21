@@ -1,4 +1,3 @@
-using WeeklySchedule.Utilities;
 using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Views;
@@ -25,17 +24,14 @@ public partial class DayView : ContentView
     private void OnLayoutUpdated()
     {
         if (BindingContext is not DayViewModel vm) return;
-
         TimelineGrid.CurrentDate = vm.Date;
         TimelineGrid.TimelineLayoutData = vm.Layout;
-
         Dispatcher.Dispatch(() =>
         {
             var displayInfo = DeviceDisplay.MainDisplayInfo;
             double screenHeightDp = displayInfo.Height / displayInfo.Density;
             double scrollViewHeight = MainScroll.Height > 0 ? MainScroll.Height : screenHeightDp;
             double totalGridHeight = TimelineGrid.HeightRequest > 0 ? TimelineGrid.HeightRequest : 0;
-
             if (totalGridHeight <= scrollViewHeight)
                 MainScroll.ScrollToAsync(0, 0, false);
             else
@@ -46,9 +42,17 @@ public partial class DayView : ContentView
         });
     }
 
-    private void OnScrollToCurrentRequested()
+    private async void OnScrollToCurrentRequested()
     {
-        var anchor = TimelineGrid.Children.OfType<View>().FirstOrDefault(v => v.StyleId == "CurrentLessonAnchor");
-        if (anchor != null) MainScroll.ScrollToAsync(anchor, ScrollToPosition.Center, true);
+        for (int i = 0; i < 20; i++)
+        {
+            var anchor = TimelineGrid.Children.OfType<View>().FirstOrDefault(v => v.StyleId == "CurrentLessonAnchor");
+            if (anchor != null)
+            {
+                await MainScroll.ScrollToAsync(anchor, ScrollToPosition.Center, true);
+                return;
+            }
+            await Task.Delay(50);
+        }
     }
 }

@@ -102,9 +102,11 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            await ShowErrorAndCloseAsync("Ошибка при чтении файла. Убедитесь, что формат корректен.");
+            if (Application.Current?.Windows[0]?.Page is Page page)
+                await page.DisplayAlertAsync("Ошибка", $"Ошибка при чтении файла: {ex.Message}", "ОК");
+            await _navigationService.PopModalAsync();
         }
         finally
         {
@@ -169,9 +171,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
             await SafeClosePagesAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            await ShowAlertAsync("Ошибка", "Не удалось импортировать расписание.");
+            if (Application.Current?.Windows[0]?.Page is Page page)
+                await page.DisplayAlertAsync("Ошибка", $"Не удалось импортировать расписание: {ex.Message}", "ОК");
         }
         finally
         {

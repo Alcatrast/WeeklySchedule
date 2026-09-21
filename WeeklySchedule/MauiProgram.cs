@@ -1,8 +1,9 @@
-﻿using WeeklySchedule.Data;
+﻿using CommunityToolkit.Maui;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Services;
 using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
+
 
 namespace WeeklySchedule;
 
@@ -13,6 +14,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseMauiCommunityToolkit()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -21,14 +23,11 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<ILessonRepository, FileLessonRepository>();
         builder.Services.AddSingleton<ITimelineRepository, FileTimelineRepository>();
-        builder.Services.AddSingleton<IDataSeeder, DemoDataSeeder>();
-
         builder.Services.AddSingleton<IActiveScheduleService, ActiveScheduleService>();
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IFilePickerService, FilePickerService>();
         builder.Services.AddSingleton<INotificationNavigationService, NotificationNavigationService>();
         builder.Services.AddSingleton<INavigationService, NavigationService>();
-
         builder.Services.AddSingleton<IEditLessonPageFactory, EditLessonPageFactory>();
         builder.Services.AddSingleton<IGroupSelectionPageFactory, GroupSelectionPageFactory>();
 
@@ -41,6 +40,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<FlyoutViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();
+
         builder.Services.AddTransient<TimelinesViewModel>();
         builder.Services.AddTransient<EditTimelineViewModel>();
         builder.Services.AddTransient<GroupSelectionViewModel>();
@@ -50,6 +50,7 @@ public static class MauiProgram
         builder.Services.AddTransient<EditTimelinePage>();
         builder.Services.AddTransient<EditLessonPage>();
         builder.Services.AddTransient<GroupSelectionPage>();
+
         builder.Services.AddSingleton<AboutPage>();
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddSingleton<AppShell>();
@@ -57,6 +58,7 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
+
         return builder.Build();
     }
 }

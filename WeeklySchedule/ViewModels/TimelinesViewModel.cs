@@ -48,31 +48,43 @@ public partial class TimelinesViewModel : BaseViewModel
     {
         var version = ++_loadVersion;
         var all = (await _repository.GetAllAsync()).ToList();
+
         if (version != _loadVersion) return;
 
         _openLastTimeline = _settingsService.OpenLastTimeline;
         OnPropertyChanged(nameof(OpenLastTimeline));
         OnPropertyChanged(nameof(HighlightedTimelineId));
-        Timelines.Clear();
 
+        Timelines.Clear();
         foreach (var timeline in all) Timelines.Add(timeline);
     }
 
-    private void OnEditTimeline(Timeline? timeline)
+    private async void OnEditTimeline(Timeline? timeline)
     {
         if (timeline == null) return;
         OpenEditPage(timeline);
     }
 
-    private void OnCreateTimeline() => OpenEditPage(null);
+    private async void OnCreateTimeline()
+    {
+        OpenEditPage(null);
+    }
 
     private void OpenEditPage(Timeline? timeline)
     {
         SafeFireAndForget.Run(async () =>
         {
-            var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
-            editPage.Initialize(timeline);
-            await Shell.Current!.Navigation.PushModalAsync(editPage);
+            try
+            {
+                var editPage = _serviceProvider.GetRequiredService<Views.EditTimelinePage>();
+                editPage.Initialize(timeline);
+                await Shell.Current!.Navigation.PushModalAsync(editPage);
+            }
+            catch (Exception ex)
+            {
+                if (Application.Current?.Windows[0]?.Page is Page page)
+                    await page.DisplayAlertAsync("Ошибка навигации", $"Не удалось открыть страницу: {ex.Message}", "ОК");
+            }
         });
     }
 }

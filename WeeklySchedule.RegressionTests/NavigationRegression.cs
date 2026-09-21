@@ -1,4 +1,3 @@
-using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
@@ -91,11 +90,8 @@ static class NavigationRegression
         var f = new Fixture();
         f.Settings.OpenLastTimeline = false;
         f.Settings.StartupTimelineId = f.A.Id;
-        f.Seeder.Pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        var startup = f.VM.InitializeDataAsync();
         f.Nav.SetPendingNavigation(f.B.Id);
-        f.Seeder.Pending.SetResult();
-        await startup;
+        await f.VM.InitializeDataAsync();
         Check(f.Active.ActiveTimelineId == f.B.Id && f.VM.CurrentTimelineName == "B");
         f.VM.StopMonitor();
     }
@@ -118,7 +114,7 @@ static class NavigationRegression
         f.Timelines.Items.Remove(c);
         await vm.RefreshAsync();
         Check(vm.SelectedStartupTimeline == null);
-        Check(f.Settings.StartupTimelineId == c.Id); // Чтение не переписывает настройки.
+        Check(f.Settings.StartupTimelineId == c.Id);
     }
 
     private static async Task WarmNavigation()
@@ -164,7 +160,7 @@ static class NavigationRegression
         b.UpdateLayout(DateTime.Now, []);
         b.RequestScroll();
         Check(layouts == 1 && scrolls == 1);
-        subscription.SetSource(a); // Повторная загрузка того же View.
+        subscription.SetSource(a);
         a.RequestScroll();
         Check(scrolls == 2);
         return Task.CompletedTask;
@@ -182,8 +178,8 @@ static class NavigationRegression
         public TestActiveSchedule Active { get; } = new();
         public NotificationNavigationService Nav { get; } = new();
         public RecordingNotifications Notifications { get; } = new();
-        public TestSeeder Seeder { get; } = new();
         public MainViewModel VM { get; }
+
         public Fixture()
         {
             Application.Current = new Application();
@@ -193,7 +189,7 @@ static class NavigationRegression
             Lessons.Items[A.Id] = [LessonA];
             Lessons.Items[B.Id] = [LessonB];
             Active.ActiveTimelineId = A.Id;
-            VM = new MainViewModel(Lessons, Timelines, Seeder, Active, Settings, Nav, Notifications);
+            VM = new MainViewModel(Lessons, Timelines, Active, Settings, Nav, Notifications, null!);
         }
     }
 
@@ -224,12 +220,6 @@ static class NavigationRegression
         public Task AddAsync(Lesson lesson) => throw new NotSupportedException();
         public Task UpdateAsync(Lesson lesson) => throw new NotSupportedException();
         public Task DeleteAsync(Guid id) => throw new NotSupportedException();
-    }
-
-    private sealed class TestSeeder : IDataSeeder
-    {
-        public TaskCompletionSource? Pending { get; set; }
-        public Task SeedAsync(ILessonRepository lessons, ITimelineRepository timelines, IActiveScheduleService active) => Pending?.Task ?? Task.CompletedTask;
     }
 
     private sealed class RecordingNotifications : INotificationService

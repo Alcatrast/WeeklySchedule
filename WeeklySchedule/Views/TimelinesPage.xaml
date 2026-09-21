@@ -19,26 +19,24 @@
         </Grid>
 
         <ScrollView Grid.Row="1">
-            <ScrollView.GestureRecognizers>
-                <TapGestureRecognizer NumberOfTapsRequired="2" Command="{Binding CreateTimelineCommand}" />
-            </ScrollView.GestureRecognizers>
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Timelines}" Spacing="10" Padding="15">
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer NumberOfTapsRequired="2" Command="{Binding CreateTimelineCommand}" />
+                </VerticalStackLayout.GestureRecognizers>
+
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="models:Timeline">
                         <Border StrokeShape="RoundRectangle 12" Padding="20" StrokeThickness="2"
-                                BackgroundColor="{AppThemeBinding Light=#E1E1E1, Dark=#2C2C2C}"
-                                Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
+            BackgroundColor="{AppThemeBinding Light=#E1E1E1, Dark=#2C2C2C}"
+            Stroke="{AppThemeBinding Light=#ACACAC, Dark=#555555}">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer NumberOfTapsRequired="2" 
-                                  Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}" 
-                                  CommandParameter="{Binding .}" />
+                      Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference TimelinesPageRoot}}" 
+                      CommandParameter="{Binding .}" />
                             </Border.GestureRecognizers>
-
                             <Grid ColumnDefinitions="Auto, *">
-                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4">
-                                    <Path Data="{StaticResource IconStar}" 
-                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
+                                <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 10, 0" Spacing="4" InputTransparent="True">
+                                    <Path Data="{StaticResource IconStar}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"  Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
                                         <Path.Triggers>
                                             <DataTrigger TargetType="Path" Value="False">
                                                 <DataTrigger.Binding>
@@ -51,14 +49,12 @@
                                             </DataTrigger>
                                         </Path.Triggers>
                                     </Path>
-
                                     <Path Data="{StaticResource IconNotifications}" 
                       WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
                       Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
                       IsVisible="{Binding NotificationsEnabled}" />
                                 </HorizontalStackLayout>
-
-                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="{Binding Name}" FontSize="20" FontAttributes="Bold" VerticalOptions="Center" InputTransparent="True" />
                             </Grid>
                         </Border>
                     </DataTemplate>

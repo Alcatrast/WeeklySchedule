@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using WeeklySchedule.Core;
-using WeeklySchedule.Data;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
@@ -13,7 +12,6 @@ public partial class MainViewModel : BaseViewModel, IDisposable
 {
     private readonly ILessonRepository _repository;
     private readonly ITimelineRepository _timelineRepository;
-    private readonly IDataSeeder _seeder;
     private readonly IActiveScheduleService _scheduleService;
     private readonly TimelineScheduler _scheduler;
     private readonly ISettingsService _settingsService;
@@ -22,6 +20,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
     private readonly IEditLessonPageFactory _editLessonPageFactory;
 
     public Guid ActiveTimelineId => _scheduleService.ActiveTimelineId;
+
     private string _currentTimelineName = "Расписание";
     public string CurrentTimelineName { get => _currentTimelineName; set => SetProperty(ref _currentTimelineName, value); }
 
@@ -32,6 +31,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
     private int _notificationVersion;
 
     public ObservableCollection<DayViewModel> Days { get; } = [];
+
     private DayViewModel? _selectedDayVM;
     public DayViewModel? SelectedDayVM
     {
@@ -52,7 +52,6 @@ public partial class MainViewModel : BaseViewModel, IDisposable
     public MainViewModel(
         ILessonRepository repository,
         ITimelineRepository timelineRepository,
-        IDataSeeder seeder,
         IActiveScheduleService scheduleService,
         ISettingsService settingsService,
         INotificationNavigationService navService,
@@ -61,7 +60,6 @@ public partial class MainViewModel : BaseViewModel, IDisposable
     {
         _repository = repository;
         _timelineRepository = timelineRepository;
-        _seeder = seeder;
         _scheduleService = scheduleService;
         _settingsService = settingsService;
         _scheduler = new TimelineScheduler();
@@ -96,8 +94,9 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         _scheduler.OnTimeMarkerReached -= OnTimeMarkerReached;
         _scheduler.OnDayChanged -= OnDayChanged;
         AppEvents.DataChanged -= OnDataChanged;
-        if (Application.Current != null) Application.Current.RequestedThemeChanged -= OnThemeChanged;
+        Application.Current?.RequestedThemeChanged -= OnThemeChanged;
         _scheduler.Stop();
+        GC.SuppressFinalize(this);
     }
 
     public void CheckPendingNavigation() { if (!_startupCompleted) return; if (_navService.PendingTimelineId.HasValue) { _scheduleService.ActiveTimelineId = _navService.PendingTimelineId.Value; _navService.ClearPendingNavigation(); } }
@@ -108,7 +107,9 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         var timelineId = _scheduleService.ActiveTimelineId;
         var timeline = await _timelineRepository.GetByIdAsync(timelineId);
         var lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
+
         if (version != _loadVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+
         CurrentTimelineName = timeline?.Name ?? "Расписание";
         _allLessons = lessons;
         _scheduler.Initialize(_allLessons, TimeContext.Now.Date);
@@ -116,14 +117,27 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         await ScheduleAllNotificationsAsync();
     }
 
-    private void InitializeDays() { Days.Clear(); var today = TimeContext.Now.Date; for (int i = 0; i < 7; i++) { var day = new DayViewModel(today.AddDays(i), _scheduleService.ActiveTimelineId, _editLessonPageFactory); day.UpdateTitle(TimeContext.Now); Days.Add(day); } SelectedDayVM = Days[0]; }
-    private void RollDaysWindow() { var today = TimeContext.Now.Date; while (Days.Count > 0 && Days[0].Date < today) Days.RemoveAt(0); if (Days.Count == 0) { InitializeDays(); return; } while (Days.Count < 7) Days.Add(new DayViewModel(Days[^1].Date.AddDays(1), _scheduleService.ActiveTimelineId, _editLessonPageFactory)); if (SelectedDayVM == null || !Days.Contains(SelectedDayVM)) SelectedDayVM = Days[0]; }
+    private void InitializeDays() { Days.Clear(); var today = TimeContext.Now.Date; for (int i = 0; i < 7; i++) { var day = new DayViewModel(today.AddDays(i), _scheduleService, _editLessonPageFactory); day.UpdateTitle(TimeContext.Now); Days.Add(day); } SelectedDayVM = Days[0]; }
+    private void RollDaysWindow() { var today = TimeContext.Now.Date; while (Days.Count > 0 && Days[0].Date < today) Days.RemoveAt(0); if (Days.Count == 0) { InitializeDays(); return; } while (Days.Count < 7) Days.Add(new DayViewModel(Days[^1].Date.AddDays(1), _scheduleService, _editLessonPageFactory)); if (SelectedDayVM == null || !Days.Contains(SelectedDayVM)) SelectedDayVM = Days[0]; }
 
     public async Task InitializeDataAsync()
     {
         await _initGate.WaitAsync();
-        try { if (!_startupCompleted) { await _seeder.SeedAsync(_repository, _timelineRepository, _scheduleService); await ApplyStartupTimelineLogicAsync(); _startupCompleted = true; } CheckPendingNavigation(); await EnsureDefaultTimelineExistsAsync(); await ReloadActiveTimelineAsync(); }
-        finally { _initGate.Release(); }
+        try
+        {
+            if (!_startupCompleted)
+            {
+                await ApplyStartupTimelineLogicAsync();
+                _startupCompleted = true;
+            }
+            CheckPendingNavigation();
+            await EnsureDefaultTimelineExistsAsync();
+            await ReloadActiveTimelineAsync();
+        }
+        finally
+        {
+            _initGate.Release();
+        }
     }
 
     private async Task ApplyStartupTimelineLogicAsync() { if (!_settingsService.OpenLastTimeline) { var startupId = _settingsService.StartupTimelineId; var timeline = await _timelineRepository.GetByIdAsync(startupId); if (timeline == null) { var all = await _timelineRepository.GetAllAsync(); var first = all.FirstOrDefault(); if (first != null) { _scheduleService.ActiveTimelineId = first.Id; _settingsService.StartupTimelineId = first.Id; } } else { _scheduleService.ActiveTimelineId = timeline.Id; } } }
@@ -131,6 +145,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
 
     private void UpdateAllTitles() { var now = TimeContext.Now; foreach (var dayVM in Days) dayVM.UpdateTitle(now); }
     private void UpdateAllDays() { var now = TimeContext.Now; foreach (var dayVM in Days) dayVM.UpdateLayout(now, _allLessons); }
+
     public void StopMonitor() => _scheduler.Stop();
 
     public async Task ScheduleAllNotificationsAsync()
@@ -138,12 +153,16 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         var version = ++_notificationVersion; var timelineId = _scheduleService.ActiveTimelineId;
         var timeline = await _timelineRepository.GetByIdAsync(timelineId);
         var lessons = (await _repository.GetByTimelineIdAsync(timelineId)).ToList();
+
         if (version != _notificationVersion || timelineId != _scheduleService.ActiveTimelineId) return;
+
         _notificationService.CancelAllNotifications();
         if (timeline == null || !timeline.NotificationsEnabled) return;
+
         bool notifyAtStart = _settingsService.NotifyAtStart;
         var activeReminders = _settingsService.NotifyBeforeList.Where(r => r.IsActive && r.MinutesBefore >= 0 && r.MinutesBefore <= 7 * 24 * 60).ToList();
         if (!notifyAtStart && activeReminders.Count == 0) return;
+
         var now = TimeContext.Now;
         foreach (var lesson in lessons)
         {
