@@ -4,7 +4,7 @@ using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.Views;
 
-public class TimelineGridView : Grid
+public partial class TimelineGridView : Grid
 {
     private static readonly Converters.SeparatorTypeToColorConverter SeparatorColor = new();
     private static readonly Converters.SeparatorTypeToHeightConverter SeparatorHeight = new();
@@ -127,10 +127,7 @@ public class TimelineGridView : Grid
             Children.Add(lessonCard);
         }
 
-        if (targetAnchor != null)
-        {
-            targetAnchor.StyleId = "CurrentLessonAnchor";
-        }
+        targetAnchor?.StyleId = "CurrentLessonAnchor";
     }
 
     private Border CreateLessonCard(LessonPlacement lp, DateTime now)

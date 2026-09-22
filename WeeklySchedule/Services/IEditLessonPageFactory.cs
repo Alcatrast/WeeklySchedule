@@ -10,17 +10,12 @@ public interface IEditLessonPageFactory
     void NotifyClosed();
 }
 
-public class EditLessonPageFactory : IEditLessonPageFactory
+public class EditLessonPageFactory(IServiceProvider serviceProvider) : IEditLessonPageFactory
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceProvider _serviceProvider = serviceProvider;
     private bool _isOpen;
 
     public bool IsOpen => _isOpen;
-
-    public EditLessonPageFactory(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
 
     public async Task OpenAsync(Lesson? lesson = null, DayOfWeek? preselectedDay = null, TimeSpan? preselectedTime = null, Guid? activeTimelineId = null)
     {

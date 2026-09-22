@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui;
+using Microsoft.Extensions.Logging;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Services;
 using WeeklySchedule.ViewModels;

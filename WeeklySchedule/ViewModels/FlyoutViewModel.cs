@@ -46,6 +46,7 @@ public partial class FlyoutViewModel : BaseViewModel, IDisposable
     {
         _scheduleService.ActiveTimelineChanged -= OnActiveTimelineChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        GC.SuppressFinalize(this);
     }
 
     public async Task LoadTimelinesAsync()

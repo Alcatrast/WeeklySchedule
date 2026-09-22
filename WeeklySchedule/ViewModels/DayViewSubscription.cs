@@ -1,5 +1,5 @@
 namespace WeeklySchedule.ViewModels;
-public sealed class DayViewSubscription(Action onLayout, Action onScroll) : IDisposable
+public sealed partial class DayViewSubscription(Action onLayout, Action onScroll) : IDisposable
 {
     private DayViewModel? _source;
 

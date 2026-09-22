@@ -48,7 +48,7 @@ public partial class SettingsViewModel : BaseViewModel
     private bool _notifyAtStart;
     public bool NotifyAtStart { get => _notifyAtStart; set { if (SetProperty(ref _notifyAtStart, value)) _settingsService.NotifyAtStart = value; } }
 
-    public ObservableCollection<NotificationReminderViewModel> ReminderItems { get; } = new();
+    public ObservableCollection<NotificationReminderViewModel> ReminderItems { get; } = [];
     public ICommand ToggleOpenLastCommand { get; }
     public ICommand RequestPermissionCommand { get; }
     public ICommand AddReminderCommand { get; }
@@ -109,7 +109,7 @@ public partial class SettingsViewModel : BaseViewModel
 
     private void SaveReminders()
     {
-        _settingsService.NotifyBeforeList = ReminderItems.Select(i => new NotificationReminder { MinutesBefore = i.Minutes, IsActive = i.IsActive }).ToList();
+        _settingsService.NotifyBeforeList = [.. ReminderItems.Select(i => new NotificationReminder { MinutesBefore = i.Minutes, IsActive = i.IsActive })];
     }
 
     public async Task RefreshAsync()
@@ -141,16 +141,10 @@ public partial class SettingsViewModel : BaseViewModel
     }
 }
 
-public class NotificationReminderViewModel : BaseViewModel
+public partial class NotificationReminderViewModel(NotificationReminder model, Action onChanged) : BaseViewModel
 {
-    private readonly NotificationReminder _model;
-    private readonly Action _onChanged;
-
-    public NotificationReminderViewModel(NotificationReminder model, Action onChanged)
-    {
-        _model = model;
-        _onChanged = onChanged;
-    }
+    private readonly NotificationReminder _model = model;
+    private readonly Action _onChanged = onChanged;
 
     public int Minutes
     {
