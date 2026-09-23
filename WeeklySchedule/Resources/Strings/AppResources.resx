@@ -96,7 +96,7 @@
 	<data name="ExportSuccessTitle" xml:space="preserve"><value>Export completed</value></data>
 	<data name="FileReadError" xml:space="preserve"><value>Error reading file: {0}</value></data>
 	<data name="FreeDay" xml:space="preserve"><value>Free day</value></data>
-	<data name="ImportCompleteMsg" xml:space="preserve"><value>Imported {0} lessons.\nPlease verify the data.</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>Imported {0} lessons.&#x0a;Please verify the data.</value></data>
 	<data name="ImportError" xml:space="preserve"><value>Failed to import: {0}</value></data>
 	<data name="ImportScheduleError" xml:space="preserve"><value>Failed to import schedule: {0}</value></data>
 	<data name="ImportSectionEdit" xml:space="preserve"><value>Supplement with import</value></data>

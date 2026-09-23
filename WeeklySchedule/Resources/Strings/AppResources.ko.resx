@@ -96,7 +96,7 @@
 	<data name="ExportSuccessTitle" xml:space="preserve"><value>내보내기 완료</value></data>
 	<data name="FileReadError" xml:space="preserve"><value>파일 읽기 오류: {0}</value></data>
 	<data name="FreeDay" xml:space="preserve"><value>쉬는 날</value></data>
-	<data name="ImportCompleteMsg" xml:space="preserve"><value>{0}개 수업을 가져왔습니다.\n데이터 정확성을 확인하십시오.</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>{0}개 수업을 가져왔습니다.&#x0a;데이터 정확성을 확인하십시오.</value></data>
 	<data name="ImportError" xml:space="preserve"><value>가져오기 실패: {0}</value></data>
 	<data name="ImportScheduleError" xml:space="preserve"><value>시간표를 가져올 수 없습니다: {0}</value></data>
 	<data name="ImportSectionEdit" xml:space="preserve"><value>가져오기로 추가</value></data>

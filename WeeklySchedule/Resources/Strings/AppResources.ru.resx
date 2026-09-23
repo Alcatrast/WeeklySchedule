@@ -96,7 +96,7 @@
 	<data name="ExportSuccessTitle" xml:space="preserve"><value>Экспорт завершён</value></data>
 	<data name="FileReadError" xml:space="preserve"><value>Ошибка при чтении файла: {0}</value></data>
 	<data name="FreeDay" xml:space="preserve"><value>Свободный день</value></data>
-	<data name="ImportCompleteMsg" xml:space="preserve"><value>Импортировано {0} пар.\nПроверьте корректность данных.</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>Импортировано {0} пар.&#x0a;Проверьте корректность данных.</value></data>
 	<data name="ImportError" xml:space="preserve"><value>Не удалось импортировать: {0}</value></data>
 	<data name="ImportScheduleError" xml:space="preserve"><value>Не удалось импортировать расписание: {0}</value></data>
 	<data name="ImportSectionEdit" xml:space="preserve"><value>Дополнить импортом</value></data>

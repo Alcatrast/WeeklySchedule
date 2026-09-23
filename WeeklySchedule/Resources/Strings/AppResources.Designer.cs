@@ -394,7 +394,8 @@ namespace WeeklySchedule.Resources.Strings {
         }
         
         /// <summary>
-        ///   Ищет локализованную строку, похожую на Imported {0} lessons.\nPlease verify the data..
+        ///   Ищет локализованную строку, похожую на Imported {0} lessons.
+        ///Please verify the data..
         /// </summary>
         public static string ImportCompleteMsg {
             get {

@@ -96,7 +96,7 @@
 	<data name="ExportSuccessTitle" xml:space="preserve"><value>导出完成</value></data>
 	<data name="FileReadError" xml:space="preserve"><value>读取文件时出错: {0}</value></data>
 	<data name="FreeDay" xml:space="preserve"><value>无课日</value></data>
-	<data name="ImportCompleteMsg" xml:space="preserve"><value>已导入 {0} 门课程。\n请检查数据是否正确。</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>已导入 {0} 门课程。&#x0a;请检查数据是否正确。</value></data>
 	<data name="ImportError" xml:space="preserve"><value>导入失败: {0}</value></data>
 	<data name="ImportScheduleError" xml:space="preserve"><value>无法导入课表: {0}</value></data>
 	<data name="ImportSectionEdit" xml:space="preserve"><value>通过导入补充</value></data>

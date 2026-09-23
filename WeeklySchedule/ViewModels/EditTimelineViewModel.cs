@@ -20,13 +20,26 @@ public partial class EditTimelineViewModel : BaseViewModel
     private readonly INavigationService _navigationService;
 
     private Timeline _timeline = null!;
-    private bool _isEditMode;
     private bool _isProcessing;
     private bool _isWscProcessing;
+
     private static readonly JsonSerializerOptions _exportJsonOptions = new() { WriteIndented = true };
     private static readonly JsonSerializerOptions _importJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public string ImportSectionTitle => _isEditMode ? AppResources.ImportSectionEdit : AppResources.ImportSectionNew;
+    private bool _isEditMode;
+    public bool IsEditMode
+    {
+        get => _isEditMode;
+        set
+        {
+            if (SetProperty(ref _isEditMode, value))
+            {
+                OnPropertyChanged(nameof(ImportSectionTitle));
+            }
+        }
+    }
+
+    public string ImportSectionTitle => IsEditMode ? AppResources.ImportSectionEdit : AppResources.ImportSectionNew;
 
     private bool _isImporting;
     public bool IsImporting
@@ -48,9 +61,6 @@ public partial class EditTimelineViewModel : BaseViewModel
 
     private string _title = AppResources.NewTimeline;
     public string Title { get => _title; set => SetProperty(ref _title, value); }
-
-    private bool _isEditModeProp;
-    public bool IsEditMode { get => _isEditModeProp; set => SetProperty(ref _isEditModeProp, value); }
 
     private string _name = string.Empty;
     public string Name { get => _name; set => SetProperty(ref _name, value); }
@@ -103,6 +113,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         DeleteCommand = new Command(() => RunOperation(DeleteAsync));
         CancelCommand = new Command(() => RunOperation(_navigationService.PopModalAsync));
         ToggleNotificationsCommand = new Command(() => NotificationsEnabled = !NotificationsEnabled);
+
         SelectExcelFileCommand = new Command(() => RunOperation(HandleImportAsync));
         ExportWscCommand = new Command(() => RunOperation(ExportWscAsync));
         ImportWscCommand = new Command(() => RunOperation(ImportWscAsync));
@@ -110,17 +121,14 @@ public partial class EditTimelineViewModel : BaseViewModel
 
     public void Initialize(Timeline? timeline)
     {
-        _isEditMode = timeline != null;
         _timeline = timeline ?? new Timeline();
         _name = _timeline.Name;
-        _isEditModeProp = _isEditMode;
-        _title = _isEditMode ? AppResources.EditTimeline : AppResources.NewTimeline;
+        IsEditMode = timeline != null;
+        _title = IsEditMode ? AppResources.EditTimeline : AppResources.NewTimeline;
         _isStartupTimeline = _settingsService.StartupTimelineId == _timeline.Id;
         _notificationsEnabled = _timeline.NotificationsEnabled;
 
         OnPropertyChanged(nameof(Title));
-        OnPropertyChanged(nameof(IsEditMode));
-        OnPropertyChanged(nameof(ImportSectionTitle));
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(IsStartupTimeline));
         OnPropertyChanged(nameof(NotificationsEnabled));
@@ -155,7 +163,7 @@ public partial class EditTimelineViewModel : BaseViewModel
             var file = await _filePickerService.PickExcelFileAsync();
             if (file == null) return;
             _timeline.Name = (Name ?? string.Empty).Trim();
-            ImportRequested?.Invoke(file.FullPath, _timeline, _isEditMode);
+            ImportRequested?.Invoke(file.FullPath, _timeline, IsEditMode);
         }
         finally
         {
@@ -173,9 +181,13 @@ public partial class EditTimelineViewModel : BaseViewModel
                 await page.DisplayAlertAsync(AppResources.Error, AppResources.EnterTimelineName, AppResources.OK);
             return;
         }
+
         _timeline.Name = Name.Trim();
-        if (_isEditMode) await _repository.UpdateAsync(_timeline);
-        else await _repository.AddAsync(_timeline);
+
+        if (IsEditMode)
+            await _repository.UpdateAsync(_timeline);
+        else
+            await _repository.AddAsync(_timeline);
 
         ApplyStartupSelection();
         AppEvents.NotifyDataChanged();
@@ -194,19 +206,25 @@ public partial class EditTimelineViewModel : BaseViewModel
             _settingsService.StartupTimelineId = Guid.Empty;
         }
     }
+
     public void OnImportCompleted()
     {
-        if (!_isEditMode)
+        if (!IsEditMode)
         {
-            _isEditMode = true;
-            IsEditMode = true;
-
-            Name = _timeline.Name;
-            Title = AppResources.EditTimeline;
-            OnPropertyChanged(nameof(ImportSectionTitle));
+            SafeFireAndForget.Run(async () =>
+            {
+                await _repository.AddAsync(_timeline);
+                IsEditMode = true;
+                Name = _timeline.Name;
+                Title = AppResources.EditTimeline;
+                ApplyStartupSelection();
+                AppEvents.NotifyDataChanged();
+            });
         }
-
-        ApplyStartupSelection();
+        else
+        {
+            ApplyStartupSelection();
+        }
     }
 
     private async Task DeleteAsync()
@@ -278,15 +296,15 @@ public partial class EditTimelineViewModel : BaseViewModel
             using var stream = await file.OpenReadAsync();
             using var reader = new StreamReader(stream, Encoding.UTF8);
             var json = await reader.ReadToEndAsync();
-
             var importData = JsonSerializer.Deserialize<WscExportData>(json, _importJsonOptions);
+
             if (importData == null || importData.Lessons == null)
             {
                 await ShowPageAlertAsync(AppResources.Error, AppResources.ReadError);
                 return;
             }
 
-            if (_isEditMode)
+            if (IsEditMode)
             {
                 foreach (var lesson in importData.Lessons)
                 {
@@ -308,12 +326,9 @@ public partial class EditTimelineViewModel : BaseViewModel
                 var timelineName = Path.GetFileNameWithoutExtension(file.FileName);
                 _timeline.Name = timelineName;
                 await _repository.AddAsync(_timeline);
-
-                _isEditMode = true;
                 IsEditMode = true;
                 Name = timelineName;
                 Title = AppResources.EditTimeline;
-                OnPropertyChanged(nameof(ImportSectionTitle));
 
                 foreach (var lesson in importData.Lessons)
                 {
@@ -330,6 +345,7 @@ public partial class EditTimelineViewModel : BaseViewModel
                     await _lessonRepo.AddAsync(newLesson);
                 }
             }
+
             ApplyStartupSelection();
             AppEvents.NotifyDataChanged();
             await ShowPageAlertAsync(AppResources.ImportSuccessTitle, string.Format(AppResources.ImportSuccessMsg, importData.Lessons.Count));
