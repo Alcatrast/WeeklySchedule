@@ -5,6 +5,7 @@ namespace WeeklySchedule.Services;
 public interface ISettingsService
 {
     AppTheme Theme { get; set; }
+    AppLanguage SelectedLanguage { get; set; }
     int DefaultLessonDuration { get; set; }
     bool OpenLastTimeline { get; set; }
     Guid StartupTimelineId { get; set; }

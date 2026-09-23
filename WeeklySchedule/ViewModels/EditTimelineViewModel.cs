@@ -4,6 +4,7 @@ using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
@@ -25,7 +26,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     private static readonly JsonSerializerOptions _exportJsonOptions = new() { WriteIndented = true };
     private static readonly JsonSerializerOptions _importJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public string ImportSectionTitle => _isEditMode ? "Дополнить импортом" : "Импорт";
+    public string ImportSectionTitle => _isEditMode ? AppResources.ImportSectionEdit : AppResources.ImportSectionNew;
 
     private bool _isImporting;
     public bool IsImporting
@@ -45,7 +46,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     public ICommand ExportWscCommand { get; }
     public ICommand ImportWscCommand { get; }
 
-    private string _title = "Новый таймлайн";
+    private string _title = AppResources.NewTimeline;
     public string Title { get => _title; set => SetProperty(ref _title, value); }
 
     private bool _isEditModeProp;
@@ -113,7 +114,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         _timeline = timeline ?? new Timeline();
         _name = _timeline.Name;
         _isEditModeProp = _isEditMode;
-        _title = _isEditMode ? "Редактирование таймлайна" : "Новый таймлайн";
+        _title = _isEditMode ? AppResources.EditTimeline : AppResources.NewTimeline;
         _isStartupTimeline = _settingsService.StartupTimelineId == _timeline.Id;
         _notificationsEnabled = _timeline.NotificationsEnabled;
 
@@ -134,7 +135,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         {
             System.Diagnostics.Debug.WriteLine(ex);
             if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync("Ошибка", $"Не удалось завершить операцию: {ex.Message}", "ОК");
+                await page.DisplayAlertAsync(AppResources.Error, string.Format(AppResources.OperationError, ex.Message), AppResources.OK);
         }
         finally { _isProcessing = false; }
     });
@@ -169,7 +170,7 @@ public partial class EditTimelineViewModel : BaseViewModel
         if (string.IsNullOrWhiteSpace(Name))
         {
             if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync("Ошибка", "Введите название таймлайна", "ОК");
+                await page.DisplayAlertAsync(AppResources.Error, AppResources.EnterTimelineName, AppResources.OK);
             return;
         }
         _timeline.Name = Name.Trim();
@@ -201,8 +202,7 @@ public partial class EditTimelineViewModel : BaseViewModel
             IsEditMode = true;
 
             Name = _timeline.Name;
-            Title = "Редактирование таймлайна"; // <-- ДОБАВЛЕНО
-
+            Title = AppResources.EditTimeline;
             OnPropertyChanged(nameof(ImportSectionTitle));
         }
 
@@ -213,7 +213,7 @@ public partial class EditTimelineViewModel : BaseViewModel
     {
         bool confirm = false;
         if (Application.Current?.Windows[0]?.Page is Page page)
-            confirm = await page.DisplayAlertAsync("Подтверждение", "Удалить этот таймлайн?", "Да", "Отмена");
+            confirm = await page.DisplayAlertAsync(AppResources.ConfirmDelete, AppResources.ConfirmDeleteTimeline, AppResources.Yes, AppResources.Cancel);
 
         if (confirm)
         {
@@ -247,12 +247,12 @@ public partial class EditTimelineViewModel : BaseViewModel
             var success = await _filePickerService.SaveFileAsync(fileName, bytes);
             if (success)
             {
-                await ShowPageAlertAsync("Экспорт завершён", $"Таймлайн «{exportData.TimelineName}» экспортирован ({lessons.Count} пар).");
+                await ShowPageAlertAsync(AppResources.ExportSuccessTitle, string.Format(AppResources.ExportSuccessMsg, exportData.TimelineName, lessons.Count));
             }
         }
         catch (Exception ex)
         {
-            await ShowPageAlertAsync("Ошибка", $"Не удалось экспортировать: {ex.Message}");
+            await ShowPageAlertAsync(AppResources.Error, string.Format(AppResources.ExportError, ex.Message));
         }
         finally
         {
@@ -271,7 +271,7 @@ public partial class EditTimelineViewModel : BaseViewModel
 
             if (!file.FileName.EndsWith(".wsc", StringComparison.OrdinalIgnoreCase))
             {
-                await ShowPageAlertAsync("Ошибка", "Выбранный файл не является файлом .wsc");
+                await ShowPageAlertAsync(AppResources.Error, AppResources.NotWscError);
                 return;
             }
 
@@ -282,7 +282,7 @@ public partial class EditTimelineViewModel : BaseViewModel
             var importData = JsonSerializer.Deserialize<WscExportData>(json, _importJsonOptions);
             if (importData == null || importData.Lessons == null)
             {
-                await ShowPageAlertAsync("Ошибка", "Не удалось прочитать данные из файла.");
+                await ShowPageAlertAsync(AppResources.Error, AppResources.ReadError);
                 return;
             }
 
@@ -312,8 +312,7 @@ public partial class EditTimelineViewModel : BaseViewModel
                 _isEditMode = true;
                 IsEditMode = true;
                 Name = timelineName;
-                Title = "Редактирование таймлайна";
-
+                Title = AppResources.EditTimeline;
                 OnPropertyChanged(nameof(ImportSectionTitle));
 
                 foreach (var lesson in importData.Lessons)
@@ -333,11 +332,11 @@ public partial class EditTimelineViewModel : BaseViewModel
             }
             ApplyStartupSelection();
             AppEvents.NotifyDataChanged();
-            await ShowPageAlertAsync("Импорт завершён", $"Импортировано {importData.Lessons.Count} пар.");
+            await ShowPageAlertAsync(AppResources.ImportSuccessTitle, string.Format(AppResources.ImportSuccessMsg, importData.Lessons.Count));
         }
         catch (Exception ex)
         {
-            await ShowPageAlertAsync("Ошибка", $"Не удалось импортировать: {ex.Message}");
+            await ShowPageAlertAsync(AppResources.Error, string.Format(AppResources.ImportError, ex.Message));
         }
         finally
         {
@@ -349,6 +348,6 @@ public partial class EditTimelineViewModel : BaseViewModel
     {
         var windows = Application.Current?.Windows;
         var page = (windows != null && windows.Count > 0) ? windows[0].Page : null;
-        return page?.DisplayAlertAsync(title, message, "ОК") ?? Task.CompletedTask;
+        return page?.DisplayAlertAsync(title, message, AppResources.OK) ?? Task.CompletedTask;
     }
 }

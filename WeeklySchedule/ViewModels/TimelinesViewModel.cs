@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
@@ -83,7 +84,7 @@ public partial class TimelinesViewModel : BaseViewModel
             catch (Exception ex)
             {
                 if (Application.Current?.Windows[0]?.Page is Page page)
-                    await page.DisplayAlertAsync("Ошибка навигации", $"Не удалось открыть страницу: {ex.Message}", "ОК");
+                    await page.DisplayAlertAsync(AppResources.NavigationError, string.Format(AppResources.OpenPageError, ex.Message), AppResources.OK);
             }
         });
     }

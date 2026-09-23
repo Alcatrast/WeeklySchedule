@@ -5,6 +5,7 @@ using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Extensions;
 using WeeklySchedule.Messaging;
 using WeeklySchedule.Models;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
@@ -74,7 +75,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
 
             if (groups.Count == 0)
             {
-                await ShowErrorAndCloseAsync("Не удалось найти ни одной группы в файле.");
+                await ShowErrorAndCloseAsync(AppResources.NoGroupsError);
                 return;
             }
 
@@ -105,7 +106,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         catch (Exception ex)
         {
             if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync("Ошибка", $"Ошибка при чтении файла: {ex.Message}", "ОК");
+                await page.DisplayAlertAsync(AppResources.Error, string.Format(AppResources.FileReadError, ex.Message), AppResources.OK);
             await _navigationService.PopModalAsync();
         }
         finally
@@ -153,8 +154,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
             if (!_timelineExists)
             {
                 if (string.IsNullOrWhiteSpace(_timeline.Name))
-                    _timeline.Name = $"{group.FullGroupName} ({DateTime.Now:dd.MM.yyyy})";
-                await _timelineRepo.AddAsync(_timeline);
+                {
+                    var culture = System.Globalization.CultureInfo.CurrentCulture;
+                    _timeline.Name = $"{group.FullGroupName} ({DateTime.Now.ToString("d", culture)})";
+                }
             }
 
             foreach (var lesson in lessons)
@@ -167,14 +170,14 @@ public partial class GroupSelectionViewModel : BaseViewModel
             _onImported?.Invoke();
             AppEvents.NotifyDataChanged();
 
-            await ShowAlertAsync("Импорт завершён", $"Импортировано {lessons.Count} пар.\nПроверьте корректность данных.");
+            await ShowAlertAsync(AppResources.ImportSuccessTitle, string.Format(AppResources.ImportCompleteMsg, lessons.Count));
 
             await SafeClosePagesAsync();
         }
         catch (Exception ex)
         {
             if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync("Ошибка", $"Не удалось импортировать расписание: {ex.Message}", "ОК");
+                await page.DisplayAlertAsync(AppResources.Error, string.Format(AppResources.ImportScheduleError, ex.Message), AppResources.OK);
         }
         finally
         {
@@ -189,7 +192,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         var windows = Application.Current?.Windows;
         var page = (windows != null && windows.Count > 0) ? windows[0].Page : null;
 
-        return page?.DisplayAlertAsync(title, message, "OK") ?? Task.CompletedTask;
+        return page?.DisplayAlertAsync(title, message, AppResources.OK) ?? Task.CompletedTask;
     }
 
     private async Task SafeClosePagesAsync()
@@ -205,7 +208,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
     {
         try
         {
-            await ShowAlertAsync("Ошибка", message);
+            await ShowAlertAsync(AppResources.Error, message);
             await _navigationService.PopModalAsync();
         }
         catch { }

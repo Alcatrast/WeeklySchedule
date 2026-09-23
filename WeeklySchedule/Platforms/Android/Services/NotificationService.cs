@@ -3,6 +3,7 @@ using global::Android.Content;
 using global::Android.OS;
 using global::AndroidX.Core.App;
 using WeeklySchedule.Models;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 using Application = global::Android.App.Application;
@@ -12,8 +13,7 @@ namespace WeeklySchedule.Platforms.Android.Services;
 public class NotificationService : INotificationService
 {
     private const string ChannelId = "weekly_schedule_channel";
-    private const string ChannelName = "Расписание";
-
+    private string ChannelName = AppResources.Schedule; //must be const?
     internal const string ActionShow = "com.weeklyschedule.SHOW_NOTIFICATION";
 
     private Context Context => Application.Context;

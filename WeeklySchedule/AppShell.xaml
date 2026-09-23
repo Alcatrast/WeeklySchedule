@@ -4,6 +4,7 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:local="clr-namespace:WeeklySchedule"
        xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
+       xmlns:strings="clr-namespace:WeeklySchedule.Resources.Strings"
        Title="WeeklySchedule"
        FlyoutBehavior="Flyout">
     <Shell.FlyoutContent>
@@ -18,23 +19,23 @@
                                 <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}" 
-                                  CommandParameter="{Binding Timeline}" />
+                                            CommandParameter="{Binding Timeline}" />
                                     </Border.GestureRecognizers>
                                     <Grid ColumnDefinitions="Auto, *">
                                         <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4">
                                             <Path Data="{StaticResource IconStar}" 
-                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
-                      IsVisible="{Binding IsHighlighted}" />
+                                                WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+                                                Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                                                IsVisible="{Binding IsHighlighted}" />
 
                                             <Path Data="{StaticResource IconNotifications}" 
-                      WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                      Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
-                      IsVisible="{Binding NotificationsEnabled}" />
+                                                WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
+                                                Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                                                IsVisible="{Binding NotificationsEnabled}" />
                                         </HorizontalStackLayout>
 
                                         <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-                   TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
+                                            TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
                                             <Label.Triggers>
                                                 <DataTrigger TargetType="Label" Binding="{Binding IsActive}" Value="True">
                                                     <Setter Property="FontAttributes" Value="Bold" />
@@ -46,7 +47,7 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                         <CollectionView.EmptyView>
-                            <Label Text="Нет созданных таймлайнов" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" Margin="0,20,0,0" />
+                            <Label Text="{x:Static strings:AppResources.NoTimelines}" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" Margin="0,20,0,0" />
                         </CollectionView.EmptyView>
                     </CollectionView>
                 </VerticalStackLayout>
@@ -65,8 +66,8 @@
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
                               VerticalOptions="Center" Margin="15, 12, 10, 12"
                               Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1" Text="Таймлайны" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-       TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Timelines}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
+                            TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
                     </Grid>
                 </Border>
 
@@ -80,7 +81,7 @@
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
                               VerticalOptions="Center" Margin="15, 12, 10, 12"
                               Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1" Text="Настройки" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
+                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Settings}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
                                TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
                     </Grid>
                 </Border>
@@ -95,7 +96,7 @@
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
                               VerticalOptions="Center" Margin="15, 12, 10, 12"
                               Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1" Text="О приложении" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
+                        <Label Grid.Column="1"  Text="{x:Static strings:AppResources.AboutTitle}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
                                TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
                     </Grid>
                 </Border>

@@ -1,0 +1,170 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+		<xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+		<xsd:element name="root" msdata:IsDataSet="true">
+			<xsd:complexType>
+				<xsd:choice maxOccurs="unbounded">
+					<xsd:element name="metadata">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" />
+							</xsd:sequence>
+							<xsd:attribute name="name" use="required" type="xsd:string" />
+							<xsd:attribute name="type" type="xsd:string" />
+							<xsd:attribute name="mimetype" type="xsd:string" />
+							<xsd:attribute ref="xml:space" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="assembly">
+						<xsd:complexType>
+							<xsd:attribute name="alias" type="xsd:string" />
+							<xsd:attribute name="name" type="xsd:string" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="data">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+								<xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+							<xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+							<xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+							<xsd:attribute ref="xml:space" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="resheader">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" />
+						</xsd:complexType>
+					</xsd:element>
+				</xsd:choice>
+			</xsd:complexType>
+		</xsd:element>
+	</xsd:schema>
+	<resheader name="resmimetype">
+		<value>text/microsoft-resx</value>
+	</resheader>
+	<resheader name="version">
+		<value>2.0</value>
+	</resheader>
+	<resheader name="reader">
+		<value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+	<resheader name="writer">
+		<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+
+	<data name="About" xml:space="preserve"><value>정보</value></data>
+	<data name="AboutDesc" xml:space="preserve"><value>일정 관리 애플리케이션입니다.</value></data>
+	<data name="AboutDev" xml:space="preserve"><value>당신의 어머니를 위해 개발되었습니다.</value></data>
+	<data name="AboutTitle" xml:space="preserve"><value>정보</value></data>
+	<data name="AllowNotifications" xml:space="preserve"><value>알림 허용</value></data>
+	<data name="AppLanguage" xml:space="preserve"><value>애플리케이션 언어</value></data>
+	<data name="AppName" xml:space="preserve"><value>Weekly</value></data>
+	<data name="Cancel" xml:space="preserve"><value>취소</value></data>
+	<data name="CloseError" xml:space="preserve"><value>페이지를 닫을 수 없습니다: {0}</value></data>
+	<data name="ConfirmDelete" xml:space="preserve"><value>이 수업을 삭제하시겠습니까?</value></data>
+	<data name="ConfirmDeleteTimeline" xml:space="preserve"><value>이 일정을 삭제하시겠습니까?</value></data>
+	<data name="DarkTheme" xml:space="preserve"><value>다크 모드</value></data>
+	<data name="DayAfterTomorrow" xml:space="preserve"><value>모레</value></data>
+	<data name="DayOfWeek" xml:space="preserve"><value>요일</value></data>
+	<data name="DefaultDuration" xml:space="preserve"><value>기본 수업 시간 (분)</value></data>
+	<data name="DefaultLessonTitle" xml:space="preserve"><value>수업</value></data>
+	<data name="Delete" xml:space="preserve"><value>삭제</value></data>
+	<data name="DeleteConfirmBtn" xml:space="preserve"><value>예, 삭제</value></data>
+	<data name="DeleteError" xml:space="preserve"><value>수업을 삭제할 수 없습니다: {0}</value></data>
+	<data name="DeleteLesson" xml:space="preserve"><value>수업 삭제</value></data>
+	<data name="Description" xml:space="preserve"><value>설명 / 강의실</value></data>
+	<data name="DescriptionPlaceholder" xml:space="preserve"><value>예: 305호, 1관</value></data>
+	<data name="Duration" xml:space="preserve"><value>소요 시간 (분)</value></data>
+	<data name="EditLesson" xml:space="preserve"><value>수업 편집</value></data>
+	<data name="EditTimeline" xml:space="preserve"><value>일정 편집</value></data>
+	<data name="EnableNotifications" xml:space="preserve"><value>이 일정의 알림 활성화</value></data>
+	<data name="End" xml:space="preserve"><value>종료</value></data>
+	<data name="EnterLessonName" xml:space="preserve"><value>수업 이름 입력</value></data>
+	<data name="EnterTimelineName" xml:space="preserve"><value>일정 이름 입력</value></data>
+	<data name="Error" xml:space="preserve"><value>오류</value></data>
+	<data name="ExcelImport" xml:space="preserve"><value>Excel (MIPT)</value></data>
+	<data name="Export" xml:space="preserve"><value>내보내기</value></data>
+	<data name="ExportError" xml:space="preserve"><value>내보내기 실패: {0}</value></data>
+	<data name="ExportSuccessMsg" xml:space="preserve"><value>일정 "{0}"이(가) 내보내졌습니다 ({1}개 수업).</value></data>
+	<data name="ExportSuccessTitle" xml:space="preserve"><value>내보내기 완료</value></data>
+	<data name="FileReadError" xml:space="preserve"><value>파일 읽기 오류: {0}</value></data>
+	<data name="FreeDay" xml:space="preserve"><value>쉬는 날</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>{0}개 수업을 가져왔습니다.\n데이터 정확성을 확인하십시오.</value></data>
+	<data name="ImportError" xml:space="preserve"><value>가져오기 실패: {0}</value></data>
+	<data name="ImportScheduleError" xml:space="preserve"><value>시간표를 가져올 수 없습니다: {0}</value></data>
+	<data name="ImportSectionEdit" xml:space="preserve"><value>가져오기로 추가</value></data>
+	<data name="ImportSectionNew" xml:space="preserve"><value>가져오기</value></data>
+	<data name="ImportSuccessMsg" xml:space="preserve"><value>{0}개 수업을 가져왔습니다.</value></data>
+	<data name="ImportSuccessTitle" xml:space="preserve"><value>가져오기 완료</value></data>
+	<data name="Importing" xml:space="preserve"><value>시간표 가져오는 중...</value></data>
+	<data name="InvalidTimeError" xml:space="preserve"><value>수업 종료 시간은 시작 시간보다 늦어야 하며 23:59를 초과할 수 없습니다.</value></data>
+	<data name="Lab" xml:space="preserve"><value>실험 실습</value></data>
+	<data name="Lecture" xml:space="preserve"><value>강의</value></data>
+	<data name="LessonName" xml:space="preserve"><value>수업 이름</value></data>
+	<data name="LessonNamePlaceholder" xml:space="preserve"><value>예: 미적분학</value></data>
+	<data name="LessonType" xml:space="preserve"><value>수업 유형</value></data>
+	<data name="LightTheme" xml:space="preserve"><value>라이트 모드</value></data>
+	<data name="MakeStartup" xml:space="preserve"><value>기본 일정으로 설정</value></data>
+	<data name="MySchedule" xml:space="preserve"><value>내 시간표</value></data>
+	<data name="NavigationError" xml:space="preserve"><value>탐색 오류</value></data>
+	<data name="NewLesson" xml:space="preserve"><value>새 수업</value></data>
+	<data name="NewTimeline" xml:space="preserve"><value>새 일정</value></data>
+	<data name="NoGroupsError" xml:space="preserve"><value>파일에서 그룹을 찾을 수 없습니다.</value></data>
+	<data name="NoTimelines" xml:space="preserve"><value>생성된 일정이 없습니다.</value></data>
+	<data name="NotWscError" xml:space="preserve"><value>선택한 파일은 .wsc 파일이 아닙니다.</value></data>
+	<data name="Notifications" xml:space="preserve"><value>알림</value></data>
+	<data name="NotifyAtStart" xml:space="preserve"><value>수업 시작 시 알림</value></data>
+	<data name="NotifyBefore" xml:space="preserve"><value>시작 전 알림 (분)</value></data>
+	<data name="NotifyLessonSoonMsg" xml:space="preserve"><value>{0}분 후 {1}</value></data>
+	<data name="NotifyLessonSoonTitle" xml:space="preserve"><value>곧 시작됩니다: {0}</value></data>
+	<data name="NotifyLessonStartMsg" xml:space="preserve"><value>수업 시작: {0}</value></data>
+	<data name="OK" xml:space="preserve"><value>확인</value></data>
+	<data name="OpenLast" xml:space="preserve"><value>마지막 일정 열기</value></data>
+	<data name="OpenLastToggle" xml:space="preserve"><value>마지막으로 선택한 항목 열기</value></data>
+	<data name="OpenPageError" xml:space="preserve"><value>페이지를 열 수 없습니다: {0}</value></data>
+	<data name="OperationError" xml:space="preserve"><value>작업을 완료할 수 없습니다: {0}</value></data>
+	<data name="PermissionGranted" xml:space="preserve"><value>권한이 부여되었습니다</value></data>
+	<data name="PermissionWarning" xml:space="preserve"><value>앱 설정에서 알림을 허용하십시오</value></data>
+	<data name="PickExcel" xml:space="preserve"><value>Excel 시간표 파일 선택</value></data>
+	<data name="PickWsc" xml:space="preserve"><value>.wsc 파일 선택</value></data>
+	<data name="PleaseWait" xml:space="preserve"><value>잠시만 기다려 주십시오</value></data>
+	<data name="Practice" xml:space="preserve"><value>연습(실습)</value></data>
+	<data name="Processing" xml:space="preserve"><value>파일 처리 중...</value></data>
+	<data name="ReadError" xml:space="preserve"><value>파일에서 데이터를 읽을 수 없습니다.</value></data>
+	<data name="ReadingFile" xml:space="preserve"><value>파일 읽기 및 그룹 검색 중...</value></data>
+	<data name="Save" xml:space="preserve"><value>저장</value></data>
+	<data name="SaveError" xml:space="preserve"><value>수업을 저장할 수 없습니다: {0}</value></data>
+	<data name="Schedule" xml:space="preserve"><value>시간표</value></data>
+	<data name="SelectDay" xml:space="preserve"><value>요일 선택</value></data>
+	<data name="SelectGroup" xml:space="preserve"><value>그룹 선택:</value></data>
+	<data name="SelectTimeline" xml:space="preserve"><value>일정 선택</value></data>
+	<data name="SelectTimelineError" xml:space="preserve"><value>일정을 선택하십시오</value></data>
+	<data name="SelectType" xml:space="preserve"><value>유형 선택</value></data>
+	<data name="Seminar" xml:space="preserve"><value>세미나</value></data>
+	<data name="Settings" xml:space="preserve"><value>설정</value></data>
+	<data name="Start" xml:space="preserve"><value>시작</value></data>
+	<data name="StartupTimeline" xml:space="preserve"><value>시작 일정</value></data>
+	<data name="SystemLanguage" xml:space="preserve"><value>시스템</value></data>
+	<data name="SystemTheme" xml:space="preserve"><value>시스템 설정</value></data>
+	<data name="Theme" xml:space="preserve"><value>앱 테마</value></data>
+	<data name="Time" xml:space="preserve"><value>수업 시간</value></data>
+	<data name="TimeExceededMsg" xml:space="preserve"><value>입력한 소요 시간({0}분)이 허용 한도를 초과합니다. 수업 종료 시간이 자동으로 23:59로 설정됩니다. 저장을 계속하시겠습니까?</value></data>
+	<data name="TimeExceededTitle" xml:space="preserve"><value>시간 초과</value></data>
+	<data name="Timeline" xml:space="preserve"><value>일정</value></data>
+	<data name="TimelineName" xml:space="preserve"><value>일정 이름</value></data>
+	<data name="TimelineNamePlaceholder" xml:space="preserve"><value>예: 가을 학기</value></data>
+	<data name="Timelines" xml:space="preserve"><value>일정</value></data>
+	<data name="Today" xml:space="preserve"><value>오늘</value></data>
+	<data name="Tomorrow" xml:space="preserve"><value>내일</value></data>
+	<data name="VersionFormat" xml:space="preserve"><value>버전 {0}</value></data>
+	<data name="WscExport" xml:space="preserve"><value>.wsc로 내보내기</value></data>
+	<data name="WscImport" xml:space="preserve"><value>.wsc에서 가져오기</value></data>
+	<data name="Yes" xml:space="preserve"><value>예</value></data>
+</root>

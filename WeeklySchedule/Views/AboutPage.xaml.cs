@@ -1,3 +1,5 @@
+using WeeklySchedule.Resources.Strings;
+
 namespace WeeklySchedule.Views;
 
 public partial class AboutPage : ContentPage
@@ -5,6 +7,6 @@ public partial class AboutPage : ContentPage
     public AboutPage()
     {
         InitializeComponent();
-        VersionLabel.Text = $"Версия {AppInfo.Current.VersionString}";
+        VersionLabel.Text = string.Format(AppResources.VersionFormat, AppInfo.Current.VersionString);
     }
 }

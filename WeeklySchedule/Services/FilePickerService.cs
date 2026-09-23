@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui.Storage;
+using WeeklySchedule.Resources.Strings;
 
 namespace WeeklySchedule.Services;
 
@@ -22,7 +23,7 @@ public class FilePickerService : IFilePickerService
 
             var result = await FilePicker.PickAsync(new PickOptions
             {
-                PickerTitle = "Выберите Excel-файл расписания",
+                PickerTitle = AppResources.PickExcel,
                 FileTypes = customFileType
             });
 
@@ -55,7 +56,7 @@ public class FilePickerService : IFilePickerService
 
             var result = await FilePicker.PickAsync(new PickOptions
             {
-                PickerTitle = "Выберите файл .wsc",
+                PickerTitle = AppResources.PickWsc,
                 FileTypes = customFileType
             });
 

@@ -2,6 +2,7 @@
 using global::Android.App;
 using global::Android.Content;
 using global::AndroidX.Core.App;
+using WeeklySchedule.Resources.Strings;
 using Application = global::Android.App.Application;
 
 namespace WeeklySchedule.Platforms.Android.Services;
@@ -26,7 +27,7 @@ public class ScheduledNotificationReceiver : BroadcastReceiver
 
     private static void Receive(Context context, Intent intent)
     {
-        var title = intent.GetStringExtra("Title") ?? "Пара";
+        var title = intent.GetStringExtra("Title") ?? AppResources.DefaultLessonTitle;
         var body = intent.GetStringExtra("Body") ?? "";
         var timelineId = intent.GetStringExtra("TimelineId") ?? "";
         var lessonId = intent.GetStringExtra("LessonId") ?? "";

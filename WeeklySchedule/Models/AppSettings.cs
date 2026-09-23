@@ -1,3 +1,10 @@
 ﻿namespace WeeklySchedule.Models;
 
-public enum AppLanguage { Russian, English }
+public enum AppLanguage
+{
+    System,
+    Russian,
+    English,
+    Chinese,
+    Korean
+}

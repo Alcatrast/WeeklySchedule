@@ -4,6 +4,7 @@ using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
+using WeeklySchedule.Resources.Strings;
 
 namespace WeeklySchedule.ViewModels;
 
@@ -15,11 +16,41 @@ public partial class SettingsViewModel : BaseViewModel
     private int _refreshVersion;
     private bool _isRefreshing;
 
-    public ObservableCollection<string> ThemeOptions { get; } = ["Как в системе", "Светлая", "Темная"];
+    public ObservableCollection<string> ThemeOptions { get; } = [];
+    public ObservableCollection<LanguageOption> LanguageOptions { get; } = [];
     public ObservableCollection<Timeline> StartupTimelines { get; } = [];
 
-    private string _selectedTheme;
-    public string SelectedTheme { get => _selectedTheme; set { if (SetProperty(ref _selectedTheme, value)) _settingsService.Theme = value switch { "Светлая" => AppTheme.Light, "Темная" => AppTheme.Dark, _ => AppTheme.Unspecified }; } }
+    private string _selectedTheme = string.Empty;
+    public string SelectedTheme
+    {
+        get => _selectedTheme;
+        set
+        {
+            if (SetProperty(ref _selectedTheme, value))
+            {
+                _settingsService.Theme = value switch
+                {
+                    var v when v == AppResources.LightTheme => AppTheme.Light,
+                    var v when v == AppResources.DarkTheme => AppTheme.Dark,
+                    _ => AppTheme.Unspecified
+                };
+            }
+        }
+    }
+
+    private LanguageOption? _selectedLanguage;
+    public LanguageOption? SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            if (SetProperty(ref _selectedLanguage, value) && value != null && _settingsService.SelectedLanguage != value.Type)
+            {
+                _settingsService.SelectedLanguage = value.Type;
+                App.RestartApp();
+            }
+        }
+    }
 
     private int _defaultDuration;
     public int DefaultDuration { get => _defaultDuration; set { if (SetProperty(ref _defaultDuration, value)) _settingsService.DefaultLessonDuration = value; } }
@@ -65,11 +96,12 @@ public partial class SettingsViewModel : BaseViewModel
         AddReminderCommand = new Command(AddReminder);
         DeleteReminderCommand = new Command<NotificationReminderViewModel>(DeleteReminder);
 
-        _selectedTheme = _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" };
         _defaultDuration = _settingsService.DefaultLessonDuration;
         _openLast = _settingsService.OpenLastTimeline;
         _notifyAtStart = _settingsService.NotifyAtStart;
 
+        LoadThemeOptions();
+        LoadLanguageOptions();
         LoadReminders();
     }
 
@@ -125,20 +157,70 @@ public partial class SettingsViewModel : BaseViewModel
             foreach (var t in all) StartupTimelines.Add(t);
             _selectedStartupTimeline = all.FirstOrDefault(t => t.Id == _settingsService.StartupTimelineId);
             _openLast = _settingsService.OpenLastTimeline;
-            _selectedTheme = _settingsService.Theme switch { AppTheme.Light => "Светлая", AppTheme.Dark => "Темная", _ => "Как в системе" };
             _defaultDuration = _settingsService.DefaultLessonDuration;
             _notifyAtStart = _settingsService.NotifyAtStart;
+
             LoadReminders();
+
             OnPropertyChanged(nameof(SelectedStartupTimeline));
             OnPropertyChanged(nameof(OpenLast));
             OnPropertyChanged(nameof(IsStartupPickerVisible));
-            OnPropertyChanged(nameof(SelectedTheme));
             OnPropertyChanged(nameof(DefaultDuration));
             OnPropertyChanged(nameof(NotifyAtStart));
         }
         finally { _isRefreshing = false; }
+
+        LoadThemeOptions();
+        LoadLanguageOptions();
+
         await CheckAllPermissionsAsync();
     }
+
+    private void LoadThemeOptions()
+    {
+        ThemeOptions.Clear();
+        ThemeOptions.Add(AppResources.SystemTheme);
+        ThemeOptions.Add(AppResources.LightTheme);
+        ThemeOptions.Add(AppResources.DarkTheme);
+
+        _selectedTheme = _settingsService.Theme switch
+        {
+            AppTheme.Light => AppResources.LightTheme,
+            AppTheme.Dark => AppResources.DarkTheme,
+            _ => AppResources.SystemTheme
+        };
+        OnPropertyChanged(nameof(SelectedTheme));
+    }
+
+    private void LoadLanguageOptions()
+    {
+        LanguageOptions.Clear();
+        var allLangs = new[] { AppLanguage.System, AppLanguage.Russian, AppLanguage.English, AppLanguage.Chinese, AppLanguage.Korean };
+
+        var options = allLangs.Select(lang => new LanguageOption
+        {
+            Type = lang,
+            DisplayName = LanguageHelper.GetDisplayText(lang),
+            SortKey = LanguageHelper.GetNeutralName(lang)
+        }).ToList();
+
+        var systemOpt = options.First(o => o.Type == AppLanguage.System);
+        var sortedOthers = options.Where(o => o.Type != AppLanguage.System).OrderBy(o => o.SortKey).ToList();
+        sortedOthers.Insert(0, systemOpt);
+
+        foreach (var opt in sortedOthers) LanguageOptions.Add(opt);
+
+        var currentLang = _settingsService.SelectedLanguage;
+        _selectedLanguage = LanguageOptions.FirstOrDefault(o => o.Type == currentLang) ?? LanguageOptions.First();
+        OnPropertyChanged(nameof(SelectedLanguage));
+    }
+}
+
+public class LanguageOption
+{
+    public AppLanguage Type { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string SortKey { get; set; } = string.Empty;
 }
 
 public partial class NotificationReminderViewModel(NotificationReminder model, Action onChanged) : BaseViewModel

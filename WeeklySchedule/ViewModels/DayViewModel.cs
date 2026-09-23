@@ -3,6 +3,7 @@ using System.Windows.Input;
 using WeeklySchedule.Core;
 using WeeklySchedule.Models;
 using WeeklySchedule.Services;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
@@ -40,6 +41,28 @@ public partial class DayViewModel : BaseViewModel
 
     public void RequestScroll() => ScrollToCurrentRequested?.Invoke();
 
-    public void UpdateTitle(DateTime now) { int diff = (Date - now.Date).Days; string prefix = diff switch { 0 => "Сегодня", 1 => "Завтра", 2 => "Послезавтра", _ => "" }; string dayOfWeekRu = Date.ToString("dddd", new CultureInfo("ru-RU")); if (!string.IsNullOrEmpty(dayOfWeekRu)) dayOfWeekRu = char.ToUpper(dayOfWeekRu[0]) + dayOfWeekRu[1..]; string dateStr = Date.ToString("dd.MM.yyyy"); DayTitle = string.IsNullOrEmpty(prefix) ? $"{dayOfWeekRu}, {dateStr}" : $"{dayOfWeekRu}, {prefix}, {dateStr}"; }
+    public void UpdateTitle(DateTime now)
+    {
+        int diff = (Date - now.Date).Days;
+        string prefix = diff switch
+        {
+            0 => AppResources.Today,
+            1 => AppResources.Tomorrow,
+            2 => AppResources.DayAfterTomorrow,
+            _ => ""
+        };
+
+        var culture = CultureInfo.CurrentCulture;
+        string dayOfWeekStr = Date.ToString("dddd", culture);
+        if (!string.IsNullOrEmpty(dayOfWeekStr))
+            dayOfWeekStr = char.ToUpper(dayOfWeekStr[0]) + dayOfWeekStr[1..];
+
+        string dateStr = Date.ToString("d", culture);
+
+        DayTitle = string.IsNullOrEmpty(prefix)
+            ? $"{dayOfWeekStr}, {dateStr}"
+            : $"{dayOfWeekStr}, {prefix}, {dateStr}";
+    }
+
     public void UpdateLayout(DateTime now, List<Lesson> allLessons) { Layout = TimelineLayoutBuilder.Build(Date, allLessons, now); LayoutUpdated?.Invoke(); }
 }

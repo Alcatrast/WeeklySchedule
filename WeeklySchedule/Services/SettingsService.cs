@@ -24,7 +24,15 @@ public class SettingsService : ISettingsService
             SettingsChanged?.Invoke();
         }
     }
-
+    public AppLanguage SelectedLanguage
+    {
+        get => (AppLanguage)Preferences.Get(nameof(SelectedLanguage), (int)AppLanguage.System);
+        set
+        {
+            Preferences.Set(nameof(SelectedLanguage), (int)value);
+            SettingsChanged?.Invoke();
+        }
+    }
     public int DefaultLessonDuration
     {
         get => Preferences.Get(nameof(DefaultLessonDuration), 85);

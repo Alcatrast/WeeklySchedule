@@ -1,0 +1,170 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+		<xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+		<xsd:element name="root" msdata:IsDataSet="true">
+			<xsd:complexType>
+				<xsd:choice maxOccurs="unbounded">
+					<xsd:element name="metadata">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" />
+							</xsd:sequence>
+							<xsd:attribute name="name" use="required" type="xsd:string" />
+							<xsd:attribute name="type" type="xsd:string" />
+							<xsd:attribute name="mimetype" type="xsd:string" />
+							<xsd:attribute ref="xml:space" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="assembly">
+						<xsd:complexType>
+							<xsd:attribute name="alias" type="xsd:string" />
+							<xsd:attribute name="name" type="xsd:string" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="data">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+								<xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+							<xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+							<xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+							<xsd:attribute ref="xml:space" />
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="resheader">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+							</xsd:sequence>
+							<xsd:attribute name="name" type="xsd:string" use="required" />
+						</xsd:complexType>
+					</xsd:element>
+				</xsd:choice>
+			</xsd:complexType>
+		</xsd:element>
+	</xsd:schema>
+	<resheader name="resmimetype">
+		<value>text/microsoft-resx</value>
+	</resheader>
+	<resheader name="version">
+		<value>2.0</value>
+	</resheader>
+	<resheader name="reader">
+		<value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+	<resheader name="writer">
+		<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+	</resheader>
+
+	<data name="About" xml:space="preserve"><value>О приложении</value></data>
+	<data name="AboutDesc" xml:space="preserve"><value>Приложение для управления расписанием.</value></data>
+	<data name="AboutDev" xml:space="preserve"><value>Разработано для вашей мамы.</value></data>
+	<data name="AboutTitle" xml:space="preserve"><value>О приложении</value></data>
+	<data name="AllowNotifications" xml:space="preserve"><value>Разрешить уведомления</value></data>
+	<data name="AppLanguage" xml:space="preserve"><value>Язык приложения</value></data>
+	<data name="AppName" xml:space="preserve"><value>Weekly</value></data>
+	<data name="Cancel" xml:space="preserve"><value>Отмена</value></data>
+	<data name="CloseError" xml:space="preserve"><value>Не удалось закрыть страницу: {0}</value></data>
+	<data name="ConfirmDelete" xml:space="preserve"><value>Вы уверены, что хотите удалить эту пару?</value></data>
+	<data name="ConfirmDeleteTimeline" xml:space="preserve"><value>Удалить этот таймлайн?</value></data>
+	<data name="DarkTheme" xml:space="preserve"><value>Темная</value></data>
+	<data name="DayAfterTomorrow" xml:space="preserve"><value>Послезавтра</value></data>
+	<data name="DayOfWeek" xml:space="preserve"><value>День недели</value></data>
+	<data name="DefaultDuration" xml:space="preserve"><value>Длительность пары по умолчанию (мин)</value></data>
+	<data name="DefaultLessonTitle" xml:space="preserve"><value>Пара</value></data>
+	<data name="Delete" xml:space="preserve"><value>Удалить</value></data>
+	<data name="DeleteConfirmBtn" xml:space="preserve"><value>Да, удалить</value></data>
+	<data name="DeleteError" xml:space="preserve"><value>Не удалось удалить пару: {0}</value></data>
+	<data name="DeleteLesson" xml:space="preserve"><value>Удалить пару</value></data>
+	<data name="Description" xml:space="preserve"><value>Описание / Аудитория</value></data>
+	<data name="DescriptionPlaceholder" xml:space="preserve"><value>Например: Ауд. 305, Корпус 1</value></data>
+	<data name="Duration" xml:space="preserve"><value>Длит. (мин)</value></data>
+	<data name="EditLesson" xml:space="preserve"><value>Редактирование пары</value></data>
+	<data name="EditTimeline" xml:space="preserve"><value>Редактирование таймлайна</value></data>
+	<data name="EnableNotifications" xml:space="preserve"><value>Включить уведомления для этого таймлайна</value></data>
+	<data name="End" xml:space="preserve"><value>Конец</value></data>
+	<data name="EnterLessonName" xml:space="preserve"><value>Введите название пары</value></data>
+	<data name="EnterTimelineName" xml:space="preserve"><value>Введите название таймлайна</value></data>
+	<data name="Error" xml:space="preserve"><value>Ошибка</value></data>
+	<data name="ExcelImport" xml:space="preserve"><value>Excel (Физтех)</value></data>
+	<data name="Export" xml:space="preserve"><value>Экспорт</value></data>
+	<data name="ExportError" xml:space="preserve"><value>Не удалось экспортировать: {0}</value></data>
+	<data name="ExportSuccessMsg" xml:space="preserve"><value>Таймлайн «{0}» экспортирован ({1} пар).</value></data>
+	<data name="ExportSuccessTitle" xml:space="preserve"><value>Экспорт завершён</value></data>
+	<data name="FileReadError" xml:space="preserve"><value>Ошибка при чтении файла: {0}</value></data>
+	<data name="FreeDay" xml:space="preserve"><value>Свободный день</value></data>
+	<data name="ImportCompleteMsg" xml:space="preserve"><value>Импортировано {0} пар.\nПроверьте корректность данных.</value></data>
+	<data name="ImportError" xml:space="preserve"><value>Не удалось импортировать: {0}</value></data>
+	<data name="ImportScheduleError" xml:space="preserve"><value>Не удалось импортировать расписание: {0}</value></data>
+	<data name="ImportSectionEdit" xml:space="preserve"><value>Дополнить импортом</value></data>
+	<data name="ImportSectionNew" xml:space="preserve"><value>Импорт</value></data>
+	<data name="ImportSuccessMsg" xml:space="preserve"><value>Импортировано {0} пар.</value></data>
+	<data name="ImportSuccessTitle" xml:space="preserve"><value>Импорт завершён</value></data>
+	<data name="Importing" xml:space="preserve"><value>Идет импорт расписания...</value></data>
+	<data name="InvalidTimeError" xml:space="preserve"><value>Конец пары должен быть позже начала и не позже 23:59.</value></data>
+	<data name="Lab" xml:space="preserve"><value>Лабораторная</value></data>
+	<data name="Lecture" xml:space="preserve"><value>Лекция</value></data>
+	<data name="LessonName" xml:space="preserve"><value>Название пары</value></data>
+	<data name="LessonNamePlaceholder" xml:space="preserve"><value>Например: Математический анализ</value></data>
+	<data name="LessonType" xml:space="preserve"><value>Тип занятия</value></data>
+	<data name="LightTheme" xml:space="preserve"><value>Светлая</value></data>
+	<data name="MakeStartup" xml:space="preserve"><value>Сделать главным таймлайном</value></data>
+	<data name="MySchedule" xml:space="preserve"><value>Мое расписание</value></data>
+	<data name="NavigationError" xml:space="preserve"><value>Ошибка навигации</value></data>
+	<data name="NewLesson" xml:space="preserve"><value>Новая пара</value></data>
+	<data name="NewTimeline" xml:space="preserve"><value>Новый таймлайн</value></data>
+	<data name="NoGroupsError" xml:space="preserve"><value>Не удалось найти ни одной группы в файле.</value></data>
+	<data name="NoTimelines" xml:space="preserve"><value>Нет созданных таймлайнов</value></data>
+	<data name="NotWscError" xml:space="preserve"><value>Выбранный файл не является файлом .wsc</value></data>
+	<data name="Notifications" xml:space="preserve"><value>Уведомления</value></data>
+	<data name="NotifyAtStart" xml:space="preserve"><value>Уведомлять при начале пары</value></data>
+	<data name="NotifyBefore" xml:space="preserve"><value>Уведомлять до начала (минут)</value></data>
+	<data name="NotifyLessonSoonMsg" xml:space="preserve"><value>Через {0} мин. {1}</value></data>
+	<data name="NotifyLessonSoonTitle" xml:space="preserve"><value>Скоро начнется: {0}</value></data>
+	<data name="NotifyLessonStartMsg" xml:space="preserve"><value>Начало пары: {0}</value></data>
+	<data name="OK" xml:space="preserve"><value>ОК</value></data>
+	<data name="OpenLast" xml:space="preserve"><value>Открытие последнего таймлайна</value></data>
+	<data name="OpenLastToggle" xml:space="preserve"><value>Открывать последний выбранный</value></data>
+	<data name="OpenPageError" xml:space="preserve"><value>Не удалось открыть страницу: {0}</value></data>
+	<data name="OperationError" xml:space="preserve"><value>Не удалось завершить операцию: {0}</value></data>
+	<data name="PermissionGranted" xml:space="preserve"><value>Разрешение предоставлено</value></data>
+	<data name="PermissionWarning" xml:space="preserve"><value>Разрешите уведомления в настройках приложения</value></data>
+	<data name="PickExcel" xml:space="preserve"><value>Выберите Excel-файл расписания</value></data>
+	<data name="PickWsc" xml:space="preserve"><value>Выберите файл .wsc</value></data>
+	<data name="PleaseWait" xml:space="preserve"><value>Пожалуйста, подождите</value></data>
+	<data name="Practice" xml:space="preserve"><value>Практика</value></data>
+	<data name="Processing" xml:space="preserve"><value>Обработка файла...</value></data>
+	<data name="ReadError" xml:space="preserve"><value>Не удалось прочитать данные из файла.</value></data>
+	<data name="ReadingFile" xml:space="preserve"><value>Чтение файла и поиск групп...</value></data>
+	<data name="Save" xml:space="preserve"><value>Сохранить</value></data>
+	<data name="SaveError" xml:space="preserve"><value>Не удалось сохранить пару: {0}</value></data>
+	<data name="Schedule" xml:space="preserve"><value>Расписание</value></data>
+	<data name="SelectDay" xml:space="preserve"><value>Выберите день недели</value></data>
+	<data name="SelectGroup" xml:space="preserve"><value>Выберите группу:</value></data>
+	<data name="SelectTimeline" xml:space="preserve"><value>Выберите таймлайн</value></data>
+	<data name="SelectTimelineError" xml:space="preserve"><value>Пожалуйста, выберите таймлайн</value></data>
+	<data name="SelectType" xml:space="preserve"><value>Выберите тип</value></data>
+	<data name="Seminar" xml:space="preserve"><value>Семинар</value></data>
+	<data name="Settings" xml:space="preserve"><value>Настройки</value></data>
+	<data name="Start" xml:space="preserve"><value>Начало</value></data>
+	<data name="StartupTimeline" xml:space="preserve"><value>Стартовый таймлайн</value></data>
+	<data name="SystemLanguage" xml:space="preserve"><value>Системный</value></data>
+	<data name="SystemTheme" xml:space="preserve"><value>Как в системе</value></data>
+	<data name="Theme" xml:space="preserve"><value>Тема приложения</value></data>
+	<data name="Time" xml:space="preserve"><value>Время проведения</value></data>
+	<data name="TimeExceededMsg" xml:space="preserve"><value>Введенная длительность ({0} мин.) превышает допустимый предел. Время конца пары будет автоматически установлено в 23:59. Продолжить сохранение?</value></data>
+	<data name="TimeExceededTitle" xml:space="preserve"><value>Превышение времени</value></data>
+	<data name="Timeline" xml:space="preserve"><value>Таймлайн</value></data>
+	<data name="TimelineName" xml:space="preserve"><value>Название таймлайна</value></data>
+	<data name="TimelineNamePlaceholder" xml:space="preserve"><value>Например: Осенний семестр</value></data>
+	<data name="Timelines" xml:space="preserve"><value>Таймлайны</value></data>
+	<data name="Today" xml:space="preserve"><value>Сегодня</value></data>
+	<data name="Tomorrow" xml:space="preserve"><value>Завтра</value></data>
+	<data name="VersionFormat" xml:space="preserve"><value>Версия {0}</value></data>
+	<data name="WscExport" xml:space="preserve"><value>Экспорт в .wsc</value></data>
+	<data name="WscImport" xml:space="preserve"><value>Импорт из .wsc</value></data>
+	<data name="Yes" xml:space="preserve"><value>Да</value></data>
+</root>

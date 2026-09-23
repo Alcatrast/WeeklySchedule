@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using WeeklySchedule.Models;
 using WeeklySchedule.Utilities;
+using WeeklySchedule.Resources.Strings;
 
 namespace WeeklySchedule.Views;
 
@@ -42,7 +43,7 @@ public partial class TimelineGridView : Grid
             MinimumHeightRequest = -1;
             RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Auto)));
             ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            Children.Add(new Label { Text = "Свободный день", FontSize = 24, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true });
+            Children.Add(new Label { Text = AppResources.FreeDay, FontSize = 24, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true });
             return;
         }
 
@@ -134,6 +135,7 @@ public partial class TimelineGridView : Grid
     {
         bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime && now.Date == CurrentDate;
         bool isPast = now.TimeOfDay >= lp.Lesson.EndTime && now.Date == CurrentDate;
+
         var bgColor = LessonColor.Convert(lp.Lesson.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) as Color ?? Colors.Gray;
 
         var border = new Border
@@ -149,16 +151,56 @@ public partial class TimelineGridView : Grid
         if (isPast) border.Opacity = 0.5;
 
         var stack = new VerticalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Start, Margin = new Thickness(0, 2, 0, 0) };
-        stack.Children.Add(new Label { Text = $"{lp.Lesson.StartTime:hh\\:mm} - {lp.Lesson.EndTime:hh\\:mm}", FontSize = 11, FontAttributes = FontAttributes.Bold, Opacity = 0.8, LineBreakMode = LineBreakMode.NoWrap });
-        stack.Children.Add(new Label { Text = lp.Lesson.Name, FontSize = 14, FontAttributes = FontAttributes.Bold, LineBreakMode = LineBreakMode.TailTruncation });
+
+        var culture = CultureInfo.CurrentCulture;
+        var startTime = DateTime.Today.Add(lp.Lesson.StartTime);
+        var endTime = DateTime.Today.Add(lp.Lesson.EndTime);
+        string timeStr = $"{startTime.ToString("t", culture)} - {endTime.ToString("t", culture)}";
+
+        stack.Children.Add(new Label
+        {
+            Text = timeStr,
+            FontSize = 11,
+            FontAttributes = FontAttributes.Bold,
+            Opacity = 0.8,
+            LineBreakMode = LineBreakMode.NoWrap
+        });
+
+        stack.Children.Add(new Label
+        {
+            Text = lp.Lesson.Name,
+            FontSize = 14,
+            FontAttributes = FontAttributes.Bold,
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+
         if (!string.IsNullOrWhiteSpace(lp.Lesson.Description))
-            stack.Children.Add(new Label { Text = lp.Lesson.Description, FontSize = 11, Opacity = 0.7, LineBreakMode = LineBreakMode.TailTruncation });
+        {
+            stack.Children.Add(new Label
+            {
+                Text = lp.Lesson.Description,
+                FontSize = 11,
+                Opacity = 0.7,
+                LineBreakMode = LineBreakMode.TailTruncation
+            });
+        }
 
         border.Content = stack;
 
         var tapGesture = new TapGestureRecognizer();
-        tapGesture.Tapped += (s, e) => { if (BindingContext is ViewModels.DayViewModel vm && vm.EditLessonCommand.CanExecute(lp.Lesson)) vm.EditLessonCommand.Execute(lp.Lesson); };
+        tapGesture.Tapped += (s, e) =>
+        {
+            if (BindingContext is ViewModels.DayViewModel vm && vm.EditLessonCommand.CanExecute(lp.Lesson))
+            {
+                vm.EditLessonCommand.Execute(lp.Lesson);
+            }
+        };
         border.GestureRecognizers.Add(tapGesture);
+
+        if (isCurrent)
+        {
+            border.StyleId = "CurrentLessonAnchor";
+        }
 
         return border;
     }

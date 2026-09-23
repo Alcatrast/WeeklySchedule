@@ -3,9 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:WeeklySchedule.ViewModels"
              xmlns:models="clr-namespace:WeeklySchedule.Models"
+             xmlns:strings="clr-namespace:WeeklySchedule.Resources.Strings"
              x:Class="WeeklySchedule.Views.GroupSelectionPage"
              x:DataType="vm:GroupSelectionViewModel"
-             Title="Выберите группу:">
+             Title="{x:Static strings:AppResources.SelectGroup}">
     <Grid>
         <ScrollView x:Name="MainScroll">
             <VerticalStackLayout BindableLayout.ItemsSource="{Binding Categories}" Spacing="8" Padding="20">
@@ -61,9 +62,9 @@
                 <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center">
                     <Label.FormattedText>
                         <FormattedString>
-                            <Span Text="Чтение файла и поиск групп..." />
+                            <Span Text="{x:Static strings:AppResources.ReadingFile}" />
                             <Span Text="&#x0a;" />
-                            <Span Text="Пожалуйста, подождите" />
+                            <Span Text="{x:Static strings:AppResources.PleaseWait}" />
                         </FormattedString>
                     </Label.FormattedText>
                 </Label>
@@ -76,9 +77,9 @@
                 <Label FontSize="16" HorizontalOptions="Center" HorizontalTextAlignment="Center">
                     <Label.FormattedText>
                         <FormattedString>
-                            <Span Text="Идет импорт расписания..." />
+                            <Span Text="{x:Static strings:AppResources.ReadingFile}" />
                             <Span Text="&#x0a;" />
-                            <Span Text="Пожалуйста, подождите" />
+                            <Span Text="{x:Static strings:AppResources.PleaseWait}" />
                         </FormattedString>
                     </Label.FormattedText>
                 </Label>
