@@ -52,7 +52,7 @@ public static class MauiProgram
         builder.Services.AddTransient<EditLessonPage>();
         builder.Services.AddTransient<GroupSelectionPage>();
 
-        builder.Services.AddSingleton<AboutPage>();
+        builder.Services.AddTransient<AboutPage>();
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddSingleton<AppShell>();
 

@@ -33,6 +33,7 @@ public partial class TimelineGridView : Grid
         Children.Clear();
         RowDefinitions.Clear();
         ColumnDefinitions.Clear();
+
         var displayInfo = DeviceDisplay.MainDisplayInfo;
         double screenHeightDp = displayInfo.Height / displayInfo.Density;
 
@@ -43,7 +44,17 @@ public partial class TimelineGridView : Grid
             MinimumHeightRequest = -1;
             RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Auto)));
             ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-            Children.Add(new Label { Text = AppResources.FreeDay, FontSize = 24, FontAttributes = FontAttributes.Italic, TextColor = Colors.Gray, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true });
+
+            var freeDayLabel = new Label
+            {
+                Text = AppResources.FreeDay,
+                Style = Application.Current?.Resources["Subtitle"] as Style,
+                FontAttributes = FontAttributes.Italic,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+                InputTransparent = true
+            };
+            Children.Add(freeDayLabel);
             return;
         }
 
@@ -54,6 +65,7 @@ public partial class TimelineGridView : Grid
 
         int minLessonMinutes = layout.Lessons.Count > 0 ? layout.Lessons.Min(l => l.TotalMinutes) : 15;
         if (minLessonMinutes <= 0) minLessonMinutes = 15;
+
         const double StandardMinCardHeight = 90.0;
         double dynamicPixelsPerMinute = StandardMinCardHeight / minLessonMinutes;
         double totalGridHeight = 0;
@@ -68,22 +80,26 @@ public partial class TimelineGridView : Grid
 
         int cols = Math.Max(1, layout.TotalColumns);
         for (int i = 0; i < cols; i++) ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-        ColumnSpacing = 6;
+
+        ColumnSpacing = 8;
         RowSpacing = 0;
         HeightRequest = totalGridHeight;
+
+        var separatorStyle = Application.Current?.Resources["SeparatorBorder"] as Style;
 
         foreach (var br in layout.Breaks)
         {
             if (br.Type == SeparatorType.None) continue;
             double breakHeight = br.TotalMinutes * dynamicPixelsPerMinute;
             if (breakHeight > maxElementHeight) breakHeight = maxElementHeight;
-            double lineOffset = (breakHeight / 2.0) - 1.0;
-            var separatorLine = new BoxView
+            double lineOffset = (breakHeight / 2.0) - 2.0;
+
+            var separatorLine = new Border
             {
-                Color = (Color)(SeparatorColor.Convert(br.Type, typeof(Color), string.Empty, CultureInfo.InvariantCulture) ?? Colors.Transparent),
-                HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 0.0),
+                Style = separatorStyle,
+                HeightRequest = (double)(SeparatorHeight.Convert(br.Type, typeof(double), string.Empty, CultureInfo.InvariantCulture) ?? 4.0),
                 VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(10, lineOffset, 10, 0)
+                Margin = new Thickness(16, lineOffset, 16, 0)
             };
             SetRow((IView)separatorLine, br.StartRow);
             SetRowSpan((IView)separatorLine, br.RowSpan);
@@ -98,14 +114,15 @@ public partial class TimelineGridView : Grid
         TimeSpan earliestFutureStart = TimeSpan.MaxValue;
         bool isCurrentDay = now.Date == CurrentDate;
 
+        var accentBrush = Application.Current?.Resources["AccentBrush"] as SolidColorBrush;
+        var accentColor = accentBrush?.Color ?? Colors.Blue;
+
         foreach (var lp in layout.Lessons)
         {
-            var lessonCard = CreateLessonCard(lp, now);
-
+            var lessonCard = CreateLessonCard(lp, now, accentColor);
             if (isCurrentDay)
             {
                 bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime;
-
                 if (isCurrent)
                 {
                     targetAnchor = lessonCard;
@@ -119,8 +136,10 @@ public partial class TimelineGridView : Grid
 
             double cardHeight = lp.TotalMinutes * dynamicPixelsPerMinute;
             if (cardHeight > maxElementHeight) cardHeight = maxElementHeight;
+
             lessonCard.HeightRequest = cardHeight;
             lessonCard.VerticalOptions = LayoutOptions.Fill;
+
             SetRow((IView)lessonCard, lp.StartRow);
             SetRowSpan((IView)lessonCard, lp.RowSpan);
             SetColumn((IView)lessonCard, lp.Column);
@@ -131,7 +150,7 @@ public partial class TimelineGridView : Grid
         targetAnchor?.StyleId = "CurrentLessonAnchor";
     }
 
-    private Border CreateLessonCard(LessonPlacement lp, DateTime now)
+    private Border CreateLessonCard(LessonPlacement lp, DateTime now, Color accentColor)
     {
         bool isCurrent = now.TimeOfDay >= lp.Lesson.StartTime && now.TimeOfDay < lp.Lesson.EndTime && now.Date == CurrentDate;
         bool isPast = now.TimeOfDay >= lp.Lesson.EndTime && now.Date == CurrentDate;
@@ -141,18 +160,18 @@ public partial class TimelineGridView : Grid
         var border = new Border
         {
             BackgroundColor = bgColor,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 },
             StrokeThickness = isCurrent ? 3 : 0,
-            Stroke = isCurrent ? Colors.Red : Colors.Transparent,
-            Padding = new Thickness(10),
-            Margin = new Thickness(3, 2)
+            Stroke = isCurrent ? accentColor : Colors.Transparent,
+            Padding = new Thickness(16),
+            Margin = new Thickness(4, 4)
         };
 
-        if (isPast) border.Opacity = 0.5;
+        if (isPast) border.Opacity = 0.6;
 
-        var stack = new VerticalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Start, Margin = new Thickness(0, 2, 0, 0) };
-
+        var stack = new VerticalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Start, Margin = new Thickness(0, 4, 0, 0) };
         var culture = CultureInfo.CurrentCulture;
+
         var startTime = DateTime.Today.Add(lp.Lesson.StartTime);
         var endTime = DateTime.Today.Add(lp.Lesson.EndTime);
         string timeStr = $"{startTime.ToString("t", culture)} - {endTime.ToString("t", culture)}";
@@ -160,17 +179,15 @@ public partial class TimelineGridView : Grid
         stack.Children.Add(new Label
         {
             Text = timeStr,
-            FontSize = 11,
+            Style = Application.Current?.Resources["Caption"] as Style,
             FontAttributes = FontAttributes.Bold,
-            Opacity = 0.8,
             LineBreakMode = LineBreakMode.NoWrap
         });
 
         stack.Children.Add(new Label
         {
             Text = lp.Lesson.Name,
-            FontSize = 14,
-            FontAttributes = FontAttributes.Bold,
+            Style = Application.Current?.Resources["BodyBold"] as Style,
             LineBreakMode = LineBreakMode.TailTruncation
         });
 
@@ -179,8 +196,7 @@ public partial class TimelineGridView : Grid
             stack.Children.Add(new Label
             {
                 Text = lp.Lesson.Description,
-                FontSize = 11,
-                Opacity = 0.7,
+                Style = Application.Current?.Resources["Caption"] as Style,
                 LineBreakMode = LineBreakMode.TailTruncation
             });
         }

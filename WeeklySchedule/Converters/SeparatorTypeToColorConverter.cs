@@ -11,12 +11,28 @@ public class SeparatorTypeToColorConverter : IValueConverter
         {
             return type switch
             {
-                SeparatorType.ThickWhite => Colors.LightGray,
+                SeparatorType.ThickWhite => GetColor("OutlineLight", "OutlineDark"),
                 _ => Colors.Transparent
             };
         }
         return Colors.Transparent;
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotImplementedException();
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+
+    private static Color GetColor(string lightKey, string darkKey)
+    {
+        bool isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+        string key = isDark ? darkKey : lightKey;
+
+        if (Application.Current?.Resources.TryGetValue(key, out var colorObj) == true && colorObj is Color color)
+        {
+            return color;
+        }
+
+        return Colors.Transparent;
+    }
 }

@@ -2,6 +2,7 @@
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
+using AndroidX.Core.View;
 using WeeklySchedule.Services;
 
 namespace WeeklySchedule.Platforms.Android;
@@ -14,6 +15,7 @@ public class MainActivity : MauiAppCompatActivity
         base.OnCreate(savedInstanceState);
         HandleNotificationIntent(Intent);
     }
+
     protected override void OnNewIntent(Intent? intent)
     {
         base.OnNewIntent(intent);

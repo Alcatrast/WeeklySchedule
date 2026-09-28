@@ -5,9 +5,9 @@
              x:Class="WeeklySchedule.Views.AboutPage"
              Title="{x:Static strings:AppResources.AboutTitle}">
     <VerticalStackLayout Spacing="20" Padding="30" VerticalOptions="Center" HorizontalOptions="Center">
-        <Label Text="{x:Static strings:AppResources.AppName}" FontSize="32" FontAttributes="Bold" HorizontalOptions="Center" />
-        <Label x:Name="VersionLabel" FontSize="16" TextColor="Gray" HorizontalOptions="Center" />
-        <Label Text="{x:Static strings:AppResources.AboutDesc}" FontSize="16" HorizontalTextAlignment="Center" />
-        <Label Text="{x:Static strings:AppResources.AboutDev}" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" />
+        <Label Text="{x:Static strings:AppResources.AppName}" Style="{StaticResource Headline}" />
+        <Label x:Name="VersionLabel" Style="{StaticResource Body}" TextColor="{AppThemeBinding Light={StaticResource OnSurfaceVariantLight}, Dark={StaticResource OnSurfaceVariantDark}}" HorizontalOptions="Center" />
+        <Label Text="{x:Static strings:AppResources.AboutDesc}" Style="{StaticResource Body}" HorizontalTextAlignment="Center" />
+        <Label Text="{x:Static strings:AppResources.AboutDev}" Style="{StaticResource Caption}" HorizontalTextAlignment="Center" />
     </VerticalStackLayout>
 </ContentPage>

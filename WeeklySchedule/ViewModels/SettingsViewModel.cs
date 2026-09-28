@@ -26,6 +26,7 @@ public partial class SettingsViewModel : BaseViewModel
         get => _selectedTheme;
         set
         {
+            if (value == null || _isRefreshing) return;
             if (SetProperty(ref _selectedTheme, value))
             {
                 _settingsService.Theme = value switch
@@ -44,6 +45,7 @@ public partial class SettingsViewModel : BaseViewModel
         get => _selectedLanguage;
         set
         {
+            if (_isRefreshing) return;
             if (SetProperty(ref _selectedLanguage, value) && value != null && _settingsService.SelectedLanguage != value.Type)
             {
                 _settingsService.SelectedLanguage = value.Type;
@@ -53,15 +55,45 @@ public partial class SettingsViewModel : BaseViewModel
     }
 
     private int _defaultDuration;
-    public int DefaultDuration { get => _defaultDuration; set { if (SetProperty(ref _defaultDuration, value)) _settingsService.DefaultLessonDuration = value; } }
+    public int DefaultDuration
+    {
+        get => _defaultDuration;
+        set
+        {
+            if (SetProperty(ref _defaultDuration, value))
+                _settingsService.DefaultLessonDuration = value;
+        }
+    }
 
     private bool _openLast;
-    public bool OpenLast { get => _openLast; set { if (SetProperty(ref _openLast, value)) { _settingsService.OpenLastTimeline = value; OnPropertyChanged(nameof(IsStartupPickerVisible)); } } }
+    public bool OpenLast
+    {
+        get => _openLast;
+        set
+        {
+            if (SetProperty(ref _openLast, value))
+            {
+                _settingsService.OpenLastTimeline = value;
+                OnPropertyChanged(nameof(IsStartupPickerVisible));
+            }
+        }
+    }
 
     public bool IsStartupPickerVisible => !OpenLast;
 
     private Timeline? _selectedStartupTimeline;
-    public Timeline? SelectedStartupTimeline { get => _selectedStartupTimeline; set { if (SetProperty(ref _selectedStartupTimeline, value) && value != null && !_isRefreshing) _settingsService.StartupTimelineId = value.Id; } }
+    public Timeline? SelectedStartupTimeline
+    {
+        get => _selectedStartupTimeline;
+        set
+        {
+            if (_isRefreshing) return;
+            if (SetProperty(ref _selectedStartupTimeline, value) && value != null)
+            {
+                _settingsService.StartupTimelineId = value.Id;
+            }
+        }
+    }
 
     private bool _areAllPermissionsGranted;
     public bool AreAllPermissionsGranted
@@ -77,9 +109,18 @@ public partial class SettingsViewModel : BaseViewModel
     public bool IsNotPermissionGranted => !AreAllPermissionsGranted;
 
     private bool _notifyAtStart;
-    public bool NotifyAtStart { get => _notifyAtStart; set { if (SetProperty(ref _notifyAtStart, value)) _settingsService.NotifyAtStart = value; } }
+    public bool NotifyAtStart
+    {
+        get => _notifyAtStart;
+        set
+        {
+            if (SetProperty(ref _notifyAtStart, value))
+                _settingsService.NotifyAtStart = value;
+        }
+    }
 
     public ObservableCollection<NotificationReminderViewModel> ReminderItems { get; } = [];
+
     public ICommand ToggleOpenLastCommand { get; }
     public ICommand RequestPermissionCommand { get; }
     public ICommand AddReminderCommand { get; }
@@ -155,23 +196,28 @@ public partial class SettingsViewModel : BaseViewModel
         {
             StartupTimelines.Clear();
             foreach (var t in all) StartupTimelines.Add(t);
+
             _selectedStartupTimeline = all.FirstOrDefault(t => t.Id == _settingsService.StartupTimelineId);
-            _openLast = _settingsService.OpenLastTimeline;
-            _defaultDuration = _settingsService.DefaultLessonDuration;
-            _notifyAtStart = _settingsService.NotifyAtStart;
-
-            LoadReminders();
-
             OnPropertyChanged(nameof(SelectedStartupTimeline));
+
+            _openLast = _settingsService.OpenLastTimeline;
             OnPropertyChanged(nameof(OpenLast));
             OnPropertyChanged(nameof(IsStartupPickerVisible));
-            OnPropertyChanged(nameof(DefaultDuration));
-            OnPropertyChanged(nameof(NotifyAtStart));
-        }
-        finally { _isRefreshing = false; }
 
-        LoadThemeOptions();
-        LoadLanguageOptions();
+            _defaultDuration = _settingsService.DefaultLessonDuration;
+            OnPropertyChanged(nameof(DefaultDuration));
+
+            _notifyAtStart = _settingsService.NotifyAtStart;
+            OnPropertyChanged(nameof(NotifyAtStart));
+
+            LoadReminders();
+            LoadThemeOptions();
+            LoadLanguageOptions();
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
 
         await CheckAllPermissionsAsync();
     }
@@ -196,7 +242,6 @@ public partial class SettingsViewModel : BaseViewModel
     {
         LanguageOptions.Clear();
         var allLangs = new[] { AppLanguage.System, AppLanguage.Russian, AppLanguage.English, AppLanguage.Chinese, AppLanguage.Korean };
-
         var options = allLangs.Select(lang => new LanguageOption
         {
             Type = lang,
@@ -240,5 +285,18 @@ public partial class NotificationReminderViewModel(NotificationReminder model, A
             _onChanged();
         }
     }
-    public bool IsActive { get => _model.IsActive; set { if (_model.IsActive != value) { _model.IsActive = value; OnPropertyChanged(); _onChanged(); } } }
+
+    public bool IsActive
+    {
+        get => _model.IsActive;
+        set
+        {
+            if (_model.IsActive != value)
+            {
+                _model.IsActive = value;
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+    }
 }

@@ -5,60 +5,79 @@
              x:Class="WeeklySchedule.Views.EditLessonPage" 
              x:Name="ThisPage">
     <ScrollView>
-        <VerticalStackLayout Spacing="20" Padding="20, 10, 20, 150" VerticalOptions="Start">
-            <Label x:Name="PageTitle" Text="{x:Static strings:AppResources.EditLesson}" FontSize="22" FontAttributes="Bold" HorizontalOptions="Center" />
-            <Label Text="{x:Static strings:AppResources.LessonName}" FontSize="14" FontAttributes="Bold"/>
-            <Entry x:Name="EntryName" Placeholder="{x:Static strings:AppResources.LessonNamePlaceholder}" FontSize="16" />
-            <Label Text="{x:Static strings:AppResources.Description}" FontSize="14" FontAttributes="Bold"/>
-            <Editor x:Name="EditorDesc" Placeholder="{x:Static strings:AppResources.DescriptionPlaceholder}"  FontSize="16" AutoSize="TextChanges" MinimumHeightRequest="80" />
-            <Label Text="{x:Static strings:AppResources.LessonType}" FontSize="14" FontAttributes="Bold"/>
-            <Picker x:Name="PickerType" FontSize="16" Title="{x:Static strings:AppResources.SelectType}" />
+        <VerticalStackLayout Spacing="24" Padding="24, 16, 24, 32" VerticalOptions="Start">
+            <Label x:Name="PageTitle" Text="{x:Static strings:AppResources.EditLesson}" Style="{StaticResource Title}" HorizontalOptions="Center" Margin="0,8,0,0" />
 
-            <Label Text="{x:Static strings:AppResources.DayOfWeek}" FontSize="14" FontAttributes="Bold"/>
-            <Picker x:Name="PickerDay" FontSize="16" Title="{x:Static strings:AppResources.SelectDay}" />
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.LessonName}" Style="{StaticResource BodyBold}"/>
+                <Entry x:Name="EntryName" Placeholder="{x:Static strings:AppResources.LessonNamePlaceholder}" />
+            </VerticalStackLayout>
 
-            <Label Text="{x:Static strings:AppResources.Timeline}" FontSize="14" FontAttributes="Bold"/>
-            <Picker x:Name="PickerTimeline" FontSize="16" Title="{x:Static strings:AppResources.SelectTimeline}" />
-            <Label Text="{x:Static strings:AppResources.Time}" FontSize="14" FontAttributes="Bold"/>
-            <Grid ColumnDefinitions="*, *, *" ColumnSpacing="10">
-                <VerticalStackLayout Grid.Column="0">
-                    <Label Text="{x:Static strings:AppResources.Start}" FontSize="12" Opacity="0.8"/>
-                    <TimePicker x:Name="TimePickerStart" Format="HH:mm" FontSize="16" Time="{Binding StartTime, Source={x:Reference ThisPage}}" />
-                </VerticalStackLayout>
-                <VerticalStackLayout Grid.Column="1">
-                    <Label Text="{x:Static strings:AppResources.End}" FontSize="12" Opacity="0.8"/>
-                    <TimePicker x:Name="TimePickerEnd" Format="HH:mm" FontSize="16" Time="{Binding EndTime, Source={x:Reference ThisPage}}" />
-                </VerticalStackLayout>
-                <VerticalStackLayout Grid.Column="2">
-                    <Label Text="{x:Static strings:AppResources.Duration}" FontSize="12" Opacity="0.8"/>
-                    <Entry x:Name="EntryDuration" Keyboard="Numeric" FontSize="16" Text="{Binding DurationText, Source={x:Reference ThisPage}}" TextChanged="OnDurationTextChanged" Placeholder="0"/>
-                </VerticalStackLayout>
-            </Grid>
-            <Border x:Name="BorderDelete" BackgroundColor="{StaticResource Danger}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill" IsVisible="False" Margin="0,10,0,0">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.Description}" Style="{StaticResource BodyBold}" />
+                <Editor x:Name="EditorDesc" Placeholder="{x:Static strings:AppResources.DescriptionPlaceholder}" AutoSize="TextChanges" MinimumHeightRequest="100" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.LessonType}" Style="{StaticResource BodyBold}" />
+                <Picker x:Name="PickerType" Title="{x:Static strings:AppResources.SelectType}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.DayOfWeek}" Style="{StaticResource BodyBold}" />
+                <Picker x:Name="PickerDay" Title="{x:Static strings:AppResources.SelectDay}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.Timeline}" Style="{StaticResource BodyBold}" />
+                <Picker x:Name="PickerTimeline" Title="{x:Static strings:AppResources.SelectTimeline}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.Time}" Style="{StaticResource BodyBold}" />
+                <Grid ColumnDefinitions="*, *, *" ColumnSpacing="12">
+                    <VerticalStackLayout Grid.Column="0" Spacing="4">
+                        <Label Text="{x:Static strings:AppResources.Start}" Style="{StaticResource Caption}"/>
+                        <TimePicker x:Name="TimePickerStart" Format="HH:mm" Time="{Binding StartTime, Source={x:Reference ThisPage}}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="4">
+                        <Label Text="{x:Static strings:AppResources.End}" Style="{StaticResource Caption}" />
+                        <TimePicker x:Name="TimePickerEnd" Format="HH:mm" Time="{Binding EndTime, Source={x:Reference ThisPage}}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="2" Spacing="4">
+                        <Label Text="{x:Static strings:AppResources.Duration}" Style="{StaticResource Caption}"/>
+                        <Entry x:Name="EntryDuration" Keyboard="Numeric" Text="{Binding DurationText, Source={x:Reference ThisPage}}" TextChanged="OnDurationTextChanged" Placeholder="0"/>
+                    </VerticalStackLayout>
+                </Grid>
+            </VerticalStackLayout>
+
+            <Border x:Name="BorderDelete" Style="{StaticResource DangerActionButton}" IsVisible="False" Margin="0,8,0,0">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnDeleteClicked" />
                 </Border.GestureRecognizers>
-                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="12">
                     <Path Data="{StaticResource IconDeleteForever}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
-                    <Label Text="{x:Static strings:AppResources.Delete}" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                    <Label Text="{x:Static strings:AppResources.Delete}" Style="{StaticResource ButtonTextDanger}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
-            <Border x:Name="BorderSave" BackgroundColor="{StaticResource Primary}" StrokeShape="RoundRectangle 12" HeightRequest="50" HorizontalOptions="Fill">
+
+            <Border x:Name="BorderSave" Style="{StaticResource PrimaryActionButton}">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnSaveClicked" />
                 </Border.GestureRecognizers>
-                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="12">
                     <Path Data="{StaticResource IconSave}" Fill="White" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
-                    <Label Text="{x:Static strings:AppResources.Save}" TextColor="White" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                    <Label Text="{x:Static strings:AppResources.Save}" Style="{StaticResource ButtonText}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
-            <Border x:Name="BorderCancel" BackgroundColor="Transparent" StrokeShape="RoundRectangle 12" StrokeThickness="1" Stroke="{StaticResource Gray500}" HeightRequest="50" HorizontalOptions="Fill">
+
+            <Border x:Name="BorderCancel" Style="{StaticResource OutlineActionButtonAccent}">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCancelClicked" />
                 </Border.GestureRecognizers>
-                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
-                    <Path Data="{StaticResource IconCancel}" Fill="{StaticResource Gray500}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
-                    <Label Text="{x:Static strings:AppResources.Cancel}" TextColor="{StaticResource Gray500}" FontSize="16" FontAttributes="Bold" VerticalOptions="Center" />
+                <HorizontalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="12">
+                    <Path Data="{StaticResource IconCancel}" Fill="{StaticResource AccentBrush}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                    <Label Text="{x:Static strings:AppResources.Cancel}" Style="{StaticResource ButtonTextOutline}" VerticalOptions="Center" />
                 </HorizontalStackLayout>
             </Border>
         </VerticalStackLayout>

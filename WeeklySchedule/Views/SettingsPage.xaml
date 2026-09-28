@@ -9,44 +9,45 @@
              Title="{x:Static strings:AppResources.Settings}">
     <ContentPage.Resources>
         <Style x:Key="IconButtonStyle" TargetType="Border">
-            <Setter Property="HeightRequest" Value="40" />
-            <Setter Property="WidthRequest" Value="40" />
-            <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+            <Setter Property="HeightRequest" Value="48" />
+            <Setter Property="WidthRequest" Value="48" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 24" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="StrokeThickness" Value="0" />
+            <Setter Property="Shadow" Value="{x:Null}" />
             <Setter Property="HorizontalOptions" Value="Center" />
             <Setter Property="VerticalOptions" Value="Center" />
         </Style>
     </ContentPage.Resources>
     <ScrollView>
-        <VerticalStackLayout Spacing="25" Padding="20" VerticalOptions="Start">
-            <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="0,10"/>
-            <Label Text="{x:Static strings:AppResources.Notifications}" FontSize="18" FontAttributes="Bold"/>
+        <VerticalStackLayout Spacing="24" Padding="24" VerticalOptions="Start">
+            <BoxView HeightRequest="1" Color="{StaticResource OutlineBrush}" Opacity="0.3" Margin="0,10,0,0"/>
+            <Label Text="{x:Static strings:AppResources.Notifications}" Style="{StaticResource Subtitle}" />
             <Button Text="{x:Static strings:AppResources.AllowNotifications}" 
                     IsVisible="{Binding IsNotPermissionGranted}" 
                     Command="{Binding RequestPermissionCommand}"
-                    BackgroundColor="{StaticResource Primary}" TextColor="White"
-                    CornerRadius="8" HeightRequest="45"/>
-
-            <HorizontalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="8" VerticalOptions="Center">
+                    BackgroundColor="{StaticResource AccentBrush}" TextColor="White"
+                    CornerRadius="24" HeightRequest="56" FontSize="16" FontAttributes="Bold"/>
+            <HorizontalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="12" VerticalOptions="Center">
                 <Path Data="{StaticResource IconDoneOutline}" 
-                      Fill="{StaticResource Success}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
-                <Label Text="{x:Static strings:AppResources.PermissionGranted}"
-                       TextColor="{StaticResource Success}" FontAttributes="Bold" FontSize="16" VerticalOptions="Center"/>
+                      Fill="{StaticResource SuccessBrush}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center" />
+                <Label Text="{x:Static strings:AppResources.PermissionGranted}" Style="{StaticResource BodyBold}" TextColor="{StaticResource SuccessBrush}" VerticalOptions="Center"/>
             </HorizontalStackLayout>
-
-            <VerticalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="15">
-                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
-                    <Label Text="{x:Static strings:AppResources.NotifyAtStart}" FontSize="16" VerticalOptions="Center"/>
-                    <Switch Grid.Column="1" IsToggled="{Binding NotifyAtStart}" VerticalOptions="Center"/>
-                </Grid>
-                <Label Text="{x:Static strings:AppResources.NotifyBefore}" FontSize="16" FontAttributes="Bold"/>
+            <VerticalStackLayout IsVisible="{Binding AreAllPermissionsGranted}" Spacing="20">
+                <Border Style="{StaticResource CardContainer}">
+                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="16">
+                        <Label Text="{x:Static strings:AppResources.NotifyAtStart}" Style="{StaticResource BodyBold}" VerticalOptions="Center"/>
+                        <Switch Grid.Column="1" IsToggled="{Binding NotifyAtStart}" VerticalOptions="Center"/>
+                    </Grid>
+                </Border>
+                <Label Text="{x:Static strings:AppResources.NotifyBefore}" Style="{StaticResource BodyBold}"/>
                 <CollectionView ItemsSource="{Binding ReminderItems}" HeightRequest="200">
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="vm:NotificationReminderViewModel">
-                            <Grid ColumnDefinitions="Auto, *, Auto" Padding="0,5" ColumnSpacing="10">
+                            <Grid ColumnDefinitions="Auto, *, Auto" Padding="0,8" ColumnSpacing="16">
                                 <Switch IsToggled="{Binding IsActive}" VerticalOptions="Center"/>
-                                <Entry Grid.Column="1" Text="{Binding Minutes}" Keyboard="Numeric" FontSize="16" VerticalOptions="Center"/>
-                                <Border Grid.Column="2" Style="{StaticResource IconButtonStyle}" BackgroundColor="{StaticResource Danger}">
+                                <Entry Grid.Column="1" Text="{Binding Minutes}" Keyboard="Numeric" VerticalOptions="Center"/>
+                                <Border Grid.Column="2" Style="{StaticResource IconButton}" BackgroundColor="{StaticResource DangerBrush}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding BindingContext.DeleteReminderCommand, Source={x:Reference SettingsPageRoot}}" CommandParameter="{Binding .}" />
                                     </Border.GestureRecognizers>
@@ -56,33 +57,40 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-                <Border HeightRequest="40" WidthRequest="40" StrokeShape="RoundRectangle 20" StrokeThickness="1" Stroke="{StaticResource Primary}" BackgroundColor="Transparent" HorizontalOptions="Start" VerticalOptions="Center">
+                <Border Style="{StaticResource IconButton}" StrokeThickness="2" Stroke="{StaticResource AccentBrush}" BackgroundColor="Transparent" HorizontalOptions="Start" >
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding AddReminderCommand}" />
                     </Border.GestureRecognizers>
-                    <Path Data="{StaticResource IconAddCircle}" Fill="{StaticResource Primary}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" />
+                    <Path Data="{StaticResource IconAddCircle}" Fill="{StaticResource AccentBrush}" WidthRequest="24" HeightRequest="24" Aspect="Uniform" />
                 </Border>
             </VerticalStackLayout>
-
-            <Label Text="{x:Static strings:AppResources.Theme}" FontSize="16" FontAttributes="Bold"/>
-            <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" FontSize="16"/>
-            <Label Text="{x:Static strings:AppResources.AppLanguage}" FontSize="16" FontAttributes="Bold"/>
-            <Picker ItemsSource="{Binding LanguageOptions}" 
-                     SelectedItem="{Binding SelectedLanguage}" 
-                     ItemDisplayBinding="{Binding DisplayName}" 
-                     FontSize="16"/>
-            <Label Text="{x:Static strings:AppResources.DefaultDuration}" FontSize="16" FontAttributes="Bold"/>
-            <Entry Keyboard="Numeric" Text="{Binding DefaultDuration}" FontSize="16"/>
-            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
-                <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding ToggleOpenLastCommand}" />
-                </Grid.GestureRecognizers>
-                <Label Text="{x:Static strings:AppResources.OpenLast}" FontSize="16" FontAttributes="Bold" VerticalOptions="Center"/>
-                <Switch Grid.Column="1" IsToggled="{Binding OpenLast}" VerticalOptions="Center" />
-            </Grid>
-            <VerticalStackLayout x:Name="StartupPickerLayout" Spacing="10">
-                <Label Text="{x:Static strings:AppResources.StartupTimeline}" FontSize="16" FontAttributes="Bold"/>
-                <Picker ItemsSource="{Binding StartupTimelines}" SelectedItem="{Binding SelectedStartupTimeline}" FontSize="16" ItemDisplayBinding="{Binding Name}"/>
+            <BoxView HeightRequest="1" Color="{StaticResource OutlineBrush}" Opacity="0.3"/>
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.Theme}" Style="{StaticResource BodyBold}"/>
+                <Picker ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}"/>
+            </VerticalStackLayout>
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.AppLanguage}" Style="{StaticResource BodyBold}"/>
+                <Picker ItemsSource="{Binding LanguageOptions}" 
+                         SelectedItem="{Binding SelectedLanguage}" 
+                         ItemDisplayBinding="{Binding DisplayName}" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Spacing="8">
+                <Label Text="{x:Static strings:AppResources.DefaultDuration}" Style="{StaticResource BodyBold}"/>
+                <Entry Keyboard="Numeric" Text="{Binding DefaultDuration}" />
+            </VerticalStackLayout>
+            <Border Style="{StaticResource CardContainer}">
+                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="16">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ToggleOpenLastCommand}" />
+                    </Grid.GestureRecognizers>
+                    <Label Text="{x:Static strings:AppResources.OpenLast}" Style="{StaticResource BodyBold}" VerticalOptions="Center"/>
+                    <Switch Grid.Column="1" IsToggled="{Binding OpenLast}" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+            <VerticalStackLayout x:Name="StartupPickerLayout" Spacing="8">
+                <Label Text="{x:Static strings:AppResources.StartupTimeline}" Style="{StaticResource BodyBold}"/>
+                <Picker ItemsSource="{Binding StartupTimelines}" SelectedItem="{Binding SelectedStartupTimeline}" ItemDisplayBinding="{Binding Name}"/>
             </VerticalStackLayout>
         </VerticalStackLayout>
     </ScrollView>

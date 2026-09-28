@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
-
 		<OutputType>Exe</OutputType>
 		<RootNamespace>WeeklySchedule</RootNamespace>
 		<UseMaui>true</UseMaui>
@@ -10,31 +9,22 @@
 		<Nullable>enable</Nullable>
 		<AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
-
 		<ApplicationTitle>Weekly</ApplicationTitle>
 		<ApplicationId>com.alcatrast.weeklyschedule</ApplicationId>
 		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 		<WindowsPackageType>None</WindowsPackageType>
-
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
-
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">
 		<EmbedAssembliesIntoApk>False</EmbedAssembliesIntoApk>
 	</PropertyGroup>
-
 	<ItemGroup>
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" />
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
-
-		<MauiImage Include="Resources\Images\*" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0A0A15" BaseSize="128,128" />
 		<MauiFont Include="Resources\Fonts\*" />
-		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
-
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
 		<PackageReference Include="Microsoft.Build.Tasks.Git" Version="10.0.401">
@@ -43,13 +33,17 @@
 		</PackageReference>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.100" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.11" />
-
 		<PackageReference Include="NPOI" Version="2.8.0" />
 		<PackageReference Include="SkiaSharp" Version="4.152.0" />
-
 		<PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
 	</ItemGroup>
-
+	<ItemGroup>
+	  <Compile Update="Resources\Strings\AppResources.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>AppResources.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
 	<ItemGroup>
 		<MauiXaml Update="Resources\Styles\Icons.xaml">
 			<Generator>MSBuild:Compile</Generator>
@@ -79,7 +73,6 @@
 			<Generator>MSBuild:Compile</Generator>
 		</MauiXaml>
 	</ItemGroup>
-
 	<ItemGroup>
 		<EmbeddedResource Update="Resources\Strings\AppResources.resx">
 			<Generator>PublicResXFileCodeGenerator</Generator>
@@ -95,17 +88,4 @@
 			<DependentUpon>AppResources.resx</DependentUpon>
 		</EmbeddedResource>
 	</ItemGroup>
-
-	<ItemGroup>
-		<Folder Include="Resources\Images\" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Compile Update="Resources\Strings\AppResources.Designer.cs">
-	    <DesignTime>True</DesignTime>
-	    <AutoGen>True</AutoGen>
-	    <DependentUpon>AppResources.resx</DependentUpon>
-	  </Compile>
-	</ItemGroup>
-
 </Project>

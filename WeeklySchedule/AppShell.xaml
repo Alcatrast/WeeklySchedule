@@ -9,36 +9,33 @@
        FlyoutBehavior="Flyout">
     <Shell.FlyoutContent>
         <Grid x:Name="FlyoutGrid" RowDefinitions="*, Auto" 
-              BackgroundColor="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}">
-
+              BackgroundColor="{StaticResource SurfaceBrush}">
             <ScrollView Grid.Row="0" VerticalScrollBarVisibility="Default">
-                <VerticalStackLayout Padding="0, 20, 0, 10" Spacing="5">
+                <VerticalStackLayout Padding="12, 24, 12, 24" Spacing="8">
                     <CollectionView ItemsSource="{Binding Timelines}" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:TimelineFlyoutItem">
-                                <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
+                                <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}" 
                                             CommandParameter="{Binding Timeline}" />
                                     </Border.GestureRecognizers>
-                                    <Grid ColumnDefinitions="Auto, *">
-                                        <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="15, 0, 8, 0" Spacing="4">
+                                    <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
+                                        <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 12, 0" Spacing="8">
                                             <Path Data="{StaticResource IconStar}" 
                                                 WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                                                Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                                                Fill="{StaticResource AccentBrush}"
                                                 IsVisible="{Binding IsHighlighted}" />
-
                                             <Path Data="{StaticResource IconNotifications}" 
                                                 WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
-                                                Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"
+                                                Fill="{StaticResource AccentBrush}"
                                                 IsVisible="{Binding NotificationsEnabled}" />
                                         </HorizontalStackLayout>
-
-                                        <Label Grid.Column="1" Text="{Binding Name}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-                                            TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}">
+                                        <Label Grid.Column="1" Text="{Binding Name}" Style="{StaticResource Body}" VerticalTextAlignment="Center">
                                             <Label.Triggers>
                                                 <DataTrigger TargetType="Label" Binding="{Binding IsActive}" Value="True">
-                                                    <Setter Property="FontAttributes" Value="Bold" />
+                                                    <Setter Property="Style" Value="{StaticResource BodyBold}" />
+                                                    <Setter Property="TextColor" Value="{StaticResource AccentBrush}" />
                                                 </DataTrigger>
                                             </Label.Triggers>
                                         </Label>
@@ -47,62 +44,54 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                         <CollectionView.EmptyView>
-                            <Label Text="{x:Static strings:AppResources.NoTimelines}" FontSize="14" TextColor="Gray" HorizontalTextAlignment="Center" Margin="0,20,0,0" />
+                            <Label Text="{x:Static strings:AppResources.NoTimelines}" Style="{StaticResource Caption}" HorizontalTextAlignment="Center" Margin="0,24,0,0" />
                         </CollectionView.EmptyView>
                     </CollectionView>
                 </VerticalStackLayout>
             </ScrollView>
+            <VerticalStackLayout Grid.Row="1" Spacing="4" Padding="12,0,12,24">
+                <BoxView HeightRequest="1" Color="{StaticResource OutlineBrush}" Opacity="0.3" Margin="16,0,16,12"/>
 
-            <VerticalStackLayout Grid.Row="1" Spacing="0" Padding="0,0,0,10">
-                <BoxView HeightRequest="1" Color="{AppThemeBinding Light={StaticResource Gray300}, Dark={StaticResource Gray600}}" Margin="15,0,15,10"/>
-
-                <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
+                    <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnTimelinesManageClicked" />
                         </Grid.GestureRecognizers>
-
                         <Path Grid.Column="0" Data="{StaticResource IconCalendar}" 
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
-                              VerticalOptions="Center" Margin="15, 12, 10, 12"
-                              Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Timelines}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-                            TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+                              VerticalOptions="Center" Margin="0, 0, 12, 0"
+                              Fill="{StaticResource AccentBrush}" />
+                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Timelines}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
                     </Grid>
                 </Border>
 
-                <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
+                    <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnSettingsClicked" />
                         </Grid.GestureRecognizers>
-
                         <Path Grid.Column="0" Data="{StaticResource IconSettings}" 
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
-                              VerticalOptions="Center" Margin="15, 12, 10, 12"
-                              Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Settings}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-                               TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+                              VerticalOptions="Center" Margin="0, 0, 12, 0"
+                              Fill="{StaticResource AccentBrush}" />
+                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Settings}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
                     </Grid>
                 </Border>
 
-                <Border StrokeShape="RoundRectangle 10" Margin="10, 4" Padding="0" StrokeThickness="0" BackgroundColor="Transparent">
-                    <Grid ColumnDefinitions="Auto, *">
+                <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
+                    <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnAboutClicked" />
                         </Grid.GestureRecognizers>
-
                         <Path Grid.Column="0" Data="{StaticResource IconInfo}" 
                               WidthRequest="24" HeightRequest="24" Aspect="Uniform"
-                              VerticalOptions="Center" Margin="15, 12, 10, 12"
-                              Fill="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
-                        <Label Grid.Column="1"  Text="{x:Static strings:AppResources.AboutTitle}" FontSize="16" Margin="0, 12, 15, 12" VerticalTextAlignment="Center"
-                               TextColor="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}" />
+                              VerticalOptions="Center" Margin="0, 0, 12, 0"
+                              Fill="{StaticResource AccentBrush}" />
+                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.AboutTitle}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
                     </Grid>
                 </Border>
             </VerticalStackLayout>
         </Grid>
     </Shell.FlyoutContent>
-
     <ShellContent Title="Home" ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
 </Shell>

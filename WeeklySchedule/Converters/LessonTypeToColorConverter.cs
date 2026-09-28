@@ -9,14 +9,12 @@ public class LessonTypeToColorConverter : IValueConverter
     {
         if (value is LessonType type)
         {
-            bool isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
-
             return type switch
             {
-                LessonType.Lecture => isDark ? Color.FromArgb("#1E3A8A") : Color.FromArgb("#DBEAFE"), // Темно-синий / Светло-синий
-                LessonType.Seminar => isDark ? Color.FromArgb("#065F46") : Color.FromArgb("#D1FAE5"), // Темно-зеленый / Светло-зеленый
-                LessonType.Practice => isDark ? Color.FromArgb("#92400E") : Color.FromArgb("#FEF3C7"), // Темно-оранжевый / Светло-желтый
-                LessonType.Lab => isDark ? Color.FromArgb("#7F1D1D") : Color.FromArgb("#FEE2E2"),     // Темно-красный / Светло-красный
+                LessonType.Lecture => GetColor("LessonLectureLight", "LessonLectureDark"),
+                LessonType.Seminar => GetColor("LessonSeminarLight", "LessonSeminarDark"),
+                LessonType.Practice => GetColor("LessonPracticeLight", "LessonPracticeDark"),
+                LessonType.Lab => GetColor("LessonLabLight", "LessonLabDark"),
                 _ => Colors.Gray
             };
         }
@@ -26,5 +24,18 @@ public class LessonTypeToColorConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
+    }
+
+    private static Color GetColor(string lightKey, string darkKey)
+    {
+        bool isDark = Application.Current?.RequestedTheme == AppTheme.Dark;
+        string key = isDark ? darkKey : lightKey;
+
+        if (Application.Current?.Resources.TryGetValue(key, out var colorObj) == true && colorObj is Color color)
+        {
+            return color;
+        }
+
+        return Colors.Gray;
     }
 }

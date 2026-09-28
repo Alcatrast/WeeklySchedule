@@ -1,7 +1,7 @@
 ﻿using Android.App;
 using Android.Runtime;
 
-namespace WeeklySchedule
+namespace WeeklySchedule.Platforms.Android
 {
     [Application]
     public class MainApplication : MauiApplication

@@ -1,45 +1,71 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
-    <Color x:Key="Primary">#512BD4</Color>
-    <Color x:Key="PrimaryDark">#ac99ea</Color>
-    <Color x:Key="PrimaryDarkText">#242424</Color>
-    <Color x:Key="Secondary">#DFD8F7</Color>
-    <Color x:Key="SecondaryDarkText">#9880e5</Color>
-    <Color x:Key="Tertiary">#2B0B98</Color>
-    <Color x:Key="White">White</Color>
-    <Color x:Key="Black">Black</Color>
-    <Color x:Key="Magenta">#D600AA</Color>
-    <Color x:Key="MidnightBlue">#190649</Color>
-    <Color x:Key="OffBlack">#1f1f1f</Color>
+    <Color x:Key="BackgroundLight">#F8F9FA</Color>
+    <Color x:Key="BackgroundDark">#0A0A15</Color>
+    <Color x:Key="SurfaceLight">#FFFFFF</Color>
+    <Color x:Key="SurfaceDark">#1E1E28</Color>
+    <Color x:Key="SurfaceVariantLight">#E8EAF0</Color>
+    <Color x:Key="SurfaceVariantDark">#2A2A36</Color>
+    <Color x:Key="OnSurfaceLight">#1A1A1A</Color>
+    <Color x:Key="OnSurfaceDark">#F0F0F0</Color>
+    <Color x:Key="OnSurfaceVariantLight">#3A3D46</Color>
+    <Color x:Key="OnSurfaceVariantDark">#C0C3CB</Color>
 
-    <Color x:Key="Danger">#D32F2F</Color>
-    <Color x:Key="Success">#2E7D32</Color>
-    <Color x:Key="GradientStart">#4361EE</Color>
-    <Color x:Key="GradientEnd">#FF006E</Color>
+    <Color x:Key="AccentLight">#FF69B4</Color>
+    <Color x:Key="AccentDark">#C71585</Color>
 
-    <Color x:Key="Gray100">#E1E1E1</Color>
-    <Color x:Key="Gray200">#C8C8C8</Color>
-    <Color x:Key="Gray300">#ACACAC</Color>
-    <Color x:Key="Gray400">#919191</Color>
-    <Color x:Key="Gray500">#6E6E6E</Color>
-    <Color x:Key="Gray600">#404040</Color>
-    <Color x:Key="Gray900">#212121</Color>
-    <Color x:Key="Gray950">#141414</Color>
+    <Color x:Key="OutlineLight">#C0C3C9</Color>
+    <Color x:Key="OutlineDark">#4A4A56</Color>
+    <Color x:Key="DangerLight">#D32F2F</Color>
+    <Color x:Key="DangerDark">#FF6B6B</Color>
+    <Color x:Key="SuccessLight">#2E7D32</Color>
+    <Color x:Key="SuccessDark">#81C784</Color>
 
-    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
-    <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}"/>
-    <SolidColorBrush x:Key="TertiaryBrush" Color="{StaticResource Tertiary}"/>
-    <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
-    <SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
-    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource Danger}"/>
+    <Color x:Key="LessonLectureLight">#DBEAFE</Color>
+    <Color x:Key="LessonLectureDark">#1E3A8A</Color>
+    <Color x:Key="LessonSeminarLight">#D1FAE5</Color>
+    <Color x:Key="LessonSeminarDark">#065F46</Color>
+    <Color x:Key="LessonPracticeLight">#FEF3C7</Color>
+    <Color x:Key="LessonPracticeDark">#92400E</Color>
+    <Color x:Key="LessonLabLight">#FEE2E2</Color>
+    <Color x:Key="LessonLabDark">#7F1D1D</Color>
 
-    <SolidColorBrush x:Key="Gray100Brush" Color="{StaticResource Gray100}"/>
-    <SolidColorBrush x:Key="Gray200Brush" Color="{StaticResource Gray200}"/>
-    <SolidColorBrush x:Key="Gray300Brush" Color="{StaticResource Gray300}"/>
-    <SolidColorBrush x:Key="Gray400Brush" Color="{StaticResource Gray400}"/>
-    <SolidColorBrush x:Key="Gray500Brush" Color="{StaticResource Gray500}"/>
-    <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}"/>
-    <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}"/>
-    <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}"/>
+    <Color x:Key="InputTransparentLight">#00FFFFFF</Color>
+    <Color x:Key="InputTransparentDark">#00000000</Color>
+
+    <LinearGradientBrush x:Key="PageBackgroundLight" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFF0F5" Offset="0.0" />
+        <GradientStop Color="#FFE4E1" Offset="0.5" />
+        <GradientStop Color="#FFC0CB" Offset="1.0" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="PageBackgroundDark" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#000000" Offset="0.0" />
+        <GradientStop Color="#1a0011" Offset="0.5" />
+        <GradientStop Color="#330022" Offset="1.0" />
+    </LinearGradientBrush>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{AppThemeBinding Light={StaticResource AccentLight}, Dark={StaticResource AccentDark}}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{AppThemeBinding Light={StaticResource SurfaceLight}, Dark={StaticResource SurfaceDark}}" />
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{AppThemeBinding Light={StaticResource BackgroundLight}, Dark={StaticResource BackgroundDark}}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{AppThemeBinding Light={StaticResource DangerLight}, Dark={StaticResource DangerDark}}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{AppThemeBinding Light={StaticResource SuccessLight}, Dark={StaticResource SuccessDark}}" />
+    <SolidColorBrush x:Key="OutlineBrush" Color="{AppThemeBinding Light={StaticResource OutlineLight}, Dark={StaticResource OutlineDark}}" />
+    <SolidColorBrush x:Key="InputTransparentBrush" Color="{AppThemeBinding Light={StaticResource InputTransparentLight}, Dark={StaticResource InputTransparentDark}}" />
+
+    <Shadow x:Key="ShadowSoft" Radius="24" Opacity="0.08" Brush="{StaticResource BackgroundBrush}" Offset="0,8" />
+    <Shadow x:Key="ShadowElevated" Radius="32" Opacity="0.12" Brush="{StaticResource BackgroundBrush}" Offset="0,12" />
+
+    <Thickness x:Key="PaddingCard">20,24</Thickness>
+    <Thickness x:Key="PaddingInput">16,18</Thickness>
+    <Thickness x:Key="MarginSection">0,24,0,0</Thickness>
+
+    <Color x:Key="GradientStart">#5333FF</Color>
+    <Color x:Key="GradientEnd">#C71585</Color>
+
+    <LinearGradientBrush x:Key="ExcelImportGradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="{StaticResource GradientStart}" Offset="0.0" />
+        <GradientStop Color="{StaticResource GradientEnd}" Offset="1.0" />
+    </LinearGradientBrush>
 </ResourceDictionary>
