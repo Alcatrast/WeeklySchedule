@@ -2,6 +2,7 @@
 using global::Android.App;
 using global::Android.Content;
 using global::AndroidX.Core.App;
+using WeeklySchedule.Models;
 using WeeklySchedule.Resources.Strings;
 using Application = global::Android.App.Application;
 

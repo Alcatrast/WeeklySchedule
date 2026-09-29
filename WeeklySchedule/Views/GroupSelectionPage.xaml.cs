@@ -5,40 +5,44 @@ namespace WeeklySchedule.Views;
 
 public partial class GroupSelectionPage : ContentPage
 {
-    private readonly GroupSelectionViewModel _vm;
-
-    public GroupSelectionPage(GroupSelectionViewModel vm)
+    public GroupSelectionPage()
     {
         InitializeComponent();
-        _vm = vm;
-        BindingContext = _vm;
     }
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        SafeFireAndForget.Run(_vm.LoadDataAsync);
+        if (BindingContext is GroupSelectionViewModel vm)
+        {
+            SafeFireAndForget.Run(vm.LoadDataAsync);
+        }
     }
 
     protected override bool OnBackButtonPressed()
     {
-        if (_vm.IsLoadingGroups || _vm.IsProcessing) return true;
+        if (BindingContext is GroupSelectionViewModel vm)
+        {
+            if (vm.IsLoadingGroups || vm.IsProcessing) return true;
+        }
         return base.OnBackButtonPressed();
     }
 
     private void OnCategoryTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is View view && view.BindingContext is Models.GroupCategory category)
+        if (sender is View view && view.BindingContext is Models.GroupCategory category
+            && BindingContext is GroupSelectionViewModel vm)
         {
-            _vm.ToggleCategoryCommand.Execute(category);
+            vm.ToggleCategoryCommand.Execute(category);
         }
     }
 
     private void OnGroupTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is View view && view.BindingContext is Models.GroupItem group)
+        if (sender is View view && view.BindingContext is Models.GroupItem group
+            && BindingContext is GroupSelectionViewModel vm)
         {
-            _vm.SelectGroupCommand.Execute(group);
+            vm.SelectGroupCommand.Execute(group);
         }
     }
 }

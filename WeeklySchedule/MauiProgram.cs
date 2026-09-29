@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Maui;
 using Microsoft.Extensions.Logging;
 using WeeklySchedule.Data.Repositories;
+using WeeklySchedule.Platforms.Android.Services;
 using WeeklySchedule.Services;
 using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
@@ -29,12 +30,15 @@ public static class MauiProgram
         builder.Services.AddSingleton<IFilePickerService, FilePickerService>();
         builder.Services.AddSingleton<INotificationNavigationService, NotificationNavigationService>();
         builder.Services.AddSingleton<INavigationService, NavigationService>();
+        builder.Services.AddSingleton<INotificationSchedulerService, NotificationSchedulerService>();
+        builder.Services.AddSingleton<IDaysWindowManager, DaysWindowManager>();
         builder.Services.AddSingleton<IEditLessonPageFactory, EditLessonPageFactory>();
         builder.Services.AddSingleton<IEditTimelinePageFactory, EditTimelinePageFactory>();
         builder.Services.AddSingleton<IGroupSelectionPageFactory, GroupSelectionPageFactory>();
 
 #if ANDROID
         builder.Services.AddSingleton<INotificationService, WeeklySchedule.Platforms.Android.Services.NotificationService>();
+        builder.Services.AddSingleton<IPreferencesService, AndroidPreferencesService>();
 #else
         builder.Services.AddSingleton<INotificationService, MockNotificationService>();
 #endif
@@ -50,7 +54,6 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<EditLessonPage>();
         builder.Services.AddTransient<EditTimelinePage>();
-        builder.Services.AddTransient<GroupSelectionPage>();
 
         builder.Services.AddTransient<AboutPage>();
         builder.Services.AddSingleton<MainPage>();
