@@ -30,6 +30,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<INotificationNavigationService, NotificationNavigationService>();
         builder.Services.AddSingleton<INavigationService, NavigationService>();
         builder.Services.AddSingleton<IEditLessonPageFactory, EditLessonPageFactory>();
+        builder.Services.AddSingleton<IEditTimelinePageFactory, EditTimelinePageFactory>(); // <-- ДОБАВЛЕНО
+
         builder.Services.AddSingleton<IGroupSelectionPageFactory, GroupSelectionPageFactory>();
 
 #if ANDROID
@@ -42,12 +44,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<FlyoutViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();
 
-        builder.Services.AddTransient<TimelinesViewModel>();
         builder.Services.AddTransient<EditTimelineViewModel>();
         builder.Services.AddTransient<GroupSelectionViewModel>();
 
         builder.Services.AddTransient<SettingsPage>();
-        builder.Services.AddTransient<TimelinesPage>();
         builder.Services.AddTransient<EditTimelinePage>();
         builder.Services.AddTransient<EditLessonPage>();
         builder.Services.AddTransient<GroupSelectionPage>();

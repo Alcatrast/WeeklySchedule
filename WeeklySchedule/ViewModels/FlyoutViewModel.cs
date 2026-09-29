@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Models;
+using WeeklySchedule.Resources.Strings;
 using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
@@ -13,8 +14,10 @@ public partial class TimelineFlyoutItem(Timeline timeline) : BaseViewModel
     public Guid Id => Timeline.Id;
     public string Name => Timeline.Name;
     public bool NotificationsEnabled => Timeline.NotificationsEnabled;
+
     private bool _isActive;
     public bool IsActive { get => _isActive; set => SetProperty(ref _isActive, value); }
+
     private bool _isHighlighted;
     public bool IsHighlighted { get => _isHighlighted; set => SetProperty(ref _isHighlighted, value); }
 }
@@ -24,23 +27,88 @@ public partial class FlyoutViewModel : BaseViewModel, IDisposable
     private readonly ITimelineRepository _repository;
     private readonly IActiveScheduleService _scheduleService;
     private readonly ISettingsService _settingsService;
+    private readonly IEditTimelinePageFactory _editTimelinePageFactory;
     private int _loadVersion;
 
     public ObservableCollection<TimelineFlyoutItem> Timelines { get; } = [];
-    public ICommand SelectTimelineCommand { get; }
 
-    public FlyoutViewModel(ITimelineRepository repository, IActiveScheduleService scheduleService, ISettingsService settingsService)
+    public ICommand SelectTimelineCommand { get; }
+    public ICommand BottomActionButtonCommand { get; }
+    public ICommand AddTimelineCommand { get; }
+    public ICommand EditTimelineCommand { get; }
+
+    private bool _isEditMode;
+    public bool IsEditMode
+    {
+        get => _isEditMode;
+        set
+        {
+            if (SetProperty(ref _isEditMode, value))
+            {
+                BottomActionText = value ? AppResources.Create : AppResources.Timelines;
+            }
+        }
+    }
+
+    private string _bottomActionText = AppResources.Timelines;
+    public string BottomActionText
+    {
+        get => _bottomActionText;
+        set => SetProperty(ref _bottomActionText, value);
+    }
+
+    public FlyoutViewModel(
+        ITimelineRepository repository,
+        IActiveScheduleService scheduleService,
+        ISettingsService settingsService,
+        IEditTimelinePageFactory editTimelinePageFactory)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _scheduleService = scheduleService ?? throw new ArgumentNullException(nameof(scheduleService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _editTimelinePageFactory = editTimelinePageFactory ?? throw new ArgumentNullException(nameof(editTimelinePageFactory));
+
         SelectTimelineCommand = new Command<Timeline>(OnSelectTimeline);
+        BottomActionButtonCommand = new Command(OnBottomActionButtonClicked);
+        AddTimelineCommand = new Command(() => SafeFireAndForget.Run(() => AddTimelineAsync()));
+        EditTimelineCommand = new Command<Timeline>(t => SafeFireAndForget.Run(() => EditTimelineAsync(t)));
+
         _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
     }
 
-    private void OnActiveTimelineChanged(Guid _) => SafeFireAndForget.Run(LoadTimelinesAsync);
-    private void OnSettingsChanged() => SafeFireAndForget.Run(LoadTimelinesAsync);
+    private void OnBottomActionButtonClicked()
+    {
+        if (IsEditMode)
+        {
+            SafeFireAndForget.Run(() => AddTimelineAsync());
+        }
+        else
+        {
+            IsEditMode = true;
+        }
+    }
+
+    public void ResetEditMode()
+    {
+        if (_isEditMode) IsEditMode = false;
+    }
+
+    private async Task AddTimelineAsync()
+    {
+        ResetEditMode();
+        await _editTimelinePageFactory.OpenAsync();
+    }
+
+    private async Task EditTimelineAsync(Timeline? timeline)
+    {
+        if (timeline == null) return;
+        ResetEditMode();
+        await _editTimelinePageFactory.OpenAsync(timeline);
+    }
+
+    private void OnActiveTimelineChanged(Guid _) => SafeFireAndForget.Run(() => LoadTimelinesAsync());
+    private void OnSettingsChanged() => SafeFireAndForget.Run(() => LoadTimelinesAsync());
 
     public void Dispose()
     {
@@ -56,11 +124,24 @@ public partial class FlyoutViewModel : BaseViewModel, IDisposable
         var startupId = _settingsService.StartupTimelineId;
         bool isOpenLast = _settingsService.OpenLastTimeline;
         bool shouldHighlight = !isOpenLast && startupId != Guid.Empty;
+
         var allTimelines = (await _repository.GetAllAsync()).ToList();
         if (version != _loadVersion) return;
+
         Timelines.Clear();
-        foreach (var t in allTimelines) Timelines.Add(new TimelineFlyoutItem(t) { IsActive = t.Id == activeId, IsHighlighted = shouldHighlight && t.Id == startupId });
+        foreach (var t in allTimelines)
+            Timelines.Add(new TimelineFlyoutItem(t)
+            {
+                IsActive = t.Id == activeId,
+                IsHighlighted = shouldHighlight && t.Id == startupId
+            });
     }
 
-    private void OnSelectTimeline(Timeline? timeline) { if (timeline == null) return; Shell.Current!.FlyoutIsPresented = false; _scheduleService.ActiveTimelineId = timeline.Id; }
+    private void OnSelectTimeline(Timeline? timeline)
+    {
+        if (timeline == null) return;
+        ResetEditMode();
+        Shell.Current!.FlyoutIsPresented = false;
+        _scheduleService.ActiveTimelineId = timeline.Id;
+    }
 }

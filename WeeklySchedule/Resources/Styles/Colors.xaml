@@ -68,4 +68,6 @@
         <GradientStop Color="{StaticResource GradientStart}" Offset="0.0" />
         <GradientStop Color="{StaticResource GradientEnd}" Offset="1.0" />
     </LinearGradientBrush>
+    <Color x:Key="ShellBackgroundLight">#FFF0F5</Color>
+    <Color x:Key="ShellBackgroundDark">#1A0011</Color>
 </ResourceDictionary>

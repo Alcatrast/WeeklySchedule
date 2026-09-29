@@ -167,4 +167,5 @@
 	<data name="WscExport" xml:space="preserve"><value>Export to .wsc</value></data>
 	<data name="WscImport" xml:space="preserve"><value>Import from .wsc</value></data>
 	<data name="Yes" xml:space="preserve"><value>Yes</value></data>
+	<data name="Create" xml:space="preserve"><value>Create</value></data>
 </root>

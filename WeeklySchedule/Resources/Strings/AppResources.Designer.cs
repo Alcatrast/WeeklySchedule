@@ -160,6 +160,15 @@ namespace WeeklySchedule.Resources.Strings {
         }
         
         /// <summary>
+        ///   Ищет локализованную строку, похожую на Create.
+        /// </summary>
+        public static string Create {
+            get {
+                return ResourceManager.GetString("Create", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Ищет локализованную строку, похожую на Dark.
         /// </summary>
         public static string DarkTheme {

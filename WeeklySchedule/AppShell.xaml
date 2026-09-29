@@ -20,7 +20,7 @@
                                         <TapGestureRecognizer Command="{Binding BindingContext.SelectTimelineCommand, Source={x:Reference FlyoutGrid}}" 
                                             CommandParameter="{Binding Timeline}" />
                                     </Border.GestureRecognizers>
-                                    <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
+                                    <Grid ColumnDefinitions="Auto, *, Auto" Padding="16, 12">
                                         <HorizontalStackLayout Grid.Column="0" VerticalOptions="Center" Margin="0, 0, 12, 0" Spacing="8">
                                             <Path Data="{StaticResource IconStar}" 
                                                 WidthRequest="24" HeightRequest="24" Aspect="Uniform" VerticalOptions="Center"
@@ -39,6 +39,15 @@
                                                 </DataTrigger>
                                             </Label.Triggers>
                                         </Label>
+                                        <Border Grid.Column="2" Style="{StaticResource IconButton}" 
+                                                IsVisible="{Binding BindingContext.IsEditMode, Source={x:Reference FlyoutGrid}}"
+                                                VerticalOptions="Center" Margin="8,0,0,0" HeightRequest="40" WidthRequest="40">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding BindingContext.EditTimelineCommand, Source={x:Reference FlyoutGrid}}" 
+                                                                    CommandParameter="{Binding Timeline}" />
+                                            </Border.GestureRecognizers>
+                                            <Path Data="{StaticResource IconEdit}" WidthRequest="20" HeightRequest="20" Aspect="Uniform" Fill="{StaticResource AccentBrush}" VerticalOptions="Center" HorizontalOptions="Center" />
+                                        </Border>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -55,13 +64,21 @@
                 <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
                     <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
                         <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnTimelinesManageClicked" />
+                            <TapGestureRecognizer Command="{Binding BottomActionButtonCommand}" />
                         </Grid.GestureRecognizers>
-                        <Path Grid.Column="0" Data="{StaticResource IconCalendar}" 
-                              WidthRequest="24" HeightRequest="24" Aspect="Uniform"
+                        <Path Grid.Column="0" WidthRequest="24" HeightRequest="24" Aspect="Uniform"
                               VerticalOptions="Center" Margin="0, 0, 12, 0"
-                              Fill="{StaticResource AccentBrush}" />
-                        <Label Grid.Column="1" Text="{x:Static strings:AppResources.Timelines}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
+                              Fill="{StaticResource AccentBrush}">
+                            <Path.Triggers>
+                                <DataTrigger TargetType="Path" Binding="{Binding IsEditMode}" Value="True">
+                                    <Setter Property="Data" Value="{StaticResource IconAddCircle}" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Path" Binding="{Binding IsEditMode}" Value="False">
+                                    <Setter Property="Data" Value="{StaticResource IconAppRegistration}" />
+                                </DataTrigger>
+                            </Path.Triggers>
+                        </Path>
+                        <Label Grid.Column="1" Text="{Binding BottomActionText}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
                     </Grid>
                 </Border>
 
@@ -77,7 +94,6 @@
                         <Label Grid.Column="1" Text="{x:Static strings:AppResources.Settings}" Style="{StaticResource Body}" VerticalTextAlignment="Center" />
                     </Grid>
                 </Border>
-
                 <Border StrokeShape="RoundRectangle 16" Margin="0, 2" Padding="0" StrokeThickness="0" BackgroundColor="Transparent" Shadow="{x:Null}">
                     <Grid ColumnDefinitions="Auto, *" Padding="16, 12">
                         <Grid.GestureRecognizers>

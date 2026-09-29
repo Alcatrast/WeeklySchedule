@@ -4,8 +4,11 @@ public class NavigationService : INavigationService
 {
     public async Task PushModalAsync(Page page)
     {
-        if (Shell.Current is not null)
-            await Shell.Current.Navigation.PushModalAsync(page);
+        if (Shell.Current is AppShell shell)
+        {
+            shell.FlyoutVM?.ResetEditMode();
+            await shell.Navigation.PushModalAsync(page);
+        }
     }
 
     public async Task PopModalAsync()
