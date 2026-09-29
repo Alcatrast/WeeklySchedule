@@ -1,5 +1,6 @@
 ﻿using WeeklySchedule.Models;
 using WeeklySchedule.Views;
+using WeeklySchedule.ViewModels;
 
 namespace WeeklySchedule.Services;
 
@@ -9,10 +10,8 @@ public interface IEditLessonPageFactory
     Task OpenAsync(Lesson? lesson = null, DayOfWeek? preselectedDay = null, TimeSpan? preselectedTime = null, Guid? activeTimelineId = null);
     void NotifyClosed();
 }
-
-public class EditLessonPageFactory(IServiceProvider serviceProvider) : IEditLessonPageFactory
+public class EditLessonPageFactory(IServiceProvider serviceProvider, INavigationService navigationService) : IEditLessonPageFactory
 {
-    private readonly IServiceProvider _serviceProvider = serviceProvider;
     private bool _isOpen;
 
     public bool IsOpen => _isOpen;
@@ -21,13 +20,16 @@ public class EditLessonPageFactory(IServiceProvider serviceProvider) : IEditLess
     {
         if (_isOpen) return;
         _isOpen = true;
-
         try
         {
-            var page = _serviceProvider.GetRequiredService<EditLessonPage>();
-            page.Initialize(lesson, preselectedDay, preselectedTime, activeTimelineId);
-            var nav = _serviceProvider.GetRequiredService<INavigationService>();
-            await nav.PushModalAsync(page);
+            var page = serviceProvider.GetRequiredService<EditLessonPage>();
+            var vm = serviceProvider.GetRequiredService<EditLessonViewModel>();
+
+            await vm.InitializeAsync(lesson, preselectedDay, preselectedTime, activeTimelineId);
+
+            page.BindingContext = vm;
+
+            await navigationService.PushModalAsync(page);
         }
         catch
         {

@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
 using WeeklySchedule.Extensions;
 using WeeklySchedule.Messaging;
@@ -10,62 +12,48 @@ using WeeklySchedule.Services;
 using WeeklySchedule.Utilities;
 
 namespace WeeklySchedule.ViewModels;
-
 public partial class GroupSelectionViewModel : BaseViewModel
 {
-    private readonly string _filePath;
-    private readonly bool _timelineExists;
-    private readonly Timeline _timeline;
     private readonly ILessonRepository _lessonRepo;
     private readonly ITimelineRepository _timelineRepo;
     private readonly INavigationService _navigationService;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly Action? _onImported;
+    private readonly ILogger<ExcelMIPTScheduleParser> _logger;
+    private string _filePath = string.Empty;
+    private bool _timelineExists;
+    private Timeline _timeline = null!;
+    private Action? _onImported;
 
     private GroupItem? _selectedGroup;
-    public ObservableCollection<GroupCategory> Categories { get; } = [];
-    public ICommand ToggleCategoryCommand { get; }
-    public ICommand SelectGroupCommand { get; }
 
-    private bool _isLoadingGroups;
-    public bool IsLoadingGroups
-    {
-        get => _isLoadingGroups;
-        set => SetProperty(ref _isLoadingGroups, value);
-    }
+    [ObservableProperty]
+    private bool _isLoadingGroups = true;
 
+    [ObservableProperty]
     private bool _isProcessing;
-    public bool IsProcessing
-    {
-        get => _isProcessing;
-        set => SetProperty(ref _isProcessing, value);
-    }
+
+    public ObservableCollection<GroupCategory> Categories { get; } = [];
 
     public GroupSelectionViewModel(
-        string filePath,
-        bool timelineExists,
-        Timeline timeline,
         ILessonRepository lessonRepo,
         ITimelineRepository timelineRepo,
         INavigationService navigationService,
-        IServiceProvider serviceProvider,
-        Action? onImported = null)
+        ILogger<ExcelMIPTScheduleParser> logger)
+    {
+        _lessonRepo = lessonRepo;
+        _timelineRepo = timelineRepo;
+        _navigationService = navigationService;
+        _logger = logger;
+    }
+    public void Initialize(string filePath, bool timelineExists, Timeline timeline, Action? onImported)
     {
         _filePath = filePath;
         _timelineExists = timelineExists;
         _timeline = timeline;
-        _lessonRepo = lessonRepo;
-        _timelineRepo = timelineRepo;
-        _navigationService = navigationService;
-        _serviceProvider = serviceProvider;
         _onImported = onImported;
-        ToggleCategoryCommand = new Command(ExecuteToggleCategory);
-        SelectGroupCommand = new Command(ExecuteSelectGroup);
-        IsLoadingGroups = true;
     }
-
-    public async Task InitializeAsync()
+    public async Task LoadDataAsync()
     {
+        IsLoadingGroups = true;
         try
         {
             List<string> groups = await Task.Run(() =>
@@ -84,8 +72,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
             {
                 var parts = g.Split(['-'], 2);
                 if (parts.Length != 2) continue;
+
                 var prefix = parts[0].Trim();
                 var suffix = parts[1].Trim();
+
                 if (!dict.ContainsKey(prefix)) dict[prefix] = [];
                 dict[prefix].Add(new GroupItem { FullGroupName = g, Suffix = suffix });
             }
@@ -97,16 +87,13 @@ public partial class GroupSelectionViewModel : BaseViewModel
                     Prefix = kvp.Key,
                     Groups = new ObservableCollection<GroupItem>(kvp.Value)
                 });
-                if (kvp.Key == dict.Keys.First())
-                {
-                    Categories[^1].IsExpanded = true;
-                }
+
+                if (kvp.Key == dict.Keys.First()) Categories[^1].IsExpanded = true;
             }
         }
         catch (Exception ex)
         {
-            if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync(AppResources.Error, string.Format(AppResources.FileReadError, ex.Message), AppResources.OK);
+            await ShowAlertAsync(AppResources.Error, string.Format(AppResources.FileReadError, ex.Message));
             await _navigationService.PopModalAsync();
         }
         finally
@@ -114,7 +101,11 @@ public partial class GroupSelectionViewModel : BaseViewModel
             IsLoadingGroups = false;
         }
     }
-    private void ExecuteToggleCategory(object? parameter)
+
+    #region Commands
+
+    [RelayCommand]
+    private void ToggleCategory(object? parameter)
     {
         if (parameter is not GroupCategory category) return;
         if (IsProcessing || IsLoadingGroups) return;
@@ -123,7 +114,8 @@ public partial class GroupSelectionViewModel : BaseViewModel
             c.IsExpanded = (c == category);
     }
 
-    private void ExecuteSelectGroup(object? parameter)
+    [RelayCommand]
+    private void SelectGroup(object? parameter)
     {
         if (parameter is not GroupItem group) return;
         if (IsProcessing || IsLoadingGroups) return;
@@ -140,6 +132,10 @@ public partial class GroupSelectionViewModel : BaseViewModel
         }
     }
 
+    #endregion
+
+    #region Private Logic
+
     private async Task ImportGroupAsync(GroupItem group)
     {
         IsProcessing = true;
@@ -147,7 +143,7 @@ public partial class GroupSelectionViewModel : BaseViewModel
         {
             List<Lesson> lessons = await Task.Run(() =>
             {
-                var parser = new ExcelMIPTScheduleParser(NullLogger<ExcelMIPTScheduleParser>.Instance);
+                var parser = new ExcelMIPTScheduleParser(_logger);
                 return parser.ParseGroupSchedule(_filePath, group.FullGroupName);
             });
 
@@ -166,32 +162,37 @@ public partial class GroupSelectionViewModel : BaseViewModel
                 await _lessonRepo.AddAsync(lesson);
             }
 
-            if (_timelineExists) await _timelineRepo.UpdateAsync(_timeline);
+            if (_timelineExists)
+                await _timelineRepo.UpdateAsync(_timeline);
+
             _onImported?.Invoke();
-            AppEvents.NotifyDataChanged();
+
+            WeakReferenceMessenger.Default.Send(new DataChangedMessage(null));
 
             await ShowAlertAsync(AppResources.ImportSuccessTitle, string.Format(AppResources.ImportCompleteMsg, lessons.Count));
-
             await SafeClosePagesAsync();
         }
         catch (Exception ex)
         {
-            if (Application.Current?.Windows[0]?.Page is Page page)
-                await page.DisplayAlertAsync(AppResources.Error, string.Format(AppResources.ImportScheduleError, ex.Message), AppResources.OK);
+            await ShowAlertAsync(AppResources.Error, string.Format(AppResources.ImportScheduleError, ex.Message));
         }
         finally
         {
             IsProcessing = false;
         }
+
         _selectedGroup?.IsSelected = false;
         _selectedGroup = null;
     }
+
+    #endregion
+
+    #region UI Helpers
 
     private static Task ShowAlertAsync(string title, string message)
     {
         var windows = Application.Current?.Windows;
         var page = (windows != null && windows.Count > 0) ? windows[0].Page : null;
-
         return page?.DisplayAlertAsync(title, message, AppResources.OK) ?? Task.CompletedTask;
     }
 
@@ -213,4 +214,6 @@ public partial class GroupSelectionViewModel : BaseViewModel
         }
         catch { }
     }
+
+    #endregion
 }

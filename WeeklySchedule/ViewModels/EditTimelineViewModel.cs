@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using CommunityToolkit.Mvvm.Messaging;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Input;
 using WeeklySchedule.Data.Repositories;
@@ -190,7 +191,7 @@ public partial class EditTimelineViewModel : BaseViewModel
             await _repository.AddAsync(_timeline);
 
         ApplyStartupSelection();
-        AppEvents.NotifyDataChanged();
+        WeakReferenceMessenger.Default.Send(new DataChangedMessage(null));
         await _navigationService.PopModalAsync();
     }
 
@@ -218,7 +219,7 @@ public partial class EditTimelineViewModel : BaseViewModel
                 Name = _timeline.Name;
                 Title = AppResources.EditTimeline;
                 ApplyStartupSelection();
-                AppEvents.NotifyDataChanged();
+                WeakReferenceMessenger.Default.Send(new DataChangedMessage(null));
             });
         }
         else
@@ -239,7 +240,7 @@ public partial class EditTimelineViewModel : BaseViewModel
                 _settingsService.StartupTimelineId = Guid.Empty;
 
             await _repository.DeleteAsync(_timeline.Id);
-            AppEvents.NotifyDataChanged();
+            WeakReferenceMessenger.Default.Send(new DataChangedMessage(null));
             await _navigationService.PopModalAsync();
         }
     }
@@ -347,7 +348,7 @@ public partial class EditTimelineViewModel : BaseViewModel
             }
 
             ApplyStartupSelection();
-            AppEvents.NotifyDataChanged();
+            WeakReferenceMessenger.Default.Send(new DataChangedMessage(null));
             await ShowPageAlertAsync(AppResources.ImportSuccessTitle, string.Format(AppResources.ImportSuccessMsg, importData.Lessons.Count));
         }
         catch (Exception ex)

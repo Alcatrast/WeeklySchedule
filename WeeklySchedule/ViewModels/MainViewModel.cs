@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Messaging;
 using System.Collections.ObjectModel;
 using WeeklySchedule.Core;
 using WeeklySchedule.Data.Repositories;
@@ -74,7 +75,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         _scheduleService.ActiveTimelineChanged += OnActiveTimelineChanged;
         _scheduler.OnTimeMarkerReached += OnTimeMarkerReached;
         _scheduler.OnDayChanged += OnDayChanged;
-        AppEvents.DataChanged += OnDataChanged;
+        WeakReferenceMessenger.Default.Register<DataChangedMessage>(this, (r, m) => OnDataChanged(m.Value));
         Application.Current!.RequestedThemeChanged += OnThemeChanged;
 
         InitializeDays();
@@ -83,7 +84,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
     private void OnSettingsChanged() => SafeFireAndForget.Run(ScheduleAllNotificationsAsync);
     private void OnNavigationRequested() => MainThread.BeginInvokeOnMainThread(CheckPendingNavigation);
     private void OnActiveTimelineChanged(Guid newTimelineId) { ++_notificationVersion; if (_startupCompleted) SafeFireAndForget.Run(ReloadActiveTimelineAsync); }
-    private void OnDataChanged(DayOfWeek? affectedDay) => SafeFireAndForget.Run(ReloadActiveTimelineAsync);
+    private void OnDataChanged(DayOfWeek? _) => SafeFireAndForget.Run(ReloadActiveTimelineAsync);
     private void OnTimeMarkerReached(DateTime now) => Days.FirstOrDefault(d => d.Date == now.Date)?.UpdateLayout(now, _allLessons);
     private void OnDayChanged() { _scheduler.RebuildQueue(); RollDaysWindow(); UpdateAllTitles(); UpdateAllDays(); }
     private void OnThemeChanged(object? sender, AppThemeChangedEventArgs e) { OnPropertyChanged(nameof(CurrentTheme)); UpdateAllDays(); }
@@ -95,7 +96,7 @@ public partial class MainViewModel : BaseViewModel, IDisposable
         _scheduleService.ActiveTimelineChanged -= OnActiveTimelineChanged;
         _scheduler.OnTimeMarkerReached -= OnTimeMarkerReached;
         _scheduler.OnDayChanged -= OnDayChanged;
-        AppEvents.DataChanged -= OnDataChanged;
+        WeakReferenceMessenger.Default.Unregister<DataChangedMessage>(this);
         Application.Current?.RequestedThemeChanged -= OnThemeChanged;
         _scheduler.Stop();
         GC.SuppressFinalize(this);

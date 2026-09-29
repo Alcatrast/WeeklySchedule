@@ -1,5 +1,5 @@
-﻿using WeeklySchedule.Data.Repositories;
-using WeeklySchedule.Models;
+﻿using WeeklySchedule.Models;
+using WeeklySchedule.ViewModels;
 using WeeklySchedule.Views;
 
 namespace WeeklySchedule.Services;
@@ -12,25 +12,22 @@ public interface IGroupSelectionPageFactory
 public class GroupSelectionPageFactory : IGroupSelectionPageFactory
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly INavigationService _navigationService;
 
-    public GroupSelectionPageFactory(IServiceProvider serviceProvider)
+    public GroupSelectionPageFactory(IServiceProvider serviceProvider, INavigationService navigationService)
     {
         _serviceProvider = serviceProvider;
+        _navigationService = navigationService;
     }
 
     public async Task OpenAsync(string filePath, bool timelineExists, Timeline timeline, Action? onImported = null)
     {
-        var page = new GroupSelectionPage(
-            filePath,
-            timelineExists,
-            timeline,
-            _serviceProvider.GetRequiredService<ILessonRepository>(),
-            _serviceProvider.GetRequiredService<ITimelineRepository>(),
-            _serviceProvider.GetRequiredService<INavigationService>(),
-            _serviceProvider,
-            onImported);
+        var page = _serviceProvider.GetRequiredService<GroupSelectionPage>();
+        var vm = _serviceProvider.GetRequiredService<GroupSelectionViewModel>();
 
-        var nav = _serviceProvider.GetRequiredService<INavigationService>();
-        await nav.PushModalAsync(page);
+        vm.Initialize(filePath, timelineExists, timeline, onImported);
+        page.BindingContext = vm;
+
+        await _navigationService.PushModalAsync(page);
     }
 }
